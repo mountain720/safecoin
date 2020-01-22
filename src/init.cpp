@@ -757,6 +757,66 @@ void ThreadNotifyRecentlyAdded()
     }
 }
 
+
+/* declarations needed for ThreadUpdateKomodoInternals */
+void safecoin_passport_iteration();
+void safecoin_cbopretupdate(int32_t forceflag);
+
+void ThreadUpdateSafecoinInternals() {
+    RenameThread("int-updater");
+
+    boost::signals2::connection c = uiInterface.NotifyBlockTip.connect(
+        [](const uint256& hashNewTip) mutable {
+            CBlockIndex* pblockindex = mapBlockIndex[hashNewTip];
+            std::cerr << __FUNCTION__ << ": NotifyBlockTip " << hashNewTip.ToString() << " - " << pblockindex->GetHeight() << std::endl;
+        }
+        );
+
+    try {
+        while (true) {
+            // Run the updater on an integer second in the steady clock.
+            auto now = std::chrono::steady_clock::now().time_since_epoch();
+            auto nextFire = std::chrono::duration_cast<std::chrono::seconds>(
+                now + std::chrono::seconds(1));
+            std::this_thread::sleep_until(
+                std::chrono::time_point<std::chrono::steady_clock>(nextFire));
+
+            boost::this_thread::interruption_point();
+
+            AssertLockHeld(cs_main);
+            AssertLockHeld(pwalletMain->cs_wallet);
+
+            if ( ASSETCHAINS_SYMBOL[0] == 0 )
+                {
+                    if ( SAFECOIN_NSPV_FULLNODE ) {
+                        auto start = std::chrono::high_resolution_clock::now();
+                        safecoin_passport_iteration(); // call komodo_interestsum() inside (possible locks)
+                        auto finish = std::chrono::high_resolution_clock::now();
+                        std::chrono::duration<double, std::milli> elapsed = finish - start;
+                        std::cerr << __FUNCTION__ << ": komodo_passport_iteration -> Elapsed Time: " << elapsed.count() << " seconds" << std::endl;
+                    }
+                }
+            else
+                {
+                    if ( ASSETCHAINS_CBOPRET != 0 )
+                        safecoin_cbopretupdate(0);
+                }
+        }
+    }
+    catch (const boost::thread_interrupted&) {
+        std::cerr << "ThreadUpdateKomodoInternals() interrupted" << std::endl;
+        c.disconnect();
+        throw;
+    }
+    catch (const std::exception& e) {
+        PrintExceptionContinue(&e, "ThreadUpdateKomodoInternals()");
+    }
+    catch (...) {
+        PrintExceptionContinue(NULL, "ThreadUpdateKomodoInternals()");
+    }
+
+}
+
 /** Sanity checks
  *  Ensure that Bitcoin is running in a usable environment with all
  *  necessary library support.
@@ -2005,6 +2065,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // recently added to the mempool.
     threadGroup.create_thread(boost::bind(&TraceThread<void (*)()>, "txnotify", &ThreadNotifyRecentlyAdded));
 
+   // Start the thread that updates komodo internal structures
+    threadGroup.create_thread(&ThreadUpdateSafecoinInternals);
+
+    
     if (GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION))
         StartTorControl(threadGroup, scheduler);
 
