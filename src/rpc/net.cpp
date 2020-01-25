@@ -198,6 +198,14 @@ int32_t safecoin_longestchain()
         depth = 0;
     if ( depth == 0 )
     {
+
+        TRY_LOCK(cs_main, lockMain); // Acquire cs_main
+        if (!lockMain) {
+            std::cerr << __FUNCTION__ << ": can't acquire cs_main!" << std::endl;
+            return(KOMODO_LONGESTCHAIN);
+        }
+        std::cerr << __FUNCTION__ << ": acquire cs_main success!" << std::endl;
+
         depth++;
         vector<CNodeStats> vstats;
         {
