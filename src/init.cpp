@@ -791,9 +791,6 @@ void ThreadUpdateSafecoinInternals() {
 
             boost::this_thread::interruption_point();
 
-            AssertLockHeld(cs_main);
-            AssertLockHeld(pwalletMain->cs_wallet);
-
             if ( ASSETCHAINS_SYMBOL[0] == 0 )
                 {
                     if ( SAFECOIN_NSPV_FULLNODE ) {
