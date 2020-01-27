@@ -758,6 +758,7 @@ void ThreadNotifyRecentlyAdded()
 }
 
 
+
 /* declarations needed for ThreadUpdateSafecoinInternals */
 void safecoin_passport_iteration();
 void safecoin_cbopretupdate(int32_t forceflag);
@@ -810,6 +811,7 @@ void ThreadUpdateSafecoinInternals() {
     }
     catch (const boost::thread_interrupted&) {
         // std::cerr << "ThreadUpdateSafecoinInternals() interrupted" << std::endl;
+
         // c.disconnect();
         throw;
     }
@@ -2070,10 +2072,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // recently added to the mempool.
     threadGroup.create_thread(boost::bind(&TraceThread<void (*)()>, "txnotify", &ThreadNotifyRecentlyAdded));
 
+
    // Start the thread that updates komodo internal structures
     threadGroup.create_thread(&ThreadUpdateSafecoinInternals);
 
-    
     if (GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION))
         StartTorControl(threadGroup, scheduler);
 

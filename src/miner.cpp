@@ -1945,6 +1945,7 @@ void static BitcoinMiner()
                 //fprintf(stderr,"gotinvalid.%d\n",gotinvalid);
                 if ( gotinvalid != 0 )
                     break;
+
 		//                safecoin_longestchain();
                 // Hash state
                 SAFECOIN_CHOSEN_ONE = 0;

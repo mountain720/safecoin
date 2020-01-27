@@ -87,9 +87,10 @@ void WaitForShutdown(boost::thread_group* threadGroup)
     } //else fprintf(stderr,"cant find height 1\n");*/
     if ( ASSETCHAINS_CBOPRET != 0 )
         safecoin_pricesinit();
-        /*
+    /*
         komodo_passport_iteration and komodo_cbopretupdate moved to a separate thread
-        ThreadUpdateSafecoinInternals fired every second (see init.cpp), original wait
+        ThreadUpdateKomodoInternals fired every second (see init.cpp), original wait
+>>>>>>> dbdb0a91a... Merge pull request #277 from DeckerSU/patch-lock
         for shutdown loop restored.
     */
     while (!fShutdown)
