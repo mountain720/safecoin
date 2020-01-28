@@ -1947,6 +1947,7 @@ void static BitcoinMiner()
                     break;
 
 		//                safecoin_longestchain();
+
                 // Hash state
                 SAFECOIN_CHOSEN_ONE = 0;
 

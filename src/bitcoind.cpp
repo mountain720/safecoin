@@ -90,7 +90,6 @@ void WaitForShutdown(boost::thread_group* threadGroup)
     /*
         komodo_passport_iteration and komodo_cbopretupdate moved to a separate thread
         ThreadUpdateKomodoInternals fired every second (see init.cpp), original wait
->>>>>>> dbdb0a91a... Merge pull request #277 from DeckerSU/patch-lock
         for shutdown loop restored.
     */
     while (!fShutdown)

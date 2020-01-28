@@ -80,6 +80,7 @@ int8_t StakedNotaryID(std::string &notaryname, char *Raddress);
 uint64_t safecoin_notarypayamount(int32_t nHeight, int64_t notarycount);
 int32_t safecoin_notaries(uint8_t pubkeys[64][33],int32_t height,uint32_t timestamp);
 
+
 #define SAFECOIN_VERSION "2.0.6"
 #define VERUS_VERSION "0.4.0g"
 extern uint16_t ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT;

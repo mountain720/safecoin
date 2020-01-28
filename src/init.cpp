@@ -759,6 +759,7 @@ void ThreadNotifyRecentlyAdded()
 
 
 
+
 /* declarations needed for ThreadUpdateSafecoinInternals */
 void safecoin_passport_iteration();
 void safecoin_cbopretupdate(int32_t forceflag);
@@ -794,6 +795,7 @@ void ThreadUpdateSafecoinInternals() {
 
             if ( ASSETCHAINS_SYMBOL[0] == 0 )
                 {
+
                     if ( SAFECOIN_NSPV_FULLNODE ) {
                         auto start = std::chrono::high_resolution_clock::now();
                         safecoin_passport_iteration(); // call komodo_interestsum() inside (possible locks)
@@ -805,6 +807,7 @@ void ThreadUpdateSafecoinInternals() {
             else
                 {
                     if ( ASSETCHAINS_CBOPRET != 0 )
+
                         safecoin_cbopretupdate(0);
                 }
         }
@@ -816,6 +819,7 @@ void ThreadUpdateSafecoinInternals() {
         throw;
     }
     catch (const std::exception& e) {
+
         PrintExceptionContinue(&e, "ThreadUpdateSafecoinInternals()");
     }
     catch (...) {
@@ -2075,6 +2079,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
    // Start the thread that updates komodo internal structures
     threadGroup.create_thread(&ThreadUpdateSafecoinInternals);
+
 
     if (GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION))
         StartTorControl(threadGroup, scheduler);
