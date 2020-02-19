@@ -6,14 +6,21 @@ src/zcash-cli
 src/zcash-gtest
 src/zcash-tx
 src/test/test_bitcoin
+<<<<<<< HEAD
 src/wallet-utility
 src/pubkey.txt
+=======
+>>>>>>> c00e1b310... komodo 0.5.2
 
 *zcashTest.pk
 *zcashTest.vk
 
 # autoreconf
+<<<<<<< HEAD
 Makefile.in
+=======
+#Makefile.in
+>>>>>>> c00e1b310... komodo 0.5.2
 aclocal.m4
 autom4te.cache/
 build-aux/config.guess
@@ -31,7 +38,11 @@ build-aux/compile
 build-aux/test-driver
 config.log
 config.status
+<<<<<<< HEAD
 configure
+=======
+#configure
+>>>>>>> c00e1b310... komodo 0.5.2
 libtool
 src/config/bitcoin-config.h
 src/config/bitcoin-config.h.in
@@ -114,6 +125,7 @@ contrib/debian/files
 contrib/debian/substvars
 
 src/rpcmisc~.cpp
+<<<<<<< HEAD
 src/safecoin-cli
 src/safecoind
 src/safecoin-tx
@@ -122,9 +134,52 @@ src/wallet-utility
 src/safecoin-cli.exe
 src/safecoind.exe
 src/safecoin-tx.exe
+=======
+src/komodo-cli
+src/komodod
+src/komodo-tx
+src/komodo-test
+src/wallet-utility
+src/komodo-cli.exe
+src/komodod.exe
+src/komodo-tx.exe
+>>>>>>> c00e1b310... komodo 0.5.2
 
 #output during builds, symbol tables?
 *.dSYM
 
 
 src/cryptoconditions/compile
+<<<<<<< HEAD
+=======
+
+src/cc/rogue/rogue
+
+src/cc/rogue/rogue.so
+
+src/cc/rogue/test.zip
+src/cc/dapps/a.out
+src/checkfile
+
+src/foo.zip
+
+src/log
+
+src/rogue.530623577502174316.0
+
+src/rogue.530623577502174316.pack
+
+src/rogue.530623577502174316.player
+
+
+src/cc/rogue/config.h
+
+src/ROGUE.conf
+
+src/rogue.scr
+
+src/cc/rogue/confdefs.h
+src/cc/rogue/x64
+
+src/cc/dapps/a.out
+>>>>>>> c00e1b310... komodo 0.5.2
