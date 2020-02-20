@@ -206,6 +206,8 @@ extern std::string experimentalDisabledHelpMsg(const std::string& rpc, const std
 extern UniValue getconnectioncount(const UniValue& params, bool fHelp, const CPubKey& mypk); // in rpcnet.cpp
 extern UniValue getaddressmempool(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue getaddressutxos(const UniValue& params, bool fHelp, const CPubKey& mypk);
+extern UniValue listutxos(const UniValue& params, bool fHelp, const CPubKey& mypk);
+extern UniValue listfromto(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue getaddressdeltas(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue getaddresstxids(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue getsnapshot(const UniValue& params, bool fHelp, const CPubKey& mypk);
@@ -409,6 +411,10 @@ extern UniValue getblockchaininfo(const UniValue& params, bool fHelp, const CPub
 extern UniValue getnetworkinfo(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue getdeprecationinfo(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue setmocktime(const UniValue& params, bool fHelp, const CPubKey& mypk);
+extern UniValue getnodeinfo(const UniValue& params, bool fHelp, const CPubKey& mypk);
+extern UniValue getcollateralinfo(const UniValue& params, bool fHelp, const CPubKey& mypk);
+extern UniValue getregistrationinfo(const UniValue& params, bool fHelp, const CPubKey& mypk);
+extern UniValue getactivenodes(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue resendwallettransactions(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue zc_benchmark(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue zc_raw_keygen(const UniValue& params, bool fHelp, const CPubKey& mypk);
@@ -523,6 +529,7 @@ extern UniValue migrate_createnotaryapprovaltransaction(const UniValue& params, 
 
 extern UniValue notaries(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue minerids(const UniValue& params, bool fHelp, const CPubKey& mypk);
+extern UniValue safeids(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue kvsearch(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue kvupdate(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue paxprice(const UniValue& params, bool fHelp, const CPubKey& mypk);

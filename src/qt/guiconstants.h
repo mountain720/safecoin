@@ -46,7 +46,7 @@ static const int MAX_URI_LENGTH = 255;
 
 #define QAPP_ORG_NAME "Bitcoin"
 #define QAPP_ORG_DOMAIN "bitcoin.org"
-#define QAPP_APP_NAME_DEFAULT "Komodo-Qt"
-#define QAPP_APP_NAME_TESTNET "Komodo-Qt-testnet"
+#define QAPP_APP_NAME_DEFAULT "Safecoin-Qt"
+#define QAPP_APP_NAME_TESTNET "Safecoin-Qt-testnet"
 
 #endif // BITCOIN_QT_GUICONSTANTS_H

@@ -11,8 +11,8 @@ int GetSymbolAuthority(const char* symbol)
         //printf("RETURNED CROSSCHAIN STAKED AS TRUE\n");
         return CROSSCHAIN_STAKED;
     }
-    //printf("RETURNED CROSSCHAIN KOMODO AS TRUE\n");
-    return CROSSCHAIN_KOMODO;
+    //printf("RETURNED CROSSCHAIN SAFECOIN AS TRUE\n");
+    return CROSSCHAIN_SAFECOIN;
 }
 
 

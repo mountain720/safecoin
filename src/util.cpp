@@ -30,7 +30,7 @@
 #include "sync.h"
 #include "utilstrencodings.h"
 #include "utiltime.h"
-#include "komodo_defs.h"
+#include "safecoin_defs.h"
 
 #include <stdarg.h>
 #include <sstream>
@@ -122,6 +122,7 @@ map<string, vector<string> > mapMultiArgs;
 bool fDebug = false;
 bool fPrintToConsole = false;
 bool fPrintToDebugLog = true;
+bool fLimitDebugLogSize = true;
 bool fDaemon = false;
 bool fServer = false;
 string strMiscWarning;
@@ -224,6 +225,11 @@ static void DebugPrintInit()
     vMsgsBeforeOpenLog = new list<string>;
 }
 
+boost::filesystem::path GetDebugLogPath()
+{
+    return GetDataDir() / "debug.log";
+}
+
 void OpenDebugLog()
 {
     boost::call_once(&DebugPrintInit, debugPrintInitFlag);
@@ -324,6 +330,9 @@ int LogPrintStr(const std::string &str)
         }
         else
         {
+            // prevent log from endless growth
+            if (fLimitDebugLogSize)
+                ShrinkDebugFile();
             // reopen the log file, if requested
             if (fReopenDebugLog) {
                 fReopenDebugLog = false;
@@ -510,7 +519,7 @@ static std::string FormatException(const std::exception* pex, const char* pszThr
     char pszModule[MAX_PATH] = "";
     GetModuleFileNameA(NULL, pszModule, sizeof(pszModule));
 #else
-    const char* pszModule = "Komodo";
+    const char* pszModule = "Safecoin";
 #endif
     if (pex)
         return strprintf(
@@ -528,18 +537,22 @@ void PrintExceptionContinue(const std::exception* pex, const char* pszThread)
     strMiscWarning = message;
 }
 
-extern char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN];
+extern char ASSETCHAINS_SYMBOL[SAFECOIN_ASSETCHAIN_MAXLEN];
 //int64_t MAX_MONEY = 200000000 * 100000000LL;
 
 boost::filesystem::path GetDefaultDataDir()
 {
     namespace fs = boost::filesystem;
-    char symbol[KOMODO_ASSETCHAIN_MAXLEN];
-    if ( ASSETCHAINS_SYMBOL[0] != 0 ){
+    char symbol[SAFECOIN_ASSETCHAIN_MAXLEN];
+    if ( ASSETCHAINS_SYMBOL[0] != 0 )
+    {
         strcpy(symbol,ASSETCHAINS_SYMBOL);
     }
+    else
+    {
+        symbol[0] = 0;
+    }
     
-    else symbol[0] = 0;
     // Windows < Vista: C:\Documents and Settings\Username\Application Data\Zcash
     // Windows >= Vista: C:\Users\Username\AppData\Roaming\Zcash
     // Mac: ~/Library/Application Support/Zcash
@@ -547,8 +560,8 @@ boost::filesystem::path GetDefaultDataDir()
 #ifdef _WIN32
     // Windows
     if ( symbol[0] == 0 )
-        return GetSpecialFolderPath(CSIDL_APPDATA) / "Komodo";
-    else return GetSpecialFolderPath(CSIDL_APPDATA) / "Komodo" / symbol;
+        return GetSpecialFolderPath(CSIDL_APPDATA) / "Safecoin";
+    else return GetSpecialFolderPath(CSIDL_APPDATA) / "Safecoin" / symbol;
 #else
     fs::path pathRet;
     char* pszHome = getenv("HOME");
@@ -561,18 +574,18 @@ boost::filesystem::path GetDefaultDataDir()
     pathRet /= "Library/Application Support";
     TryCreateDirectory(pathRet);
     if ( symbol[0] == 0 )
-        return pathRet / "Komodo";
+        return pathRet / "Safecoin";
     else
     {
-        pathRet /= "Komodo";
+        pathRet /= "Safecoin";
         TryCreateDirectory(pathRet);
         return pathRet / symbol;
     }
 #else
     // Unix
     if ( symbol[0] == 0 )
-        return pathRet / ".komodo";
-    else return pathRet / ".komodo" / symbol;
+        return pathRet / ".safecoin";
+    else return pathRet / ".safecoin" / symbol;
 #endif
 #endif
 }
@@ -697,9 +710,9 @@ boost::filesystem::path GetConfigFile()
     else
     {
 #ifdef __APPLE__
-        strcpy(confname,"Komodo.conf");
+        strcpy(confname,"Safecoin.conf");
 #else
-        strcpy(confname,"komodo.conf");
+        strcpy(confname,"safecoin.conf");
 #endif
     }
     boost::filesystem::path pathConfigFile(GetArg("-conf",confname));
@@ -714,16 +727,16 @@ boost::filesystem::path GetConfigFile()
 void ReadConfigFile(map<string, string>& mapSettingsRet,
                     map<string, vector<string> >& mapMultiSettingsRet)
 {
-
     boost::filesystem::ifstream streamConfig(GetConfigFile());
     if (!streamConfig.good())
         throw missing_zcash_conf();
+
     set<string> setOptions;
     setOptions.insert("*");
 
     for (boost::program_options::detail::config_file_iterator it(streamConfig, setOptions), end; it != end; ++it)
     {
-        // Don't overwrite existing settings so command line settings override komodo.conf
+        // Don't overwrite existing settings so command line settings override safecoin.conf
         string strKey = string("-") + it->string_key;
         if (mapSettingsRet.count(strKey) == 0)
         {
@@ -742,7 +755,7 @@ void ReadConfigFile(map<string, string>& mapSettingsRet,
 #ifndef _WIN32
 boost::filesystem::path GetPidFile()
 {
-    boost::filesystem::path pathPidFile(GetArg("-pid", "komodod.pid"));
+    boost::filesystem::path pathPidFile(GetArg("-pid", "safecoind.pid"));
     if (!pathPidFile.is_complete()) pathPidFile = GetDataDir() / pathPidFile;
     return pathPidFile;
 }

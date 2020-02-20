@@ -13,18 +13,18 @@
  *                                                                            *
  ******************************************************************************/
 
-How to write utxo based CryptoConditions contracts for KMD chains
+How to write utxo based CryptoConditions contracts for SAFE chains
 by jl777
 
-This is not the only smart contracts methodology that is possible to build on top of OP_CHECKCRYPTOCONDITION, just the first one. All the credit for getting OP_CHECKCRYPTOCONDITION working in the Komodo codebase goes to @libscott. I am just hooking into the code that he made and tried to make it just a little easier to make new contracts.
+This is not the only smart contracts methodology that is possible to build on top of OP_CHECKCRYPTOCONDITION, just the first one. All the credit for getting OP_CHECKCRYPTOCONDITION working in the Safecoin codebase goes to @libscott. I am just hooking into the code that he made and tried to make it just a little easier to make new contracts.
 
-There is probably some fancy marketing name to use, but for now, I will just call it "CC contract" for short, knowing that it is not 100% technically accurate as the CryptoConditions aspect is not really the main attribute. However, the KMD contracts were built to make the CryptoConditions codebase that was integrated into it to be more accessible.
+There is probably some fancy marketing name to use, but for now, I will just call it "CC contract" for short, knowing that it is not 100% technically accurate as the CryptoConditions aspect is not really the main attribute. However, the SAFE contracts were built to make the CryptoConditions codebase that was integrated into it to be more accessible.
 
 Since CC contracts run native C/C++ code, it is turing complete and that means that any contract that is possible to do on any other platform will be possible to create via CC contract.
 
 utxo based contracts are a bit harder to start writing than for balance based contracts. However, they are much more secure as they leverage the existing bitcoin utxo system. That makes it much harder to have bugs that issue a zillion new coins from a bug, since all the CC contract operations needs to also obey the existing bitcoin utxo protocol.
 
-This document will be heavily example based so it will utilize many of the existing reference CC contracts. After understanding this document, you should be in a good position to start creating either a new CC contract to be integrated into komodod or to make rpc based dapps directly.
+This document will be heavily example based so it will utilize many of the existing reference CC contracts. After understanding this document, you should be in a good position to start creating either a new CC contract to be integrated into safecoind or to make rpc based dapps directly.
 
 Chapter 0 - Bitcoin Protocol Basics
 There are many aspects of the bitcoin protocol that isnt needed to understand the CC contracts dependence on it. Such details will not be discussed. The primary aspect is the utxo, unspent transaction output. Just a fancy name for txid/vout, so when you sendtoaddress some coins, it creates a txid and the first output is vout.0, combine it and txid/0 is a specific utxo.
@@ -83,7 +83,7 @@ However, this is the CC contract basics chapter, so let us ignore mempool issues
 
 That means to just follow a known working template and only changing the things where the existing templates are not sufficient, ie. the core differentiator of your CC contract.
 
-In the ~/komodo/src/cc/eval.h file all the eval codes are defined, currently:
+In the ~/safecoin/src/cc/eval.h file all the eval codes are defined, currently:
 
 #define FOREACH_EVAL(EVAL)             \
 EVAL(EVAL_IMPORTPAYOUT, 0xe1)  \
@@ -151,7 +151,7 @@ Ultimately the CC contract is all about how it constrains its inputs, but before
 Chapter 4 - CC rpc extensions
 Currently, CC contracts need to be integrated at the source level. This limits who is able to create and add new CC contracts, which at first is good, but eventually will be a too strict limitation. The runtime bindings chapter will touch on how to break out of the source based limitation, but there is another key interface level, the RPC.
 
-By convention, each CC contract adds an associated set of rpc calls to the komodo-cli. This not only simplifies the creation of the CC contract transactions, it further will allow dapps to be created just via rpc calls. That will require there being enough foundational CC contracts already in place. As we find new usecases that cannot be implemented via rpc, then a new CC contract is made that can handle that (and more) and the power of the rpc level increases. This is a long term process.
+By convention, each CC contract adds an associated set of rpc calls to the safecoin-cli. This not only simplifies the creation of the CC contract transactions, it further will allow dapps to be created just via rpc calls. That will require there being enough foundational CC contracts already in place. As we find new usecases that cannot be implemented via rpc, then a new CC contract is made that can handle that (and more) and the power of the rpc level increases. This is a long term process.
 
 The typical rpc calls that are added <CC>address, <CClist>, <CCinfo> return the various special CC addresses, the list of CC contract instances and info about each CC contract instance. Along with an rpc that creates a CC instance and of course the calls to invoke a CC instance.
 
@@ -200,7 +200,7 @@ You do need to be careful not to cause a deadlock as the CC validation code is c
 Chapter 6 - faucet example
 Finally, we are ready for the first actual example of a CC contract. The faucet. This is a very simple contract and it ran into some interesting bugs in the first incarnation.
 
-The code in ~/komodo/src/cc/faucet.cpp is the ultimate documentation for it with all the details, so I will just address the conceptual issues here.
+The code in ~/safecoin/src/cc/faucet.cpp is the ultimate documentation for it with all the details, so I will just address the conceptual issues here.
 
 The idea is that people send funds to the faucet by locking it in faucet's global CC address and anybody is allowed to create a faucetget transaction that spends it.
 
@@ -227,9 +227,9 @@ faucetfund calls FaucetFund
 faucetget calls FaucetGet
 faucetinfo calls FaucetInfo
 
-Now you might not be a programmer, but I hope you are able to understand the above sequence. user types in a cli call, komodo-cli processes it by calling the rpc function, which in turn calls the function inside faucet.cpp
+Now you might not be a programmer, but I hope you are able to understand the above sequence. user types in a cli call, safecoin-cli processes it by calling the rpc function, which in turn calls the function inside faucet.cpp
 
-No magic, just simple conversion of a user command line call that runs code inside the komodod. Both the faucetfund and faucetget create properly signed rawtransaction that is ready to be broadcast to the network using the standard sendrawtransaction rpc. It doesnt automatically do this to allow the GUI to have a confirmation step with all the details before doing an irrevocable CC contract transaction.
+No magic, just simple conversion of a user command line call that runs code inside the safecoind. Both the faucetfund and faucetget create properly signed rawtransaction that is ready to be broadcast to the network using the standard sendrawtransaction rpc. It doesnt automatically do this to allow the GUI to have a confirmation step with all the details before doing an irrevocable CC contract transaction.
 
 faucetfund allows anybody to add funds to the faucet
 faucetget allows anybody to get 0.1 coins from the faucet as long as they dont violate the rules.
@@ -238,7 +238,7 @@ And we come to what it is all about. The rules of the faucet. Initially it was m
 
 To make it much harder to leech, it was made so each faucetget returned only 0.1 coins (down from 1.0) so it was worth 90% less. It was also made so that it had to be to a fresh address with less than 3 transactions. Finally each txid was constrained to start and end with 00! This is a cool trick to force usage of precious CPU time (20 to 60 seconds depending on system) to generate a valid txid. Like PoW mining for the txid and I expect other CC contracts to use a similar mechanism if they want to rate limit usage.
 
-Combined, it became such a pain to get 0.1 coins, the faucet leeching problem was solved. It might not seem like too much trouble to change an address to get another 0.1 coins, but the way things are setup you need to launch the komodod -pubkey=<your pubkey> to change the pubkey that is active for a node. That means to change the pubkey being used, the komodod needs to be restarted and this creates a lot of issues for any automation trying to do this. Combined with the PoW required, only when 0.1 coins becomes worth a significant effort will faucet leeching return. In that case, the PoW requirement can be increased and coin amount decreased, likely with a faucet2 CC contract as I dont expect many such variations to be needed.
+Combined, it became such a pain to get 0.1 coins, the faucet leeching problem was solved. It might not seem like too much trouble to change an address to get another 0.1 coins, but the way things are setup you need to launch the safecoind -pubkey=<your pubkey> to change the pubkey that is active for a node. That means to change the pubkey being used, the safecoind needs to be restarted and this creates a lot of issues for any automation trying to do this. Combined with the PoW required, only when 0.1 coins becomes worth a significant effort will faucet leeching return. In that case, the PoW requirement can be increased and coin amount decreased, likely with a faucet2 CC contract as I dont expect many such variations to be needed.
 
 Chapter 7 - rewards example
 The next CC contract in complexity is the rewards CC contract. This is designed to capture what most people like about masternodes, without anything else, ie. the rewards!
@@ -652,9 +652,9 @@ Our testing cycle went a lot faster than expected as the bugs found were few and
 Yes, blockchains are complicated.
 
 Chapter 13 - different languages
-The current codebase is integrated into the komodod codebase, which is C/C++. However, it is possible to use different languages and integrate into the C/C++ as zcash has shown by using the rust language for some parts of the zcashd.
+The current codebase is integrated into the safecoind codebase, which is C/C++. However, it is possible to use different languages and integrate into the C/C++ as zcash has shown by using the rust language for some parts of the zcashd.
 
-I think any language that is compiled and can create a linkable library while being able to call and be called by C/C++ functions can be used. If you are able to make such a language binding for a simple CC contract like faucet, this will be good for a 777 KMD bounty. Of course, you need to be the first to submit a properly working pull request.
+I think any language that is compiled and can create a linkable library while being able to call and be called by C/C++ functions can be used. If you are able to make such a language binding for a simple CC contract like faucet, this will be good for a 777 SAFE bounty. Of course, you need to be the first to submit a properly working pull request.
 
 
 Chapter 14 - runtime bindings
@@ -676,7 +676,7 @@ This codebase and tools in between the GUI and the rpc level will be a very good
 ##########
 
 Conclusion
-I hope this document has helped you understand what a Komodo utxo based CC contract is and how it is different from the other smart contracts. If you are now able to dive into the cc directory and start making your own CC contract, then I am very happy!
+I hope this document has helped you understand what a Safecoin utxo based CC contract is and how it is different from the other smart contracts. If you are now able to dive into the cc directory and start making your own CC contract, then I am very happy!
 
 
 gateways CC

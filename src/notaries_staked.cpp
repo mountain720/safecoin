@@ -2,7 +2,7 @@
 #include "notaries_staked.h"
 #include "crosschain.h"
 #include "cc/CCinclude.h"
-#include "komodo_defs.h"
+#include "safecoin_defs.h"
 #include <cstring>
 
 extern pthread_mutex_t staked_mutex;
@@ -64,7 +64,7 @@ int8_t numStakedNotaries(uint8_t pubkeys[64][33],int8_t era) {
     if ( ChainName[0] == 0 )
     {
         if ( ASSETCHAINS_SYMBOL[0] == 0 )
-            strcpy(ChainName,"KMD");
+            strcpy(ChainName,"SAFE");
         else
             strcpy(ChainName,ASSETCHAINS_SYMBOL);
     }

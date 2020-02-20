@@ -1,13 +1,13 @@
 /*
  simple stub custom cc
  
- Just update the functions in this file, then from ~/komodo/src/cc
+ Just update the functions in this file, then from ~/safecoin/src/cc
  
- ../komodo-cli -ac_name=CUSTOM stop
+ ../safecoin-cli -ac_name=CUSTOM stop
  ./makecustom
- ../komodod -ac_name=CUSTOM -ac_cclib=custom -ac_cc=2 ...
+ ../safecoind -ac_name=CUSTOM -ac_cclib=custom -ac_cc=2 ...
  
- The above will rebuild komodod and get it running again
+ The above will rebuild safecoind and get it running again
  */
 
 CScript custom_opret(uint8_t funcid,CPubKey pk)
@@ -57,7 +57,7 @@ UniValue custom_func0(uint64_t txfee,struct CCcontract_info *cp,cJSON *params)
 
 UniValue custom_func1(uint64_t txfee,struct CCcontract_info *cp,cJSON *params)
 {
-    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), komodo_nextheight()); std::string rawtx;
+    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), safecoin_nextheight()); std::string rawtx;
     UniValue result(UniValue::VOBJ); CPubKey mypk; int64_t amount = COIN; int32_t broadcastflag=0;
     if ( txfee == 0 )
         txfee = CUSTOM_TXFEE;

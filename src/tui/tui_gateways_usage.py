@@ -16,9 +16,9 @@ header = "\
 menuItems = [
     {"Check connection to assetchain": tuilib.getinfo_tui},
     {"Check assetchain mempool": tuilib.print_mempool},
-    {"Check connection to KMD": tuilib.getinfo_tui},
-    {"Connect to KMD daemon": tuilib.rpc_kmd_connection_tui},
-    {"Send KMD gateway deposit transaction": tuilib.gateways_send_kmd},
+    {"Check connection to SAFE": tuilib.getinfo_tui},
+    {"Connect to SAFE daemon": tuilib.rpc_safe_connection_tui},
+    {"Send SAFE gateway deposit transaction": tuilib.gateways_send_safe},
     {"Execute gateways deposit": tuilib.gateways_deposit_tui},
     {"Execute gateways claim": tuilib.gateways_claim_tui},
     {"Execute gateways withdrawal": tuilib.gateways_withdrawal_tui},
@@ -39,36 +39,36 @@ def main():
             # Call the matching function
             if list(menuItems[int(choice)].keys())[0] == "Exit":
                 list(menuItems[int(choice)].values())[0]()
-            # We have to call KMD specific functions with connection to KMD daemon
-            elif list(menuItems[int(choice)].keys())[0] == "Connect to KMD daemon":
-                rpc_connection_kmd = list(menuItems[int(choice)].values())[0]()
-            elif list(menuItems[int(choice)].keys())[0] == "Check connection to KMD":
+            # We have to call SAFE specific functions with connection to SAFE daemon
+            elif list(menuItems[int(choice)].keys())[0] == "Connect to SAFE daemon":
+                rpc_connection_safe = list(menuItems[int(choice)].values())[0]()
+            elif list(menuItems[int(choice)].keys())[0] == "Check connection to SAFE":
                 while True:
                     try:
-                        list(menuItems[int(choice)].values())[0](rpc_connection_kmd)
+                        list(menuItems[int(choice)].values())[0](rpc_connection_safe)
                         break
                     except Exception as e:
-                        print("Please connect to KMD daemon first!")
+                        print("Please connect to SAFE daemon first!")
                         input("Press [Enter] to continue...")
                         break
-            elif list(menuItems[int(choice)].keys())[0] == "Send KMD gateway deposit transaction":
+            elif list(menuItems[int(choice)].keys())[0] == "Send SAFE gateway deposit transaction":
                 while True:
                     try:
-                        list(menuItems[int(choice)].values())[0](rpc_connection_kmd)
+                        list(menuItems[int(choice)].values())[0](rpc_connection_safe)
                         break
                     except Exception as e:
                         print(e)
-                        print("Please connect to KMD daemon first!")
+                        print("Please connect to SAFE daemon first!")
                         input("Press [Enter] to continue...")
                         break
             elif list(menuItems[int(choice)].keys())[0] == "Execute gateways deposit":
                 while True:
                     try:
-                        list(menuItems[int(choice)].values())[0](rpc_connection, rpc_connection_kmd)
+                        list(menuItems[int(choice)].values())[0](rpc_connection, rpc_connection_safe)
                         break
                     except Exception as e:
                         print(e)
-                        print("Please connect to KMD daemon first!")
+                        print("Please connect to SAFE daemon first!")
                         input("Press [Enter] to continue...")
                         break
             else:

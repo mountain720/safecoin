@@ -46,12 +46,12 @@ Details.
 /// However, it is a CC output, so in addition to the signature, whatever constraints a CC contract implements must also be satistifed. 
 /// This allows funds to be locked and yet anybody is able to spend it, assuming they satisfy the CC's rules.
 ///
-/// One other technical note is that komodod has the insight-explorer extensions built in 
+/// One other technical note is that safecoind has the insight-explorer extensions built in 
 /// so it can lookup directly all transactions to any address. 
 /// This is a key performance boosting thing as if it wasnt there, trying to get all the utxo for an address not in the wallet is quite time consuming.
 ///
 /// More information about Antara framework:
-/// https://developers.komodoplatform.com/basic-docs/start-here/about-komodo-platform/product-introductions.html#smart-chains-antara
+/// https://developers.safecoinplatform.com/basic-docs/start-here/about-safecoin-platform/product-introductions.html#smart-chains-antara
 
 #include <cc/eval.h>
 #include <script/cc.h>
@@ -65,19 +65,19 @@ Details.
 #include "../wallet/wallet.h"
 #include <univalue.h>
 #include <exception>
-#include "../komodo_defs.h"
+#include "../safecoin_defs.h"
 #include "../utlist.h"
 #include "../uthash.h"
 #include "merkleblock.h"
-#include "../komodo_nSPV_defs.h"
-#include "../komodo_cJSON.h"
+#include "../safecoin_nSPV_defs.h"
+#include "../safecoin_cJSON.h"
 #include "../init.h"
 #include "rpc/server.h"
 
 #define CC_BURNPUBKEY "02deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead" //!< 'dead' pubkey in hex for burning tokens (if tokens are sent to it, they become 'burned')
 /// \cond INTERNAL
 #define CC_MAXVINS 1024
-#define CC_REQUIREMENTS_MSG (KOMODO_NSPV_SUPERLITE?"to use CC contracts you need to nspv_login first\n":"to use CC contracts, you need to launch daemon with valid -pubkey= for an address in your wallet\n")
+#define CC_REQUIREMENTS_MSG (SAFECOIN_NSPV_SUPERLITE?"to use CC contracts you need to nspv_login first\n":"to use CC contracts, you need to launch daemon with valid -pubkey= for an address in your wallet\n")
 
 #define SMALLVAL 0.000000000000001
 #define SATOSHIDEN ((uint64_t)100000000L)
@@ -85,7 +85,7 @@ Details.
 #define CCDISABLEALL memset(ASSETCHAINS_CCDISABLES,1,sizeof(ASSETCHAINS_CCDISABLES))
 #define CCENABLE(x) ASSETCHAINS_CCDISABLES[((uint8_t)x)] = 0
 
-/* moved to komodo_cJSON.h
+/* moved to safecoin_cJSON.h
 #ifndef _BITS256
 #define _BITS256
     union _bits256 { uint8_t bytes[32]; uint16_t ushorts[16]; uint32_t uints[8]; uint64_t ulongs[4]; uint64_t txid; };
@@ -242,8 +242,8 @@ extern CWallet* pwalletMain;  //!< global wallet object pointer to access wallet
 
 /// @private seems old-style
 bool GetAddressUnspent(uint160 addressHash, int type,std::vector<std::pair<CAddressUnspentKey,CAddressUnspentValue> > &unspentOutputs);
-//CBlockIndex *komodo_getblockindex(uint256 hash);  //moved to komodo_def.h
-//int32_t komodo_nextheight();  //moved to komodo_def.h
+//CBlockIndex *safecoin_getblockindex(uint256 hash);  //moved to safecoin_def.h
+//int32_t safecoin_nextheight();  //moved to safecoin_def.h
 
 /// CCgetspenttxid finds the txid of the transaction which spends a transaction output. The function does this without loading transactions from the chain, by using spent index
 /// @param[out] spenttxid transaction id of the spending transaction
@@ -259,9 +259,9 @@ void CCclearvars(struct CCcontract_info *cp);
 UniValue CClib(struct CCcontract_info *cp,char *method,char *jsonstr);
 UniValue CClib_info(struct CCcontract_info *cp);
 
-//CBlockIndex *komodo_blockindex(uint256 hash); //moved to komodo_def.h
-//CBlockIndex *komodo_chainactive(int32_t height); //moved to komodo_def.h
-//int32_t komodo_blockheight(uint256 hash); //moved to komodo_def.h
+//CBlockIndex *safecoin_blockindex(uint256 hash); //moved to safecoin_def.h
+//CBlockIndex *safecoin_chainactive(int32_t height); //moved to safecoin_def.h
+//int32_t safecoin_blockheight(uint256 hash); //moved to safecoin_def.h
 //void StartShutdown();
 
 static const uint256 zeroid;  //!< null uint256 constant
@@ -382,11 +382,11 @@ int64_t IsTokensvout(bool goDeeper, bool checkPubkeys, struct CCcontract_info *c
 /// returns true if success
 bool DecodeHexTx(CTransaction& tx, const std::string& strHexTx);
 
-//void komodo_sendmessage(int32_t minpeers,int32_t maxpeers,const char *message,std::vector<uint8_t> payload); // moved to komodo_defs.h
+//void safecoin_sendmessage(int32_t minpeers,int32_t maxpeers,const char *message,std::vector<uint8_t> payload); // moved to safecoin_defs.h
 
 /// @private
 int32_t payments_parsehexdata(std::vector<uint8_t> &hexdata,cJSON *item,int32_t len);
-// int32_t komodo_blockload(CBlock& block,CBlockIndex *pindex); // this def in komodo_defs.h
+// int32_t safecoin_blockload(CBlock& block,CBlockIndex *pindex); // this def in safecoin_defs.h
 
 /// Makes opreturn scriptPubKey for token creation transaction. Normally this function is called internally by the tokencreate rpc. You might need to call this function to create a customized token.
 /// The total opreturn length should not exceed 10001 byte
@@ -703,7 +703,7 @@ uint64_t stringbits(char *str);
 uint256 revuint256(uint256 txid);
 char *uint256_str(char *dest,uint256 txid);
 char *pubkey33_str(char *dest,uint8_t *pubkey33);
-//uint256 Parseuint256(const char *hexstr); // located in komodo_defs
+//uint256 Parseuint256(const char *hexstr); // located in safecoin_defs
 /// \endcond
 
 /// converts public key as array of uint8_t to normal address
@@ -773,7 +773,7 @@ bool Getscriptaddress(char *destaddr,const CScript &scriptPubKey);
 /// @returns true if success
 bool GetCustomscriptaddress(char *destaddr,const CScript &scriptPubKey,uint8_t taddr,uint8_t prefix,uint8_t prefix2);
 
-/// Returns my pubkey, that is set by -pubkey komodod parameter
+/// Returns my pubkey, that is set by -pubkey safecoind parameter
 /// @returns public key as byte array
 std::vector<uint8_t> Mypubkey();
 
@@ -797,7 +797,7 @@ int32_t CCCointxidExists(char const *logcategory,uint256 cointxid);
 /// @private
 uint256 BitcoinGetProofMerkleRoot(const std::vector<uint8_t> &proofData, std::vector<uint256> &txids);
 
-// bool komodo_txnotarizedconfirmed(uint256 txid); //moved to komodo_defs.h
+// bool safecoin_txnotarizedconfirmed(uint256 txid); //moved to safecoin_defs.h
 
 /// @private
 CPubKey check_signing_pubkey(CScript scriptSig);
@@ -824,7 +824,7 @@ std::string FinalizeCCTx(uint64_t skipmask,struct CCcontract_info *cp,CMutableTr
 
 /// FinalizeCCTx is a very useful function that will properly sign both CC and normal inputs, adds normal change and might add an opreturn output.
 /// This allows for Antara module transaction creation rpc functions to create an CMutableTransaction object, add the appropriate vins and vouts to it and use FinalizeCCTx to properly sign the transaction.
-/// By using -addressindex=1 of komodod daemon, it allows tracking of all the CC addresses.
+/// By using -addressindex=1 of safecoind daemon, it allows tracking of all the CC addresses.
 ///
 /// For signing the vins the function builds several default probe scriptPubKeys and checks them against the referred previous transactions (vintx) vouts.
 /// For cryptocondition vins the function creates a basic set of probe cryptconditions with mypk and module global pubkey, both for coins and tokens cases.
@@ -892,7 +892,7 @@ int64_t AddNormalinputs(CMutableTransaction &mtx,CPubKey mypk,int64_t total,int3
 int64_t AddNormalinputsLocal(CMutableTransaction &mtx,CPubKey mypk,int64_t total,int32_t maxinputs);
 
 /// AddNormalinputs2 adds normal (not cc) inputs to the transaction object vin array for the specified total amount using utxos on my pubkey's TX_PUBKEY address (my pubkey is set by -pubkey command line parameter), to fund the transaction.
-/// 'My pubkey' is the -pubkey parameter of komodod.
+/// 'My pubkey' is the -pubkey parameter of safecoind.
 /// @param mtx mutable transaction object
 /// @param total amount of inputs to add. If total equals to 0 the function does not add inputs but returns amount of all available normal inputs in the wallet
 /// @param maxinputs maximum number of inputs to add
@@ -971,7 +971,7 @@ void CCLogPrintStream(const char *category, int level, const char *functionName,
 }
 /// Macro for logging messages using bitcoin LogAcceptCategory and LogPrintStr functions.
 /// Supports error, info and three levels of debug messages.
-/// Logging category is set by -debug=category komodod param.
+/// Logging category is set by -debug=category safecoind param.
 /// To set debug level pass -debug=category-1, -debug=category-2 or -debug=category-3 param. If some level is enabled lower level messages also will be printed.
 /// To print info-level messages pass just -debug=category parameter, with no level.
 /// Error-level messages will always be printed, even if -debug parameter is not set

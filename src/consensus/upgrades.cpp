@@ -18,16 +18,16 @@
  ******************************************************************************/
 
 #include "consensus/upgrades.h"
-extern int32_t KOMODO_NSPV;
+extern int32_t SAFECOIN_NSPV;
 #define NSPV_BRANCHID 0x76b809bb
 
-#ifndef KOMODO_NSPV_FULLNODE
-#define KOMODO_NSPV_FULLNODE (KOMODO_NSPV <= 0)
-#endif // !KOMODO_NSPV_FULLNODE
+#ifndef SAFECOIN_NSPV_FULLNODE
+#define SAFECOIN_NSPV_FULLNODE (SAFECOIN_NSPV <= 0)
+#endif // !SAFECOIN_NSPV_FULLNODE
 
-#ifndef KOMODO_NSPV_SUPERLITE
-#define KOMODO_NSPV_SUPERLITE (KOMODO_NSPV > 0)
-#endif // !KOMODO_NSPV_SUPERLITE
+#ifndef SAFECOIN_NSPV_SUPERLITE
+#define SAFECOIN_NSPV_SUPERLITE (SAFECOIN_NSPV > 0)
+#endif // !SAFECOIN_NSPV_SUPERLITE
 
 /**
  * General information about each network upgrade.
@@ -109,7 +109,7 @@ int CurrentEpoch(int nHeight, const Consensus::Params& params) {
 
 uint32_t CurrentEpochBranchId(int nHeight, const Consensus::Params& params)
 {
-    if ( KOMODO_NSPV_SUPERLITE )
+    if ( SAFECOIN_NSPV_SUPERLITE )
         return(NSPV_BRANCHID);
     return NetworkUpgradeInfo[CurrentEpoch(nHeight, params)].nBranchId;
 }

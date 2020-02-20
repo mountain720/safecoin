@@ -35,9 +35,9 @@
 #ifdef ENABLE_RUST
 #include "librustzcash.h"
 #endif // ENABLE_RUST
-uint32_t komodo_chainactive_timestamp();
+uint32_t safecoin_chainactive_timestamp();
 
-#include "komodo_defs.h"
+#include "safecoin_defs.h"
 
 unsigned int lwmaGetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params);
 unsigned int lwmaCalculateNextWorkRequired(const CBlockIndex* pindexLast, const Consensus::Params& params);
@@ -300,6 +300,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     if (ASSETCHAINS_ALGO != ASSETCHAINS_EQUIHASH && ASSETCHAINS_STAKED == 0)
         return lwmaGetNextWorkRequired(pindexLast, pblock, params);
 
+    const CChainParams& chainParams = Params();
     arith_uint256 bnLimit;
     if (ASSETCHAINS_ALGO == ASSETCHAINS_EQUIHASH)
         bnLimit = UintToArith256(params.powLimit);
@@ -323,6 +324,15 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
         //        return nProofOfWorkLimit;
         //}
     //}
+
+
+   // Reset the difficulty after the algo fork
+   if (pindexLast->GetHeight() > chainParams.eh_epoch_1_end() - 1
+   	&& pindexLast->GetHeight() < chainParams.eh_epoch_1_end() + params.nPowAveragingWindow) {
+         LogPrint("pow", "Reset the difficulty for the eh_epoch_2 algo change: %d\n", nProofOfWorkLimit);
+        return nProofOfWorkLimit;
+       }
+
 
     // Find the first block in the averaging interval
     const CBlockIndex* pindexFirst = pindexLast;
@@ -395,7 +405,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
         bnTarget = arith_uint256().SetCompact(nbits);
         if ( height > (int32_t)(sizeof(ct)/sizeof(*ct)) && pblock != 0 && tipdiff > 0 )
         {
-            easy.SetCompact(KOMODO_MINDIFF_NBITS & (~3),&fNegative,&fOverflow);
+            easy.SetCompact(SAFECOIN_MINDIFF_NBITS & (~3),&fNegative,&fOverflow);
             if ( pblock != 0 )
             {
                 origtarget = bnTarget;
@@ -480,7 +490,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
                 {
                     bnTarget = easy;
                     fprintf(stderr,"cmp.%d mult.%d ht.%d -> easy target\n",mult>1,(int32_t)mult,height);
-                    return(KOMODO_MINDIFF_NBITS & (~3));
+                    return(SAFECOIN_MINDIFF_NBITS & (~3));
                 }
                 {
                     int32_t z;
@@ -515,10 +525,10 @@ unsigned int CalculateNextWorkRequired(arith_uint256 bnAvg,
 
     if ( ASSETCHAINS_ADAPTIVEPOW <= 0 )
     {
-        if (nActualTimespan < params.MinActualTimespan())
-            nActualTimespan = params.MinActualTimespan();
-        if (nActualTimespan > params.MaxActualTimespan())
-            nActualTimespan = params.MaxActualTimespan();
+    if (nActualTimespan < params.MinActualTimespan())
+        nActualTimespan = params.MinActualTimespan();
+    if (nActualTimespan > params.MaxActualTimespan())
+        nActualTimespan = params.MaxActualTimespan();
     }
     // Retarget
     arith_uint256 bnLimit;
@@ -762,9 +772,23 @@ bool CheckEquihashSolution(const CBlockHeader *pblock, const CChainParams& param
     if ( ASSETCHAINS_NK[0] != 0 && ASSETCHAINS_NK[1] != 0 && pblock->GetHash().ToString() == "027e3758c3a65b12aa1046462b486d0a63bfa1beae327897f56c5cfb7daaae71" )
         return true;
 
-    unsigned int n = params.EquihashN();
-    unsigned int k = params.EquihashK();
+  //Set parameters N,K from solution size. Filtering of valid parameters
+  //for the givenblock height will be carried out in main.cpp/ContextualCheckBlockHeader
+  unsigned int n,k;
+  size_t nSolSize = pblock->nSolution.size();
+  switch (nSolSize){
+  case 1344: n=200; k=9; break;
+  case 400: n=192; k=7; break;
+  case 100:  n=144; k=5; break;
+  case 68:   n=96;  k=5; break;
+  case 36:   n=48;  k=5; break;
+  default: return error("CheckEquihashSolution: Unsupported solution size of %d", nSolSize);
+  }
 
+  LogPrint("pow", "selected n,k : %d, %d \n", n,k);
+
+  //need to put block height param switching code here
+  
     if ( Params().NetworkIDString() == "regtest" )
         return(true);
     // Hash state
@@ -790,24 +814,24 @@ bool CheckEquihashSolution(const CBlockHeader *pblock, const CChainParams& param
     return true;
 }
 
-int32_t komodo_chosennotary(int32_t *notaryidp,int32_t height,uint8_t *pubkey33,uint32_t timestamp);
-int32_t komodo_is_special(uint8_t pubkeys[66][33],int32_t mids[66],uint32_t blocktimes[66],int32_t height,uint8_t pubkey33[33],uint32_t blocktime);
-int32_t komodo_currentheight();
-void komodo_index2pubkey33(uint8_t *pubkey33,CBlockIndex *pindex,int32_t height);
-bool komodo_checkopret(CBlock *pblock, CScript &merkleroot);
-CScript komodo_makeopret(CBlock *pblock, bool fNew);
-extern int32_t KOMODO_CHOSEN_ONE;
-extern char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN];
-#define KOMODO_ELECTION_GAP 2000
+int32_t safecoin_chosennotary(int32_t *notaryidp,int32_t height,uint8_t *pubkey33,uint32_t timestamp);
+int32_t safecoin_is_special(uint8_t pubkeys[66][33],int32_t mids[66],uint32_t blocktimes[66],int32_t height,uint8_t pubkey33[33],uint32_t blocktime);
+int32_t safecoin_currentheight();
+void safecoin_index2pubkey33(uint8_t *pubkey33,CBlockIndex *pindex,int32_t height);
+bool safecoin_checkopret(CBlock *pblock, CScript &merkleroot);
+CScript safecoin_makeopret(CBlock *pblock, bool fNew);
+extern int32_t SAFECOIN_CHOSEN_ONE;
+extern char ASSETCHAINS_SYMBOL[SAFECOIN_ASSETCHAIN_MAXLEN];
+#define SAFECOIN_ELECTION_GAP 2000
 
-int32_t komodo_eligiblenotary(uint8_t pubkeys[66][33],int32_t *mids,uint32_t blocktimes[66],int32_t *nonzpkeysp,int32_t height);
-int32_t KOMODO_LOADINGBLOCKS = 1;
+int32_t safecoin_eligiblenotary(uint8_t pubkeys[66][33],int32_t *mids,uint32_t blocktimes[66],int32_t *nonzpkeysp,int32_t height);
+int32_t SAFECOIN_LOADINGBLOCKS = 1;
 
 extern std::string NOTARY_PUBKEY;
 
 bool CheckProofOfWork(const CBlockHeader &blkHeader, uint8_t *pubkey33, int32_t height, const Consensus::Params& params)
 {
-    extern int32_t KOMODO_REWIND;
+    extern int32_t SAFECOIN_REWIND;
     uint256 hash;
     bool fNegative,fOverflow; uint8_t origpubkey33[33]; int32_t i,nonzpkeys=0,nonz=0,special=0,special2=0,notaryid=-1,flag = 0, mids[66]; uint32_t tiptime,blocktimes[66];
     arith_uint256 bnTarget; uint8_t pubkeys[66][33];
@@ -816,16 +840,16 @@ bool CheckProofOfWork(const CBlockHeader &blkHeader, uint8_t *pubkey33, int32_t 
     //fprintf(stderr," checkpow\n");
     memcpy(origpubkey33,pubkey33,33);
     memset(blocktimes,0,sizeof(blocktimes));
-    tiptime = komodo_chainactive_timestamp();
+    tiptime = safecoin_chainactive_timestamp();
     bnTarget.SetCompact(blkHeader.nBits, &fNegative, &fOverflow);
     if ( height == 0 )
     {
-        height = komodo_currentheight() + 1;
+        height = safecoin_currentheight() + 1;
         //fprintf(stderr,"set height to %d\n",height);
     }
     if ( height > 34000 && ASSETCHAINS_SYMBOL[0] == 0 ) // 0 -> non-special notary
     {
-        special = komodo_chosennotary(&notaryid,height,pubkey33,tiptime);
+        special = safecoin_chosennotary(&notaryid,height,pubkey33,tiptime);
         for (i=0; i<33; i++)
         {
             if ( pubkey33[i] != 0 )
@@ -836,8 +860,8 @@ bool CheckProofOfWork(const CBlockHeader &blkHeader, uint8_t *pubkey33, int32_t 
             //fprintf(stderr,"ht.%d null pubkey checkproof return\n",height);
             return(true); // will come back via different path with pubkey set
         }
-        flag = komodo_eligiblenotary(pubkeys,mids,blocktimes,&nonzpkeys,height);
-        special2 = komodo_is_special(pubkeys,mids,blocktimes,height,pubkey33,blkHeader.nTime);
+        flag = safecoin_eligiblenotary(pubkeys,mids,blocktimes,&nonzpkeys,height);
+        special2 = safecoin_is_special(pubkeys,mids,blocktimes,height,pubkey33,blkHeader.nTime);
         if ( notaryid >= 0 )
         {
             if ( height > 10000 && height < 80000 && (special != 0 || special2 > 0) )
@@ -845,7 +869,7 @@ bool CheckProofOfWork(const CBlockHeader &blkHeader, uint8_t *pubkey33, int32_t 
             else if ( height >= 80000 && height < 108000 && special2 > 0 )
                 flag = 1;
             else if ( height >= 108000 && special2 > 0 )
-                flag = (height > 1000000 || (height % KOMODO_ELECTION_GAP) > 64 || (height % KOMODO_ELECTION_GAP) == 0);
+                flag = (height > 1000000 || (height % SAFECOIN_ELECTION_GAP) > 64 || (height % SAFECOIN_ELECTION_GAP) == 0);
             else if ( height == 790833 )
                 flag = 1;
             else if ( special2 < 0 )
@@ -856,13 +880,13 @@ bool CheckProofOfWork(const CBlockHeader &blkHeader, uint8_t *pubkey33, int32_t 
             }
             if ( (flag != 0 || special2 > 0) && special2 != -2 )
             {
-                bnTarget.SetCompact(KOMODO_MINDIFF_NBITS,&fNegative,&fOverflow);
+                bnTarget.SetCompact(SAFECOIN_MINDIFF_NBITS,&fNegative,&fOverflow);
                 /*
                 const void* pblock = &blkHeader;
                 CScript merkleroot = CScript();
-                if ( height > nDecemberHardforkHeight && !komodo_checkopret((CBlock*)pblock, merkleroot) ) // December 2019 hardfork
+                if ( height > nDecemberHardforkHeight && !safecoin_checkopret((CBlock*)pblock, merkleroot) ) // December 2019 hardfork
                 {
-                    fprintf(stderr, "failed or missing expected.%s != %s\n", komodo_makeopret((CBlock*)pblock, false).ToString().c_str(), merkleroot.ToString().c_str());
+                    fprintf(stderr, "failed or missing expected.%s != %s\n", safecoin_makeopret((CBlock*)pblock, false).ToString().c_str(), merkleroot.ToString().c_str());
                     return false;
                 }
                 */
@@ -875,14 +899,14 @@ bool CheckProofOfWork(const CBlockHeader &blkHeader, uint8_t *pubkey33, int32_t 
     if ( ASSETCHAINS_STAKED != 0 )
     {
         arith_uint256 bnMaxPoSdiff;
-        bnTarget.SetCompact(KOMODO_MINDIFF_NBITS,&fNegative,&fOverflow);
+        bnTarget.SetCompact(SAFECOIN_MINDIFF_NBITS,&fNegative,&fOverflow);
     }
     //else if ( ASSETCHAINS_ADAPTIVEPOW > 0 && ASSETCHAINS_STAKED == 0 )
-    //    bnTarget = komodo_adaptivepow_target(height,bnTarget,blkHeader.nTime);
+    //    bnTarget = safecoin_adaptivepow_target(height,bnTarget,blkHeader.nTime);
     // Check proof of work matches claimed amount
     if ( UintToArith256(hash = blkHeader.GetHash()) > bnTarget && !blkHeader.IsVerusPOSBlock() )
     {
-        if ( KOMODO_LOADINGBLOCKS != 0 )
+        if ( SAFECOIN_LOADINGBLOCKS != 0 )
             return true;
 
         if ( ASSETCHAINS_SYMBOL[0] != 0 || height > 792000 )

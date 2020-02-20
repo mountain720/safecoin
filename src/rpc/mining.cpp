@@ -48,13 +48,13 @@
 
 using namespace std;
 
-#include "komodo_defs.h"
+#include "safecoin_defs.h"
 
 extern int32_t ASSETCHAINS_FOUNDERS;
-uint64_t komodo_commission(const CBlock *pblock,int32_t height);
-int32_t komodo_blockload(CBlock& block,CBlockIndex *pindex);
-arith_uint256 komodo_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t height,int32_t goalperc,int32_t newStakerActive);
-int32_t komodo_newStakerActive(int32_t height, uint32_t timestamp);
+uint64_t safecoin_commission(const CBlock *pblock,int32_t height);
+int32_t safecoin_blockload(CBlock& block,CBlockIndex *pindex);
+arith_uint256 safecoin_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t height,int32_t goalperc,int32_t newStakerActive);
+int32_t safecoin_newStakerActive(int32_t height, uint32_t timestamp);
 
 /**
  * Return average network hashes per second based on the last 'lookup' blocks,
@@ -170,7 +170,7 @@ UniValue getgenerate(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error(
             "getgenerate\n"
             "\nReturn if the server is set to mine and/or mint coins or not. The default is false.\n"
-            "It is set with the command line argument -gen (or komodo.conf setting gen) and -mint\n"
+            "It is set with the command line argument -gen (or safecoin.conf setting gen) and -mint\n"
             "It can also be set with the setgenerate call.\n"
             "\nResult\n"
             "{\n"
@@ -190,7 +190,7 @@ UniValue getgenerate(const UniValue& params, bool fHelp, const CPubKey& mypk)
         staking = true;
     obj.push_back(Pair("staking",          staking));
     obj.push_back(Pair("generate",         GetBoolArg("-gen", false) && GetBoolArg("-genproclimit", -1) != 0 ));
-    obj.push_back(Pair("numthreads",       (int64_t)KOMODO_MININGTHREADS));
+    obj.push_back(Pair("numthreads",       (int64_t)SAFECOIN_MININGTHREADS));
     return obj;
 }
 
@@ -219,7 +219,7 @@ UniValue generate(const UniValue& params, bool fHelp, const CPubKey& mypk)
             throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Wallet disabled and -mineraddress not set");
         }
 #else
-        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "komodod compiled without wallet and -mineraddress not set");
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "safecoind compiled without wallet and -mineraddress not set");
 #endif
     }
     if (!Params().MineBlocksOnDemand())
@@ -252,17 +252,20 @@ UniValue generate(const UniValue& params, bool fHelp, const CPubKey& mypk)
     }
     unsigned int nExtraNonce = 0;
     UniValue blockHashes(UniValue::VARR);
-    unsigned int n = Params().EquihashN();
-    unsigned int k = Params().EquihashK();
+    EHparameters ehparams[MAX_EH_PARAM_LIST_LEN]; //allocate on-stack space for parameters list
+    const CChainParams& chainparams = Params();
     uint64_t lastTime = 0;
     while (nHeight < nHeightEnd)
     {
+      validEHparameterList(ehparams,nHeight+1,chainparams);
+      unsigned int n = ehparams[0].n;
+      unsigned int k = ehparams[0].k;
         // Validation may fail if block generation is too fast
         if (GetTime() == lastTime) MilliSleep(1001);
         lastTime = GetTime();
 
 #ifdef ENABLE_WALLET
-        std::unique_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(reservekey,nHeight,KOMODO_MAXGPUCOUNT));
+        std::unique_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(reservekey,nHeight,SAFECOIN_MAXGPUCOUNT));
 #else
         std::unique_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey());
 #endif
@@ -354,7 +357,7 @@ UniValue setgenerate(const UniValue& params, bool fHelp, const CPubKey& mypk)
             throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Wallet disabled and -mineraddress not set");
         }
 #else
-        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "komodod compiled without wallet and -mineraddress not set");
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "safecoind compiled without wallet and -mineraddress not set");
 #endif
     }
     if (Params().MineBlocksOnDemand())
@@ -377,22 +380,22 @@ UniValue setgenerate(const UniValue& params, bool fHelp, const CPubKey& mypk)
         {
             VERUS_MINTBLOCKS = 1;
             fGenerate = GetBoolArg("-gen", false);
-            KOMODO_MININGTHREADS = nGenProcLimit;
+            SAFECOIN_MININGTHREADS = nGenProcLimit;
         }
         else if (!fGenerate)
         {
             VERUS_MINTBLOCKS = 0;
-            KOMODO_MININGTHREADS = 0;
+            SAFECOIN_MININGTHREADS = 0;
         }
-        else KOMODO_MININGTHREADS = (int32_t)nGenProcLimit;
+        else SAFECOIN_MININGTHREADS = (int32_t)nGenProcLimit;
     }
     else
     {
-        KOMODO_MININGTHREADS = (int32_t)nGenProcLimit;
+        SAFECOIN_MININGTHREADS = (int32_t)nGenProcLimit;
     }
 
     mapArgs["-gen"] = (fGenerate ? "1" : "0");
-    mapArgs ["-genproclimit"] = itostr(KOMODO_MININGTHREADS);
+    mapArgs ["-genproclimit"] = itostr(SAFECOIN_MININGTHREADS);
 
 #ifdef ENABLE_WALLET
     GenerateBitcoins(fGenerate, pwalletMain, nGenProcLimit);
@@ -404,7 +407,7 @@ UniValue setgenerate(const UniValue& params, bool fHelp, const CPubKey& mypk)
 }
 #endif
 
-CBlockIndex *komodo_chainactive(int32_t height);
+CBlockIndex *safecoin_chainactive(int32_t height);
 arith_uint256 zawy_ctB(arith_uint256 bnTarget,uint32_t solvetime);
 
 UniValue genminingCSV(const UniValue& params, bool fHelp, const CPubKey& mypk)
@@ -413,14 +416,14 @@ UniValue genminingCSV(const UniValue& params, bool fHelp, const CPubKey& mypk)
     if (fHelp || params.size() != 0 )
         throw runtime_error("genminingCSV\n");
     LOCK(cs_main);
-    sprintf(fname,"%s_mining.csv",ASSETCHAINS_SYMBOL[0] == 0 ? "KMD" : ASSETCHAINS_SYMBOL);
+    sprintf(fname,"%s_mining.csv",ASSETCHAINS_SYMBOL[0] == 0 ? "SAFE" : ASSETCHAINS_SYMBOL);
     if ( (fp= fopen(fname,"wb")) != 0 )
     {
         fprintf(fp,"height,nTime,nBits,bnTarget,bnTargetB,diff,solvetime\n");
-        height = komodo_nextheight();
+        height = safecoin_nextheight();
         for (i=0; i<height; i++)
         {
-            if ( (pindex= komodo_chainactive(i)) != 0 )
+            if ( (pindex= safecoin_chainactive(i)) != 0 )
             {
                 bnTarget.SetCompact(pindex->nBits,&fNegative,&fOverflow);
                 solvetime = (prevtime==0) ? 0 : (int32_t)(pindex->nTime - prevtime);
@@ -505,7 +508,7 @@ UniValue getmininginfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
         staking = true;
     obj.push_back(Pair("staking",          staking));
     obj.push_back(Pair("generate",         GetBoolArg("-gen", false) && GetBoolArg("-genproclimit", -1) != 0 ));
-    obj.push_back(Pair("numthreads",       (int64_t)KOMODO_MININGTHREADS));
+    obj.push_back(Pair("numthreads",       (int64_t)SAFECOIN_MININGTHREADS));
 #endif
     return obj;
 }
@@ -634,7 +637,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp, const CPubKey& myp
             throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Wallet disabled and -mineraddress not set");
         }
 #else
-        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "komodod compiled without wallet and -mineraddress not set");
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "safecoind compiled without wallet and -mineraddress not set");
 #endif
     }
     
@@ -785,7 +788,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp, const CPubKey& myp
 #ifdef ENABLE_WALLET
         CReserveKey reservekey(pwalletMain);
         LEAVE_CRITICAL_SECTION(cs_main);
-        pblocktemplate = CreateNewBlockWithKey(reservekey,pindexPrevNew->GetHeight()+1,KOMODO_MAXGPUCOUNT,false);
+        pblocktemplate = CreateNewBlockWithKey(reservekey,pindexPrevNew->GetHeight()+1,SAFECOIN_MAXGPUCOUNT,false);
 #else
         pblocktemplate = CreateNewBlockWithKey();
 #endif
@@ -878,14 +881,14 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp, const CPubKey& myp
     if ( ASSETCHAINS_STAKED != 0 )
     {
         arith_uint256 POWtarget; int32_t PoSperc;
-        POWtarget = komodo_PoWtarget(&PoSperc,hashTarget,(int32_t)(pindexPrev->GetHeight()+1),ASSETCHAINS_STAKED,komodo_newStakerActive(chainActive.Height()+1, pblock->nTime));
+        POWtarget = safecoin_PoWtarget(&PoSperc,hashTarget,(int32_t)(pindexPrev->GetHeight()+1),ASSETCHAINS_STAKED,safecoin_newStakerActive(chainActive.Height()+1, pblock->nTime));
         result.push_back(Pair("target", POWtarget.GetHex()));
         result.push_back(Pair("PoSperc", (int64_t)PoSperc));
         result.push_back(Pair("ac_staked", (int64_t)ASSETCHAINS_STAKED));
         result.push_back(Pair("origtarget", hashTarget.GetHex()));
     }
     /*else if ( ASSETCHAINS_ADAPTIVEPOW > 0 )
-        result.push_back(Pair("target",komodo_adaptivepow_target((int32_t)(pindexPrev->GetHeight()+1),hashTarget,pblock->nTime).GetHex()));*/
+        result.push_back(Pair("target",safecoin_adaptivepow_target((int32_t)(pindexPrev->GetHeight()+1),hashTarget,pblock->nTime).GetHex()));*/
     else
         result.push_back(Pair("target", hashTarget.GetHex()));
     result.push_back(Pair("mintime", (int64_t)pindexPrev->GetMedianTimePast()+1));
@@ -1062,8 +1065,8 @@ UniValue getblocksubsidy(const UniValue& params, bool fHelp, const CPubKey& mypk
             "1. height         (numeric, optional) The block height.  If not provided, defaults to the current height of the chain.\n"
             "\nResult:\n"
             "{\n"
-            "  \"miner\" : x.xxx           (numeric) The mining reward amount in KMD.\n"
-            "  \"ac_pubkey\" : x.xxx       (numeric) The mining reward amount in KMD.\n"
+            "  \"miner\" : x.xxx           (numeric) The mining reward amount in SAFE.\n"
+            "  \"ac_pubkey\" : x.xxx       (numeric) The mining reward amount in SAFE.\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getblocksubsidy", "1000")
@@ -1089,14 +1092,14 @@ UniValue getblocksubsidy(const UniValue& params, bool fHelp, const CPubKey& mypk
             {
                 CBlockIndex* pblockIndex = chainActive[nHeight];
                 CBlock block;
-                if ( komodo_blockload(block, pblockIndex) == 0 )
-                    nFoundersReward = komodo_commission(&block, nHeight);
+                if ( safecoin_blockload(block, pblockIndex) == 0 )
+                    nFoundersReward = safecoin_commission(&block, nHeight);
             }
         }
         else if ( ASSETCHAINS_FOUNDERS != 0 )
         {
             // Assetchains founders chains have a fixed reward so can be calculated at any given height.
-            nFoundersReward = komodo_commission(0, nHeight);
+            nFoundersReward = safecoin_commission(0, nHeight);
         }
         result.push_back(Pair("ac_pubkey", ValueFromAmount(nFoundersReward)));
     }

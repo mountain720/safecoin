@@ -39,8 +39,8 @@
 #endif
 #include <unistd.h>
 
-#include "komodo_defs.h"
-int64_t komodo_block_unlocktime(uint32_t nHeight);
+#include "safecoin_defs.h"
+int64_t safecoin_block_unlocktime(uint32_t nHeight);
 
 void AtomicTimer::start()
 {
@@ -372,7 +372,7 @@ int printMetrics(size_t cols, bool mining)
                     }
 
                     if ((std::max(0, COINBASE_MATURITY - (tipHeight - height)) > 0) ||
-                        (tipHeight < komodo_block_unlocktime(height) && subsidy >= ASSETCHAINS_TIMELOCKGTE)) {
+                        (tipHeight < safecoin_block_unlocktime(height) && subsidy >= ASSETCHAINS_TIMELOCKGTE)) {
                         immature += subsidy;
                     } else {
                         mature += subsidy;

@@ -54,10 +54,10 @@ using namespace libzcash;
 
 extern char ASSETCHAINS_SYMBOL[65];
 
-int32_t komodo_dpowconfs(int32_t height,int32_t numconfs);
-int32_t komodo_blockheight(uint256 hash);
+int32_t safecoin_dpowconfs(int32_t height,int32_t numconfs);
+int32_t safecoin_blockheight(uint256 hash);
 int tx_height( const uint256 &hash );
-bool komodo_hardfork_active(uint32_t time);
+bool safecoin_hardfork_active(uint32_t time);
 extern UniValue signrawtransaction(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue sendrawtransaction(const UniValue& params, bool fHelp, const CPubKey& mypk);
 
@@ -372,13 +372,13 @@ bool AsyncRPCOperation_sendmany::main_impl() {
                 CAmount amount = std::get<2>(t);
                 builder_.AddTransparentInput(COutPoint(txid, vout), scriptPubKey, amount);
             }
-            // for Komodo, set lock time to accure interest, for other chains, set
+            // for Safecoin, set lock time to accure interest, for other chains, set
             // locktime to spend time locked coinbases
             if (ASSETCHAINS_SYMBOL[0] == 0)
             {
                 //if ((uint32_t)chainActive.LastTip()->nTime < ASSETCHAINS_STAKED_HF_TIMESTAMP)
-                if ( !komodo_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
-                    builder_.SetLockTime((uint32_t)time(NULL) - 60); // set lock time for Komodo interest
+                if ( !safecoin_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
+                    builder_.SetLockTime((uint32_t)time(NULL) - 60); // set lock time for Safecoin interest
                 else
                     builder_.SetLockTime((uint32_t)chainActive.Tip()->GetMedianTimePast());
             }
@@ -394,8 +394,8 @@ bool AsyncRPCOperation_sendmany::main_impl() {
             if (ASSETCHAINS_SYMBOL[0] == 0)
             {
                 //if ((uint32_t)chainActive.LastTip()->nTime < ASSETCHAINS_STAKED_HF_TIMESTAMP)
-                if ( !komodo_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
-                    rawTx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
+                if ( !safecoin_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
+                rawTx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
                 else
                     rawTx.nLockTime = (uint32_t)chainActive.Tip()->GetMedianTimePast();
             }
@@ -600,8 +600,8 @@ bool AsyncRPCOperation_sendmany::main_impl() {
     crypto_sign_keypair(joinSplitPubKey_.begin(), joinSplitPrivKey_);
     mtx.joinSplitPubKey = joinSplitPubKey_;
     //if ((uint32_t)chainActive.LastTip()->nTime < ASSETCHAINS_STAKED_HF_TIMESTAMP)
-    if ( !komodo_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
-        mtx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
+    if ( !safecoin_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
+    mtx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
     else
         mtx.nLockTime = (uint32_t)chainActive.Tip()->GetMedianTimePast();
 
@@ -851,7 +851,7 @@ bool AsyncRPCOperation_sendmany::main_impl() {
                 if (mapBlockIndex.find(wtx.hashBlock) == mapBlockIndex.end()) {
                     throw JSONRPCError(RPC_WALLET_ERROR, strprintf("mapBlockIndex does not contain block hash %s", wtx.hashBlock.ToString()));
                 }
-                wtxHeight = komodo_blockheight(wtx.hashBlock);
+                wtxHeight = safecoin_blockheight(wtx.hashBlock);
                 wtxDepth = wtx.GetDepthInMainChain();
             }
             LogPrint("zrpcunsafe", "%s: spending note (txid=%s, vjoinsplit=%d, ciphertext=%d, amount=%s, height=%d, confirmations=%d)\n",
@@ -1068,7 +1068,7 @@ bool AsyncRPCOperation_sendmany::find_utxos(bool fAcceptCoinbase=false) {
 
         if( mindepth_ > 1 ) {
             int nHeight    = tx_height(out.tx->GetHash());
-            int dpowconfs  = komodo_dpowconfs(nHeight, out.nDepth);
+            int dpowconfs  = safecoin_dpowconfs(nHeight, out.nDepth);
             if (dpowconfs < mindepth_) {
                 continue;
             }
@@ -1376,8 +1376,8 @@ void AsyncRPCOperation_sendmany::add_taddr_outputs_to_tx() {
         rawTx.vout.push_back(out);
     }
     //if ((uint32_t)chainActive.LastTip()->nTime < ASSETCHAINS_STAKED_HF_TIMESTAMP)
-    if ( !komodo_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
-        rawTx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
+    if ( !safecoin_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
+    rawTx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
     else
         rawTx.nLockTime = (uint32_t)chainActive.Tip()->GetMedianTimePast();
 
@@ -1407,8 +1407,8 @@ void AsyncRPCOperation_sendmany::add_taddr_change_output_to_tx(CBitcoinAddress *
     CMutableTransaction rawTx(tx_);
     rawTx.vout.push_back(out);
     //if ((uint32_t)chainActive.LastTip()->nTime < ASSETCHAINS_STAKED_HF_TIMESTAMP)
-    if ( !komodo_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
-        rawTx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
+    if ( !safecoin_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
+    rawTx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
     else
         rawTx.nLockTime = (uint32_t)chainActive.Tip()->GetMedianTimePast();
     tx_ = CTransaction(rawTx);

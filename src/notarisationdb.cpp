@@ -34,7 +34,7 @@ NotarisationsInBlock ScanBlockNotarisations(const CBlock &block, int nHeight)
         //printf("Checked notarisation data for %s \n",data.symbol);
         int authority = GetSymbolAuthority(data.symbol);
 
-        if (authority == CROSSCHAIN_KOMODO) {
+        if (authority == CROSSCHAIN_SAFECOIN) {
             if (!eval->CheckNotaryInputs(tx, nHeight, block.nTime))
                 continue;
             //printf("Authorised notarisation data for %s \n",data.symbol);
@@ -86,7 +86,7 @@ bool GetBackNotarisation(uint256 notarisationHash, Notarisation &n)
 
 
 /*
- * Write an index of KMD notarisation id -> backnotarisation
+ * Write an index of SAFE notarisation id -> backnotarisation
  */
 void WriteBackNotarisations(const NotarisationsInBlock notarisations, CDBBatch &batch)
 {

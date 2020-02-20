@@ -22,13 +22,13 @@ def def_credentials(chain):
     rpcport = '';
     operating_system = platform.system()
     if operating_system == 'Darwin':
-        ac_dir = os.environ['HOME'] + '/Library/Application Support/Komodo'
+        ac_dir = os.environ['HOME'] + '/Library/Application Support/Safecoin'
     elif operating_system == 'Linux':
-        ac_dir = os.environ['HOME'] + '/.komodo'
+        ac_dir = os.environ['HOME'] + '/.safecoin'
     elif operating_system == 'Windows':
-        ac_dir = '%s/komodo/' % os.environ['APPDATA']
-    if chain == 'KMD':
-        coin_config_file = str(ac_dir + '/komodo.conf')
+        ac_dir = '%s/safecoin/' % os.environ['APPDATA']
+    if chain == 'SAFE':
+        coin_config_file = str(ac_dir + '/safecoin.conf')
     else:
         coin_config_file = str(ac_dir + '/' + chain + '/' + chain + '.conf')
     with open(coin_config_file, 'r') as f:
@@ -41,8 +41,8 @@ def def_credentials(chain):
             elif re.search('rpcport', l):
                 rpcport = l.replace('rpcport=', '')
     if len(rpcport) == 0:
-        if chain == 'KMD':
-            rpcport = 7771
+        if chain == 'SAFE':
+            rpcport = 8771
         else:
             print("rpcport not in conf file, exiting")
             print("check " + coin_config_file)
@@ -50,22 +50,22 @@ def def_credentials(chain):
     return (Proxy("http://%s:%s@127.0.0.1:%d" % (rpcuser, rpcpassword, int(rpcport))))
     
 
-rpc = def_credentials('KMD')
+rpc = def_credentials('SAFE')
 pp = pprint.PrettyPrinter(indent=2)
 
 notarynames = [ "0dev1_jl777", "0dev2_kolo", "0dev3_kolo", "0dev4_decker_AR", "a-team_SH", "artik_AR", "artik_EU", "artik_NA", "artik_SH", "badass_EU", "badass_NA", "batman_AR", "batman_SH", "ca333", "chainmakers_EU", "chainmakers_NA", "chainstrike_SH", "cipi_AR", "cipi_NA", "crackers_EU", "crackers_NA", "dwy_EU", "emmanux_SH", "etszombi_EU", "fullmoon_AR", "fullmoon_NA", "fullmoon_SH", "goldenman_EU", "indenodes_AR", "indenodes_EU", "indenodes_NA", "indenodes_SH", "jackson_AR", "jeezy_EU", "karasugoi_NA", "komodoninja_EU", "komodoninja_SH", "komodopioneers_SH", "libscott_SH", "lukechilds_AR", "madmax_AR", "meshbits_AR", "meshbits_SH", "metaphilibert_AR", "metaphilibert_SH", "patchkez_SH", "pbca26_NA", "peer2cloud_AR", "peer2cloud_SH", "polycryptoblog_NA", "hyper_AR", "hyper_EU", "hyper_SH", "hyper_NA", "popcornbag_AR", "popcornbag_NA", "alien_AR", "alien_EU", "thegaltmines_NA", "titomane_AR", "titomane_EU", "titomane_SH", "webworker01_NA", "xrobesx_NA" ]
 notaries = 64 * [0]
 
-startheight =  821657 #Second time filter for assetchains (block 821657) for KMD its 814000
+startheight =  821657 #Second time filter for assetchains (block 821657) for SAFE its 814000
 stopheight = 1307200
 for i in range(startheight,stopheight):
     ret = rpc.getNotarisationsForBlock(i)
-    KMD = ret['KMD']
-    if len(KMD) > 0:
-        for obj in KMD:
-            #for now skip KMD for this. As official stats are from BTC chain
-            # this can be reversed to !== to count KMD numbers :)
-            if obj['chain'] == 'KMD':
+    SAFE = ret['SAFE']
+    if len(SAFE) > 0:
+        for obj in SAFE:
+            #for now skip SAFE for this. As official stats are from BTC chain
+            # this can be reversed to !== to count SAFE numbers :)
+            if obj['chain'] == 'SAFE':
                 continue;
             for notary in obj['notaries']:
                 notaries[notary] = notaries[notary] + 1

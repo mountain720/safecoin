@@ -89,13 +89,13 @@ def def_credentials(chain):
     rpcport ='';
     operating_system = platform.system()
     if operating_system == 'Darwin':
-        ac_dir = os.environ['HOME'] + '/Library/Application Support/Komodo'
+        ac_dir = os.environ['HOME'] + '/Library/Application Support/Safecoin'
     elif operating_system == 'Linux':
-        ac_dir = os.environ['HOME'] + '/.komodo'
+        ac_dir = os.environ['HOME'] + '/.safecoin'
     elif operating_system == 'Win64' or operating_system == 'Windows':
-        ac_dir = '%s/komodo/' % os.environ['APPDATA']
-    if chain == 'KMD':
-        coin_config_file = str(ac_dir + '/komodo.conf')
+        ac_dir = '%s/safecoin/' % os.environ['APPDATA']
+    if chain == 'SAFE':
+        coin_config_file = str(ac_dir + '/safecoin.conf')
     else:
         coin_config_file = str(ac_dir + '/' + chain + '/' + chain + '.conf')
     with open(coin_config_file, 'r') as f:
@@ -108,8 +108,8 @@ def def_credentials(chain):
             elif re.search('rpcport', l):
                 rpcport = l.replace('rpcport=', '')
     if len(rpcport) == 0:
-        if chain == 'KMD':
-            rpcport = 7771
+        if chain == 'SAFE':
+            rpcport = 8771
         else:
             print("rpcport not in conf file, exiting")
             print("check "+coin_config_file)
@@ -393,22 +393,22 @@ def gateways_bind_tui(rpc_connection):
             break
 
 # temporary :trollface: custom connection function solution
-# to have connection to KMD daemon and cache it in separate file
+# to have connection to SAFE daemon and cache it in separate file
 
 
-def rpc_kmd_connection_tui():
+def rpc_safe_connection_tui():
     while True:
-        restore_choice = input("Do you want to use KMD daemon connection details from previous session? [y/n]: ")
+        restore_choice = input("Do you want to use SAFE daemon connection details from previous session? [y/n]: ")
         if restore_choice == "y":
             try:
-                with open("connection_kmd.json", "r") as file:
+                with open("connection_safe.json", "r") as file:
                     connection_json = json.load(file)
                     rpc_user = connection_json["rpc_user"]
                     rpc_password = connection_json["rpc_password"]
                     rpc_port = connection_json["rpc_port"]
-                    rpc_connection_kmd = rpclib.rpc_connect(rpc_user, rpc_password, int(rpc_port))
+                    rpc_connection_safe = rpclib.rpc_connect(rpc_user, rpc_password, int(rpc_port))
                     try:
-                        print(rpc_connection_kmd.getinfo())
+                        print(rpc_connection_safe.getinfo())
                         print(colorize("Successfully connected!\n", "green"))
                         input("Press [Enter] to continue...")
                         break
@@ -418,7 +418,7 @@ def rpc_kmd_connection_tui():
                         input("Press [Enter] to continue...")
                         break
             except FileNotFoundError:
-                print(colorize("You do not have cached KMD daemon connection details."
+                print(colorize("You do not have cached SAFE daemon connection details."
                                " Please select n for connection setup", "red"))
                 input("Press [Enter] to continue...")
         elif restore_choice == "n":
@@ -429,11 +429,11 @@ def rpc_kmd_connection_tui():
                                   "rpc_password": rpc_password,
                                   "rpc_port": rpc_port}
             connection_json = json.dumps(connection_details)
-            with open("connection_kmd.json", "w+") as file:
+            with open("connection_safe.json", "w+") as file:
                 file.write(connection_json)
-            rpc_connection_kmd = rpclib.rpc_connect(rpc_user, rpc_password, int(rpc_port))
+            rpc_connection_safe = rpclib.rpc_connect(rpc_user, rpc_password, int(rpc_port))
             try:
-                print(rpc_connection_kmd.getinfo())
+                print(rpc_connection_safe.getinfo())
                 print(colorize("Successfully connected!\n", "green"))
                 input("Press [Enter] to continue...")
                 break
@@ -444,7 +444,7 @@ def rpc_kmd_connection_tui():
                 break
         else:
             print(colorize("Please input y or n", "red"))
-    return rpc_connection_kmd
+    return rpc_connection_safe
 
 
 def z_sendmany_twoaddresses(rpc_connection, sendaddress, recepient1, amount1, recepient2, amount2):
@@ -464,20 +464,20 @@ def operationstatus_to_txid(rpc_connection, zstatus):
     return txid
 
 
-def gateways_send_kmd(rpc_connection):
+def gateways_send_safe(rpc_connection):
      # TODO: have to handle CTRL+C on text input
-     print(colorize("Please be carefull when input wallet addresses and amounts since all transactions doing in real KMD!", "pink"))
+     print(colorize("Please be carefull when input wallet addresses and amounts since all transactions doing in real SAFE!", "pink"))
      print("Your addresses with balances: ")
      list_address_groupings = rpc_connection.listaddressgroupings()
      for address in list_address_groupings:
          print(str(address) + "\n")
-     sendaddress = input("Input address from which you transfer KMD: ")
+     sendaddress = input("Input address from which you transfer SAFE: ")
      recepient1 = input("Input address which belongs to pubkey which will receive tokens: ")
      amount1 = 0.0001
      recepient2 = input("Input gateway deposit address: ")
      file = open("deposits_list", "a")
      #have to show here deposit addresses for gateways created by user
-     amount2 = input("Input how many KMD you want to deposit on this gateway: ")
+     amount2 = input("Input how many SAFE you want to deposit on this gateway: ")
      operation = z_sendmany_twoaddresses(rpc_connection, sendaddress, recepient1, amount1, recepient2, amount2)
      print("Operation proceed! " + str(operation) + " Let's wait 2 seconds to get txid")
      # trying to avoid pending status of operation
@@ -485,22 +485,22 @@ def gateways_send_kmd(rpc_connection):
      txid = operationstatus_to_txid(rpc_connection, operation)
      file.writelines(txid + "\n")
      file.close()
-     print(colorize("KMD Transaction ID: " + str(txid) + " Entry added to deposits_list file", "green"))
+     print(colorize("SAFE Transaction ID: " + str(txid) + " Entry added to deposits_list file", "green"))
      input("Press [Enter] to continue...")
 
 
-def gateways_deposit_tui(rpc_connection_assetchain, rpc_connection_komodo):
+def gateways_deposit_tui(rpc_connection_assetchain, rpc_connection_safecoin):
     while True:
         bind_txid = input("Input your gateway bind txid: ")
-        coin_name = input("Input your external coin ticker (e.g. KMD): ")
+        coin_name = input("Input your external coin ticker (e.g. SAFE): ")
         coin_txid = input("Input your deposit txid: ")
         dest_pub = input("Input pubkey which claim deposit: ")
         amount = input("Input amount of your deposit: ")
-        height = rpc_connection_komodo.getrawtransaction(coin_txid, 1)["height"]
-        deposit_hex = rpc_connection_komodo.getrawtransaction(coin_txid, 1)["hex"]
+        height = rpc_connection_safecoin.getrawtransaction(coin_txid, 1)["height"]
+        deposit_hex = rpc_connection_safecoin.getrawtransaction(coin_txid, 1)["hex"]
         claim_vout = "0"
         proof_sending_block = "[\"{}\"]".format(coin_txid)
-        proof = rpc_connection_komodo.gettxoutproof(json.loads(proof_sending_block))
+        proof = rpc_connection_safecoin.gettxoutproof(json.loads(proof_sending_block))
         deposit_hex = rpclib.gateways_deposit(rpc_connection_assetchain, bind_txid, str(height), coin_name, \
                          coin_txid, claim_vout, deposit_hex, proof, dest_pub, amount)
         print(deposit_hex)
@@ -513,7 +513,7 @@ def gateways_deposit_tui(rpc_connection_assetchain, rpc_connection_komodo):
 def gateways_claim_tui(rpc_connection):
     while True:
         bind_txid = input("Input your gateway bind txid: ")
-        coin_name = input("Input your external coin ticker (e.g. KMD): ")
+        coin_name = input("Input your external coin ticker (e.g. SAFE): ")
         deposit_txid = input("Input your gatewaysdeposit txid: ")
         dest_pub = input("Input pubkey which claim deposit: ")
         amount = input("Input amount of your deposit: ")
@@ -534,7 +534,7 @@ def gateways_claim_tui(rpc_connection):
 def gateways_withdrawal_tui(rpc_connection):
     while True:
         bind_txid = input("Input your gateway bind txid: ")
-        coin_name = input("Input your external coin ticker (e.g. KMD): ")
+        coin_name = input("Input your external coin ticker (e.g. SAFE): ")
         withdraw_pub = input("Input pubkey to which you want to withdraw: ")
         amount = input("Input amount of withdrawal: ")
         withdraw_hex = rpclib.gateways_withdraw(rpc_connection, bind_txid, coin_name, withdraw_pub, amount)
@@ -1953,11 +1953,11 @@ def check_if_config_is_here(rpc_connection, assetchain_name):
         print(colorize("Config is already in daemon folder", "green"))
     else:
         if operating_system == 'Darwin':
-            path_to_config = os.environ['HOME'] + '/Library/Application Support/Komodo/' + assetchain_name + '/' + config_name
+            path_to_config = os.environ['HOME'] + '/Library/Application Support/Safecoin/' + assetchain_name + '/' + config_name
         elif operating_system == 'Linux':
-            path_to_config = os.environ['HOME'] + '/.komodo/' + assetchain_name + '/' + config_name
+            path_to_config = os.environ['HOME'] + '/.safecoin/' + assetchain_name + '/' + config_name
         elif operating_system == 'Win64' or operating_system == 'Windows':
-            path_to_config = '%s/komodo/' + assetchain_name + '/' + config_name % os.environ['APPDATA']
+            path_to_config = '%s/safecoin/' + assetchain_name + '/' + config_name % os.environ['APPDATA']
         try:
             copy(path_to_config, os.getcwd())
         except Exception as e:

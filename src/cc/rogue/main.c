@@ -29,8 +29,8 @@ extern char Gametxidstr[67];
 #define SMALLVAL 0.000000000000001
 #define SATOSHIDEN ((uint64_t)100000000L)
 #define dstr(x) ((double)(x) / SATOSHIDEN)
-#define KOMODO_ASSETCHAIN_MAXLEN 65
-char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN],IPADDRESS[100];
+#define SAFECOIN_ASSETCHAIN_MAXLEN 65
+char ASSETCHAINS_SYMBOL[SAFECOIN_ASSETCHAIN_MAXLEN],IPADDRESS[100];
 
 #ifndef _BITS256
 #define _BITS256
@@ -254,9 +254,9 @@ int32_t safecopy(char *dest,char *src,long len)
 #define true 1
 #define false 0
 #ifdef STANDALONE
-#include "../komodo/src/komodo_cJSON.c"
+#include "../safecoin/src/safecoin_cJSON.c"
 #else
-#include "../../komodo_cJSON.c"
+#include "../../safecoin_cJSON.c"
 #endif
 
 int32_t rogue_replay(uint64_t seed,int32_t sleeptime);
@@ -619,7 +619,7 @@ char *curl_post(CURL **cHandlep,char *url,char *userpass,char *postfields,char *
     return(chunk.memory);
 }
 
-uint16_t _komodo_userpass(char *username, char *password, FILE *fp)
+uint16_t _safecoin_userpass(char *username, char *password, FILE *fp)
 {
     char *rpcuser,*rpcpassword,*str,*ipaddress,line[8192]; uint16_t port = 0;
     rpcuser = rpcpassword = 0;
@@ -657,7 +657,7 @@ uint16_t _komodo_userpass(char *username, char *password, FILE *fp)
     return(port);
 }
 
-/*void komodo_statefname(char *fname,char *symbol,char *str)
+/*void safecoin_statefname(char *fname,char *symbol,char *str)
 {
     int32_t n,len;
     sprintf(fname,"%s",getDataDir());
@@ -680,7 +680,7 @@ uint16_t _komodo_userpass(char *username, char *password, FILE *fp)
         strcat(fname,"/");
 #endif
     }
-    if ( symbol != 0 && symbol[0] != 0 && strcmp("KMD",symbol) != 0 )
+    if ( symbol != 0 && symbol[0] != 0 && strcmp("SAFE",symbol) != 0 )
     {
         strcat(fname,symbol);
         //printf("statefname.(%s) -> (%s)\n",symbol,fname);
@@ -694,23 +694,23 @@ uint16_t _komodo_userpass(char *username, char *password, FILE *fp)
     //printf("test.(%s) -> [%s] statename.(%s) %s\n",test,ASSETCHAINS_SYMBOL,symbol,fname);
 }*/
 
-uint16_t komodo_userpass(char *userpass,char *symbol)
+uint16_t safecoin_userpass(char *userpass,char *symbol)
 {
-    FILE *fp; uint16_t port = 0; char fname[512],username[512],password[512],confname[KOMODO_ASSETCHAIN_MAXLEN];
+    FILE *fp; uint16_t port = 0; char fname[512],username[512],password[512],confname[SAFECOIN_ASSETCHAIN_MAXLEN];
     userpass[0] = 0;
-    if ( strcmp("KMD",symbol) == 0 )
+    if ( strcmp("SAFE",symbol) == 0 )
     {
 #ifdef __APPLE__
-        sprintf(confname,"Komodo.conf");
+        sprintf(confname,"Safecoin.conf");
 #else
-        sprintf(confname,"komodo.conf");
+        sprintf(confname,"safecoin.conf");
 #endif
     }
     else sprintf(confname,"%s.conf",symbol);
-    //komodo_statefname(fname,symbol,confname);
+    //safecoin_statefname(fname,symbol,confname);
     if ( (fp= fopen(confname,"rb")) != 0 )
     {
-        port = _komodo_userpass(username,password,fp);
+        port = _safecoin_userpass(username,password,fp);
         sprintf(userpass,"%s:%s",username,password);
         if ( strcmp(symbol,ASSETCHAINS_SYMBOL) == 0 )
             strcpy(USERPASS,userpass);
@@ -721,7 +721,7 @@ uint16_t komodo_userpass(char *userpass,char *symbol)
 
 #define is_cJSON_True(json) ((json) != 0 && ((json)->type & 0xff) == cJSON_True)
 
-char *komodo_issuemethod(char *userpass,char *method,char *params,uint16_t port)
+char *safecoin_issuemethod(char *userpass,char *method,char *params,uint16_t port)
 {
     //static void *cHandle;
     char url[512],*retstr=0,*retstr2=0,postdata[8192];
@@ -745,7 +745,7 @@ int32_t rogue_sendrawtransaction(char *rawtx)
     char *params,*retstr,*hexstr; cJSON *retjson,*resobj; int32_t retval = -1;
     params = (char *)malloc(strlen(rawtx) + 16);
     sprintf(params,"[\"%s\"]",rawtx);
-    if ( (retstr= komodo_issuemethod(USERPASS,"sendrawtransaction",params,ROGUE_PORT)) != 0 )
+    if ( (retstr= safecoin_issuemethod(USERPASS,"sendrawtransaction",params,ROGUE_PORT)) != 0 )
     {
         if ( 0 ) // causes 4th level crash
         {
@@ -810,7 +810,7 @@ int32_t rogue_progress(struct rogue_state *rs,int32_t waitflag,uint64_t seed,cha
         if ( 0 && (pastkeys= rogue_keystrokesload(&numpastkeys,seed,1)) != 0 )
         {
             sprintf(params,"[\"extract\",\"17\",\"[%%22%s%%22]\"]",Gametxidstr);
-            if ( (retstr= komodo_issuemethod(USERPASS,"cclib",params,ROGUE_PORT)) != 0 )
+            if ( (retstr= safecoin_issuemethod(USERPASS,"cclib",params,ROGUE_PORT)) != 0 )
             {
                 if ( (retjson= cJSON_Parse(retstr)) != 0 )
                 {
@@ -842,7 +842,7 @@ int32_t rogue_progress(struct rogue_state *rs,int32_t waitflag,uint64_t seed,cha
         hexstr[i<<1] = 0;
         if ( 0 )
         {
-            sprintf(cmd,"./komodo-cli -ac_name=ROGUE cclib keystrokes 17 \\\"[%%22%s%%22,%%22%s%%22]\\\" >> keystrokes.log",Gametxidstr,hexstr);
+            sprintf(cmd,"./safecoin-cli -ac_name=ROGUE cclib keystrokes 17 \\\"[%%22%s%%22,%%22%s%%22]\\\" >> keystrokes.log",Gametxidstr,hexstr);
             if ( system(cmd) != 0 )
                 fprintf(stderr,"error issuing (%s)\n",cmd);
         }
@@ -852,7 +852,7 @@ int32_t rogue_progress(struct rogue_state *rs,int32_t waitflag,uint64_t seed,cha
             if ( fp == 0 )
                 fp = fopen("keystrokes.log","a");
             sprintf(params,"[\"keystrokes\",\"17\",\"[%%22%s%%22,%%22%s%%22]\"]",Gametxidstr,hexstr);
-            if ( (retstr= komodo_issuemethod(USERPASS,"cclib",params,ROGUE_PORT)) != 0 )
+            if ( (retstr= safecoin_issuemethod(USERPASS,"cclib",params,ROGUE_PORT)) != 0 )
             {
                 if ( fp != 0 )
                 {
@@ -902,7 +902,7 @@ int32_t rogue_setplayerdata(struct rogue_state *rs,char *gametxidstr)
     if ( 0 )
     {
         sprintf(fname,"%s.gameinfo",gametxidstr);
-        sprintf(cmd,"./komodo-cli -ac_name=ROGUE cclib gameinfo 17 \\\"[%%22%s%%22]\\\" > %s",gametxidstr,fname);
+        sprintf(cmd,"./safecoin-cli -ac_name=ROGUE cclib gameinfo 17 \\\"[%%22%s%%22]\\\" > %s",gametxidstr,fname);
         if ( system(cmd) != 0 )
             fprintf(stderr,"error issuing (%s)\n",cmd);
         else filestr = (char *)OS_fileptr(&allocsize,fname);
@@ -910,7 +910,7 @@ int32_t rogue_setplayerdata(struct rogue_state *rs,char *gametxidstr)
     else
     {
         sprintf(params,"[\"gameinfo\",\"17\",\"[%%22%s%%22]\"]",gametxidstr);
-        filestr = komodo_issuemethod(USERPASS,"cclib",params,ROGUE_PORT);
+        filestr = safecoin_issuemethod(USERPASS,"cclib",params,ROGUE_PORT);
     }
     if ( filestr != 0 )
     {
@@ -1006,7 +1006,7 @@ int main(int argc, char **argv, char **envp)
 	#endif
 	#endif
 
-    ROGUE_PORT = komodo_userpass(userpass,ASSETCHAINS_SYMBOL);
+    ROGUE_PORT = safecoin_userpass(userpass,ASSETCHAINS_SYMBOL);
     if ( IPADDRESS[0] == 0 )
         strcpy(IPADDRESS,"127.0.0.1");
     printf("ASSETCHAINS_SYMBOL.(%s) port.%u (%s) IPADDRESS.%s \n",ASSETCHAINS_SYMBOL,ROGUE_PORT,USERPASS,IPADDRESS); sleep(1);
@@ -1034,7 +1034,7 @@ int main(int argc, char **argv, char **envp)
             fclose(fp);
         if ( ROGUE_PORT == 0 )
         {
-            printf("you must copy ROGUE.conf from ~/.komodo/ROGUE/ROGUE.conf (or equivalent location) to current dir\n");
+            printf("you must copy ROGUE.conf from ~/.safecoin/ROGUE/ROGUE.conf (or equivalent location) to current dir\n");
             return(-1);
         }
         return(rogue(argc,argv,envp));

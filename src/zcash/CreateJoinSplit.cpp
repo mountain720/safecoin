@@ -7,9 +7,9 @@
 #include "zcash/JoinSplit.hpp"
 
 #include "libsnark/common/profiling.hpp"
-#include "komodo_defs.h"
-char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN];
-uint16_t BITCOIND_RPCPORT = 7771;
+#include "safecoin_defs.h"
+char ASSETCHAINS_SYMBOL[SAFECOIN_ASSETCHAIN_MAXLEN];
+uint16_t BITCOIND_RPCPORT = 8771;
 uint32_t ASSETCHAINS_CC = 0;
 
 using namespace libzcash;

@@ -45,28 +45,28 @@ To create payments plan start a chain with the following ac_params:
     -ac_earlytxidcontract=237 (Eval code for prices cc.)
         - this allows to know what contract this chain is paying with the scriptpubkey in the earlytxid op_return. 
 
-./komodod -ac_name=TESTPRC -ac_supply=100000000 -ac_reward=1000000000 -ac_nk=96,5 -ac_blocktime=20 -ac_cc=2 -ac_snapshot=50 -ac_sapling=1 -ac_earlytxidcontract=237 -testnode=1 -gen -genproclimit=1
+./safecoind -ac_name=TESTPRC -ac_supply=100000000 -ac_reward=1000000000 -ac_nk=96,5 -ac_blocktime=20 -ac_cc=2 -ac_snapshot=50 -ac_sapling=1 -ac_earlytxidcontract=237 -testnode=1 -gen -genproclimit=1
 
 Then in very early block < 10 or so, do paymentsairdrop eg. 
-    `./komodo-cli -ac_name=TESTPRC paymentsairdrop '[10,10,0,3999,0,0]'
+    `./safecoin-cli -ac_name=TESTPRC paymentsairdrop '[10,10,0,3999,0,0]'
 Once this tx is confirmed, do `paymentsfund` and decode the raw hex. You can edit the source to not send the tx if requried. 
 Get the full `hex` of the vout[0] that pays to CryptoCondition. then place it on chain with the following command: with the hex you got in place of the hex below.
-    './komodo-cli -ac_name=TESTPRC opreturn_burn 1 2ea22c8020292ba5c8fd9cc89b12b35bf8f5d00196990ecbb06102b84d9748d11d883ef01e81031210008203000401cc'
+    './safecoin-cli -ac_name=TESTPRC opreturn_burn 1 2ea22c8020292ba5c8fd9cc89b12b35bf8f5d00196990ecbb06102b84d9748d11d883ef01e81031210008203000401cc'
 copy the hex, and sendrawtransaction, copy the txid returned. 
 this places the scriptpubkey that pays the plan into an op_return before block 100, allowing us to retreive it, and nobody to change it.
 Restart the daemon with -earlytxid=<txid of opreturn_burn transaction>  eg: 
 
-./komodod -ac_name=TESTPRC -ac_supply=100000000 -ac_reward=1000000000 -ac_nk=96,5 -ac_blocktime=20 -ac_cc=2 -ac_snapshot=50 -ac_sapling=1 -ac_earlytxidcontract=237 -earlytxid=cf89d17fb11037f65c160d0749dddd74dc44d9893b0bb67fe1f96c1f59786496 -testnode=1 -gen -genproclimit=1
+./safecoind -ac_name=TESTPRC -ac_supply=100000000 -ac_reward=1000000000 -ac_nk=96,5 -ac_blocktime=20 -ac_cc=2 -ac_snapshot=50 -ac_sapling=1 -ac_earlytxidcontract=237 -earlytxid=cf89d17fb11037f65c160d0749dddd74dc44d9893b0bb67fe1f96c1f59786496 -testnode=1 -gen -genproclimit=1
 
 mine the chain past block 100, preventing anyone else, creating another payments plan on chain before block 100. 
 
 We call the following in Validation and RPC where the address is needed. 
-if ( ASSETCHAINS_EARLYTXIDCONTRACT == EVAL_PRICES && KOMODO_EARLYTXID_SCRIPTPUB.size() == 0 )
-    GetKomodoEarlytxidScriptPub();
+if ( ASSETCHAINS_EARLYTXIDCONTRACT == EVAL_PRICES && SAFECOIN_EARLYTXID_SCRIPTPUB.size() == 0 )
+    GetSafecoinEarlytxidScriptPub();
 
 This will fetch the op_return, calculate the scriptPubKey and save it to the global. 
 On daemon restart as soon as validation for BETTX happens the global will be filled, after this the transaction never needs to be looked up again. 
-GetKomodoEarlytxidScriptPub is on line #2080 of komodo_bitcoind.h
+GetSafecoinEarlytxidScriptPub is on line #2080 of safecoin_bitcoind.h
  */
 
 #include "CCassets.h"
@@ -242,8 +242,8 @@ static bool ValidateBetTx(struct CCcontract_info *cp, Eval *eval, const CTransac
     std::vector<uint16_t> vec;
 
     // check payment cc config:
-    if ( ASSETCHAINS_EARLYTXIDCONTRACT == EVAL_PRICES && KOMODO_EARLYTXID_SCRIPTPUB.size() == 0 )
-        GetKomodoEarlytxidScriptPub();
+    if ( ASSETCHAINS_EARLYTXIDCONTRACT == EVAL_PRICES && SAFECOIN_EARLYTXID_SCRIPTPUB.size() == 0 )
+        GetSafecoinEarlytxidScriptPub();
 
     if (bettx.vout.size() < 6 || bettx.vout.size() > 7)
         return eval->Invalid("incorrect vout number for bet tx");
@@ -261,7 +261,7 @@ static bool ValidateBetTx(struct CCcontract_info *cp, Eval *eval, const CTransac
     if (MakeCC1vout(cp->evalcode, bettx.vout[2].nValue, pricespk) != bettx.vout[2] )
         return eval->Invalid("cannot validate vout2 in bet tx with pk from opreturn");
     // This should be all you need to verify it, maybe also check amount? 
-    if ( bettx.vout[4].scriptPubKey != KOMODO_EARLYTXID_SCRIPTPUB )
+    if ( bettx.vout[4].scriptPubKey != SAFECOIN_EARLYTXID_SCRIPTPUB )
         return eval->Invalid("the fee was paid to wrong address.");
 
     int64_t betamount = bettx.vout[2].nValue;
@@ -295,8 +295,8 @@ static bool ValidateAddFundingTx(struct CCcontract_info *cp, Eval *eval, const C
     vscript_t vintxOpret;
 
     // check payment cc config:
-    if (ASSETCHAINS_EARLYTXIDCONTRACT == EVAL_PRICES && KOMODO_EARLYTXID_SCRIPTPUB.size() == 0)
-        GetKomodoEarlytxidScriptPub();
+    if (ASSETCHAINS_EARLYTXIDCONTRACT == EVAL_PRICES && SAFECOIN_EARLYTXID_SCRIPTPUB.size() == 0)
+        GetSafecoinEarlytxidScriptPub();
 
     if (addfundingtx.vout.size() < 4 || addfundingtx.vout.size() > 5)
         return eval->Invalid("incorrect vout number for add funding tx");
@@ -321,7 +321,7 @@ static bool ValidateAddFundingTx(struct CCcontract_info *cp, Eval *eval, const C
         return eval->Invalid("cannot validate vout1 in add funding tx with global pk");
 
     // This should be all you need to verify it, maybe also check amount? 
-    if (addfundingtx.vout[2].scriptPubKey != KOMODO_EARLYTXID_SCRIPTPUB)
+    if (addfundingtx.vout[2].scriptPubKey != SAFECOIN_EARLYTXID_SCRIPTPUB)
         return eval->Invalid("the fee was paid to wrong address.");
 
     int64_t betamount = addfundingtx.vout[1].nValue;
@@ -655,12 +655,12 @@ static std::string prices_getsourceexpression(const std::vector<uint16_t> &vec) 
         char name[65];
         std::string operand;
         uint16_t opcode = vec[i];
-        int32_t value = (opcode & (KOMODO_MAXPRICES - 1));   // index or weight 
+        int32_t value = (opcode & (SAFECOIN_MAXPRICES - 1));   // index or weight 
 
-        switch (opcode & KOMODO_PRICEMASK)
+        switch (opcode & SAFECOIN_PRICEMASK)
         {
         case 0: // indices 
-            komodo_pricename(name, value);
+            safecoin_pricename(name, value);
             operand = std::string(name);
             break;
 
@@ -930,9 +930,9 @@ int32_t prices_syntheticvec(std::vector<uint16_t> &vec, std::vector<std::string>
             opcode = PRICES_MMM, need = 3;
         else if (opstr == "///")
             opcode = PRICES_DDD, need = 3;
-        else if (!is_weight_str(opstr) && (ind = komodo_priceind(opstr.c_str())) >= 0)
+        else if (!is_weight_str(opstr) && (ind = safecoin_priceind(opstr.c_str())) >= 0)
             opcode = ind, need = 0;
-        else if ((weight = atoi(opstr.c_str())) > 0 && weight < KOMODO_MAXPRICES)
+        else if ((weight = atoi(opstr.c_str())) > 0 && weight < SAFECOIN_MAXPRICES)
         {
             opcode = PRICES_WEIGHT | weight;
             need = 1;
@@ -947,7 +947,7 @@ int32_t prices_syntheticvec(std::vector<uint16_t> &vec, std::vector<std::string>
         }
         depth -= need;
         ///std::cerr << "prices_syntheticvec() opcode=" << opcode << " opstr=" << opstr << " need=" << need << " depth=" << depth << std::endl;
-        if ((opcode & KOMODO_PRICEMASK) != PRICES_WEIGHT) { // skip weight
+        if ((opcode & SAFECOIN_PRICEMASK) != PRICES_WEIGHT) { // skip weight
             depth++;                                          // increase operands count
             ///std::cerr << "depth++=" << depth << std::endl;
         }
@@ -991,16 +991,16 @@ int64_t prices_syntheticprice(std::vector<uint16_t> vec, int32_t height, int32_t
     for (i = 0; i < vec.size(); i++)
     {
         opcode = vec[i];
-        value = (opcode & (KOMODO_MAXPRICES - 1));   // index or weight 
+        value = (opcode & (SAFECOIN_MAXPRICES - 1));   // index or weight 
 
         mpz_set_ui(mpzResult, 0);  // clear result to test overflow (see below)
 
-        //std::cerr << "prices_syntheticprice" << " i=" << i << " mpzTotalPrice=" << mpz_get_si(mpzTotalPrice) << " value=" << value << " depth=" << depth <<  " opcode&KOMODO_PRICEMASK=" << (opcode & KOMODO_PRICEMASK) <<std::endl;
-        switch (opcode & KOMODO_PRICEMASK)
+        //std::cerr << "prices_syntheticprice" << " i=" << i << " mpzTotalPrice=" << mpz_get_si(mpzTotalPrice) << " value=" << value << " depth=" << depth <<  " opcode&SAFECOIN_PRICEMASK=" << (opcode & SAFECOIN_PRICEMASK) <<std::endl;
+        switch (opcode & SAFECOIN_PRICEMASK)
         {
         case 0: // indices 
             pricestack[depth] = 0;
-            if (komodo_priceget(pricedata, value, height, 1) >= 0)
+            if (safecoin_priceget(pricedata, value, height, 1) >= 0)
             {
                 //std::cerr << "prices_syntheticprice" << " pricedata[0]=" << pricedata[0] << " pricedata[1]=" << pricedata[1] << " pricedata[2]=" << pricedata[2] << std::endl;
                 // push price to the prices stack
@@ -1453,7 +1453,7 @@ int64_t prices_enumaddedbets(uint256 &batontxid, std::vector<OneBetData> &bets, 
 // pricesbet rpc impl: make betting tx
 UniValue PricesBet(int64_t txfee, int64_t amount, int16_t leverage, std::vector<std::string> synthetic)
 {
-    int32_t nextheight = komodo_nextheight();
+    int32_t nextheight = safecoin_nextheight();
     CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), nextheight); UniValue result(UniValue::VOBJ);
     struct CCcontract_info *cp, C; 
     CPubKey pricespk, mypk; 
@@ -1503,14 +1503,14 @@ UniValue PricesBet(int64_t txfee, int64_t amount, int16_t leverage, std::vector<
         mtx.vout.push_back(MakeCC1vout(cp->evalcode, txfee, pricespk));                             // vout1 cc marker (NVOUT_CCMARKER)
         mtx.vout.push_back(MakeCC1vout(cp->evalcode, betamount, pricespk));                         // vout2 betamount
         mtx.vout.push_back(CTxOut(txfee, CScript() << ParseHex(HexStr(pricespk)) << OP_CHECKSIG));  // vout3 normal marker NVOUT_NORMALMARKER - TODO: remove it as we have cc marker now, when move to the new chain
-        if ( ASSETCHAINS_EARLYTXIDCONTRACT == EVAL_PRICES && KOMODO_EARLYTXID_SCRIPTPUB.size() == 0 )
+        if ( ASSETCHAINS_EARLYTXIDCONTRACT == EVAL_PRICES && SAFECOIN_EARLYTXID_SCRIPTPUB.size() == 0 )
         {
             // Lock here, as in validation we cannot call lock in the function itself.
             // may not be needed as the validation call to update the global, is called in a LOCK already, and it can only update there and here.
             LOCK(cs_main);
-            GetKomodoEarlytxidScriptPub();
+            GetSafecoinEarlytxidScriptPub();
         }
-        mtx.vout.push_back(CTxOut(amount-betamount, KOMODO_EARLYTXID_SCRIPTPUB)); 
+        mtx.vout.push_back(CTxOut(amount-betamount, SAFECOIN_EARLYTXID_SCRIPTPUB)); 
         //test: mtx.vout.push_back(CTxOut(amount - betamount, CScript() << ParseHex("037c803ec82d12da939ac04379bbc1130a9065c53d8244a61eece1db942cf0efa7") << OP_CHECKSIG));  // vout4 test revshare fee
 
         rawtx = FinalizeCCTx(0, cp, mtx, mypk, txfee, prices_betopret(mypk, nextheight - 1, amount, leverage, firstprice, vec, zeroid));
@@ -1524,7 +1524,7 @@ UniValue PricesBet(int64_t txfee, int64_t amount, int16_t leverage, std::vector<
 // pricesaddfunding rpc impl: add yet another bet
 UniValue PricesAddFunding(int64_t txfee, uint256 bettxid, int64_t amount)
 {
-    int32_t nextheight = komodo_nextheight();
+    int32_t nextheight = safecoin_nextheight();
     CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), nextheight); UniValue result(UniValue::VOBJ);
     struct CCcontract_info *cp, C; 
     CTransaction bettx; 
@@ -1574,14 +1574,14 @@ UniValue PricesAddFunding(int64_t txfee, uint256 bettxid, int64_t amount)
             mtx.vout.push_back(MakeCC1vout(cp->evalcode, txfee, mypk));         // vout0 baton for total funding
             mtx.vout.push_back(MakeCC1vout(cp->evalcode, betamount, pricespk));    // vout1 added amount
 
-            if (ASSETCHAINS_EARLYTXIDCONTRACT == EVAL_PRICES && KOMODO_EARLYTXID_SCRIPTPUB.size() == 0)
+            if (ASSETCHAINS_EARLYTXIDCONTRACT == EVAL_PRICES && SAFECOIN_EARLYTXID_SCRIPTPUB.size() == 0)
             {
                 // Lock here, as in validation we cannot call lock in the function itself.
                 // may not be needed as the validation call to update the global, is called in a LOCK already, and it can only update there and here.
                 LOCK(cs_main);
-                GetKomodoEarlytxidScriptPub();
+                GetSafecoinEarlytxidScriptPub();
             }
-            mtx.vout.push_back(CTxOut(amount - betamount, KOMODO_EARLYTXID_SCRIPTPUB));
+            mtx.vout.push_back(CTxOut(amount - betamount, SAFECOIN_EARLYTXID_SCRIPTPUB));
             // test: mtx.vout.push_back(CTxOut(amount - betamount, CScript() << ParseHex("037c803ec82d12da939ac04379bbc1130a9065c53d8244a61eece1db942cf0efa7") << OP_CHECKSIG));  //vout2  test revshare fee
 
             rawtx = FinalizeCCTx(0, cp, mtx, mypk, txfee, prices_addopret(bettxid, mypk, amount));
@@ -1644,7 +1644,7 @@ int32_t prices_scanchain(std::vector<OneBetData> &bets, int16_t leverage, std::v
 // pricescostbasis rpc impl: set cost basis (open price) for the bet (deprecated)
 UniValue PricesSetcostbasis(int64_t txfee, uint256 bettxid)
 {
-    int32_t nextheight = komodo_nextheight();
+    int32_t nextheight = safecoin_nextheight();
     CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), nextheight);
     UniValue result(UniValue::VOBJ);
     struct CCcontract_info *cp, C; CTransaction bettx; uint256 hashBlock, batontxid, tokenid;
@@ -1716,7 +1716,7 @@ UniValue PricesSetcostbasis(int64_t txfee, uint256 bettxid)
 // pricesaddfunding rpc impl: add yet another bet
 UniValue PricesRefillFund(int64_t amount)
 {
-    int32_t nextheight = komodo_nextheight();
+    int32_t nextheight = safecoin_nextheight();
     CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), nextheight); UniValue result(UniValue::VOBJ);
     struct CCcontract_info *cp, C;
     CPubKey pricespk, mypk, pk;
@@ -1753,7 +1753,7 @@ int32_t prices_getbetinfo(uint256 bettxid, BetInfo &betinfo)
 
 
         // TODO: forget old tx
-        //CBlockIndex *bi = komodo_getblockindex(hashBlock);
+        //CBlockIndex *bi = safecoin_getblockindex(hashBlock);
         //if (bi && bi->GetHeight() < 5342)
         //    return -5;
 
@@ -1883,7 +1883,7 @@ int32_t prices_getbetinfo(uint256 bettxid, BetInfo &betinfo)
 // pricesrekt rpc: anyone can rekt a bet at some block where losses reached limit, collecting fee
 UniValue PricesRekt(int64_t txfee, uint256 bettxid, int32_t rektheight)
 {
-    int32_t nextheight = komodo_nextheight();
+    int32_t nextheight = safecoin_nextheight();
     CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), nextheight); UniValue result(UniValue::VOBJ);
     struct CCcontract_info *cp, C; 
     CTransaction bettx; 
@@ -1997,7 +1997,7 @@ UniValue PricesRekt(int64_t txfee, uint256 bettxid, int32_t rektheight)
 // pricescashout rpc impl: bettor can cashout hit bet if it is not rekt
 UniValue PricesCashout(int64_t txfee, uint256 bettxid)
 {
-    int32_t nextheight = komodo_nextheight();
+    int32_t nextheight = safecoin_nextheight();
     CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), nextheight); 
     UniValue result(UniValue::VOBJ);
     struct CCcontract_info *cp, C; char destaddr[64]; 
@@ -2165,7 +2165,7 @@ UniValue PricesList(uint32_t filter, CPubKey mypk)
         {
 
             // TODO: forget old tx
-            //CBlockIndex *bi = komodo_getblockindex(hashBlock);
+            //CBlockIndex *bi = safecoin_getblockindex(hashBlock);
             //if (bi && bi->GetHeight() < 5342)
             //    return;
 
@@ -2226,18 +2226,18 @@ static bool prices_ispositionup(const std::vector<uint16_t> &vecparsed, int16_t 
     if (vecparsed.size() > 1 && vecparsed.size() <= 3) {
         uint16_t opcode = vecparsed[0];
 
-        int32_t value = (opcode & (KOMODO_MAXPRICES - 1));   // filter index or weight = opcode & (2048-1)
+        int32_t value = (opcode & (SAFECOIN_MAXPRICES - 1));   // filter index or weight = opcode & (2048-1)
 
-        if ((opcode & KOMODO_PRICEMASK) == 0) {
+        if ((opcode & SAFECOIN_PRICEMASK) == 0) {
             char name[65];
-            if (komodo_pricename(name, value)) {
+            if (safecoin_pricename(name, value)) {
                 std::string upperquote, bottomquote;
                 prices_splitpair(std::string(name), upperquote, bottomquote);
                 
                 uint16_t opcode1 = vecparsed[1];
-                bool isInverted = ((opcode1 & KOMODO_PRICEMASK) == PRICES_INV);
+                bool isInverted = ((opcode1 & SAFECOIN_PRICEMASK) == PRICES_INV);
 
-                //std::cerr << "prices_ispositionup upperquote=" << upperquote << " bottomquote=" << bottomquote << " opcode1=" << opcode1 << " (opcode1 & KOMODO_PRICEMASK)=" << (opcode1 & KOMODO_PRICEMASK) << std::endl;
+                //std::cerr << "prices_ispositionup upperquote=" << upperquote << " bottomquote=" << bottomquote << " opcode1=" << opcode1 << " (opcode1 & SAFECOIN_PRICEMASK)=" << (opcode1 & SAFECOIN_PRICEMASK) << std::endl;
 
                 if (upperquote == "BTC" || bottomquote == "BTC") { // it is relatively btc
                     if (upperquote == "BTC" && (leverage > 0 && !isInverted || leverage < 0 && isInverted) ||
@@ -2275,13 +2275,13 @@ static bool prices_isopposite(BetInfo p1, BetInfo p2) {
         uint16_t opcode1 = p1.vecparsed[0];
         uint16_t opcode2 = p2.vecparsed[0];
 
-        int32_t value1 = (opcode1 & (KOMODO_MAXPRICES - 1));   // index or weight 
-        int32_t value2 = (opcode2 & (KOMODO_MAXPRICES - 1));   // index or weight 
+        int32_t value1 = (opcode1 & (SAFECOIN_MAXPRICES - 1));   // index or weight 
+        int32_t value2 = (opcode2 & (SAFECOIN_MAXPRICES - 1));   // index or weight 
 
-        if ( (opcode1 & KOMODO_PRICEMASK) == 0 && (opcode2 & KOMODO_PRICEMASK) == 0 ) {
+        if ( (opcode1 & SAFECOIN_PRICEMASK) == 0 && (opcode2 & SAFECOIN_PRICEMASK) == 0 ) {
             char name1[65];
             char name2[65];
-            if (komodo_pricename(name1, value1) && komodo_pricename(name2, value2)) {
+            if (safecoin_pricename(name1, value1) && safecoin_pricename(name2, value2)) {
 
                 uint16_t opcode1 = p1.vecparsed[1];
                 uint16_t opcode2 = p2.vecparsed[1];
@@ -2290,10 +2290,10 @@ static bool prices_isopposite(BetInfo p1, BetInfo p2) {
                 prices_splitpair(std::string(name1), upperquote1, bottomquote1);
                 prices_splitpair(std::string(name2), upperquote2, bottomquote2);
 
-                bool isInverted1 = ((opcode1 & KOMODO_PRICEMASK) != PRICES_INV);
-                bool isInverted2 = ((opcode2 & KOMODO_PRICEMASK) != PRICES_INV);
+                bool isInverted1 = ((opcode1 & SAFECOIN_PRICEMASK) != PRICES_INV);
+                bool isInverted2 = ((opcode2 & SAFECOIN_PRICEMASK) != PRICES_INV);
 
-                if (/*upperquote1 == bottomquote2 && bottomquote1 == upperquote2 && (p1.leverage > 0 == p2.leverage > 0 || (opcode1 & KOMODO_PRICEMASK) == PRICES_INV == (opcode2 & KOMODO_PRICEMASK) == PRICES_INV) ||*/
+                if (/*upperquote1 == bottomquote2 && bottomquote1 == upperquote2 && (p1.leverage > 0 == p2.leverage > 0 || (opcode1 & SAFECOIN_PRICEMASK) == PRICES_INV == (opcode2 & SAFECOIN_PRICEMASK) == PRICES_INV) ||*/
                     upperquote1 == upperquote2 && bottomquote1 == bottomquote2 && ((p1.leverage > 0) != (p2.leverage > 0) || isInverted1 != isInverted2) )
                     return true;
             }
@@ -2309,11 +2309,11 @@ static std::string findMatchedBook(const std::vector<uint16_t> &vecparsed, const
     if (vecparsed.size() > 1 && vecparsed.size() <= 3) {
         uint16_t opcode = vecparsed[0];
 
-        int32_t value = (opcode & (KOMODO_MAXPRICES - 1));   // filter index or weight = opcode & (2048-1)
+        int32_t value = (opcode & (SAFECOIN_MAXPRICES - 1));   // filter index or weight = opcode & (2048-1)
 
-        if ((opcode & KOMODO_PRICEMASK) == 0) {
+        if ((opcode & SAFECOIN_PRICEMASK) == 0) {
             char name[65];
-            if (komodo_pricename(name, value)) {
+            if (safecoin_pricename(name, value)) {
                 auto it = bookmatched.find(std::string(name));
                 if (it != bookmatched.end())
                     return it->first;
@@ -2368,7 +2368,7 @@ void prices_getorderbook(std::map<std::string, std::vector<BetInfo> > & bookmatc
 
             if (book[0].vecparsed.size() <= 3) {   // only short expr check for match: "BTC_USD,1" or "BTC_USD,!,1"
                 char name[65];
-                komodo_pricename(name, (book[0].vecparsed[0] & (KOMODO_MAXPRICES - 1)));
+                safecoin_pricename(name, (book[0].vecparsed[0] & (SAFECOIN_MAXPRICES - 1)));
                 std::string sname = name;
                 bookmatched[sname].push_back(book[0]);
 

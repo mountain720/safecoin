@@ -26,7 +26,7 @@
 
 #include "cc/CCinclude.h"
 
-int32_t komodo_nextheight();
+int32_t safecoin_nextheight();
 
 // makes import tx for either coins or tokens
 CTransaction MakeImportCoinTransaction(const ImportProof proof, const CTransaction burnTx, const std::vector<CTxOut> payouts, uint32_t nExpiryHeightOverride)
@@ -34,7 +34,7 @@ CTransaction MakeImportCoinTransaction(const ImportProof proof, const CTransacti
     //std::vector<uint8_t> payload = E_MARSHAL(ss << EVAL_IMPORTCOIN);
     CScript scriptSig;
 
-    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), komodo_nextheight());
+    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), safecoin_nextheight());
     if (mtx.fOverwintered) 
         mtx.nExpiryHeight = 0;
     mtx.vout = payouts;

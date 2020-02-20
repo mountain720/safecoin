@@ -1,19 +1,19 @@
 
-TESTS += komodo-test
-bin_PROGRAMS += komodo-test
+TESTS += safecoin-test
+bin_PROGRAMS += safecoin-test
 
 # tool for generating our public parameters
-komodo_test_SOURCES = \
-	test-komodo/main.cpp \
-	test-komodo/testutils.cpp \
-	test-komodo/test_cryptoconditions.cpp \
-	test-komodo/test_coinimport.cpp \
-	test-komodo/test_eval_bet.cpp \
-	test-komodo/test_eval_notarisation.cpp \
-	test-komodo/test_parse_notarisation.cpp
+safecoin_test_SOURCES = \
+	test-safecoin/main.cpp \
+	test-safecoin/testutils.cpp \
+	test-safecoin/test_cryptoconditions.cpp \
+	test-safecoin/test_coinimport.cpp \
+	test-safecoin/test_eval_bet.cpp \
+	test-safecoin/test_eval_notarisation.cpp \
+	test-safecoin/test_parse_notarisation.cpp
 
-komodo_test_CPPFLAGS = $(komodod_CPPFLAGS)
+safecoin_test_CPPFLAGS = $(safecoind_CPPFLAGS)
 
-komodo_test_LDADD = -lgtest $(komodod_LDADD)
+safecoin_test_LDADD = -lgtest $(safecoind_LDADD)
 
-komodo_test_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) -static
+safecoin_test_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) -static

@@ -1,6 +1,6 @@
-# Komodo Cryptoconditons Terminal User Interfaces (aka TUIs)
+# Safecoin Cryptoconditons Terminal User Interfaces (aka TUIs)
 
-These tools creating for demonstration and partial automation of Komodo cryptoconditions modules testing. (RogueCC game, AssetsCC, OraclesCC, GatewaysCC, MarmaraCC, ...)
+These tools creating for demonstration and partial automation of Safecoin cryptoconditions modules testing. (RogueCC game, AssetsCC, OraclesCC, GatewaysCC, MarmaraCC, ...)
 
 
 Developer installation (on Ubuntu 18.04) :

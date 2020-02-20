@@ -25,7 +25,7 @@
 #include "consensus/validation.h"
 #include "primitives/transaction.h"
 
-#define KOMODO_FIRSTFUNGIBLEID 100
+#define SAFECOIN_FIRSTFUNGIBLEID 100
 
 /*
  * Eval codes
@@ -223,7 +223,7 @@ public:
         if (ASSETCHAINS_SYMBOL[0]) return 1;
         if (s.size() >= 72) {
             if (strcmp("BTC", &s[68]) == 0) return 1;
-            if (strcmp("KMD", &s[68]) == 0) return 1;
+            if (strcmp("SAFE", &s[68]) == 0) return 1;
         }
         return 0;
     }

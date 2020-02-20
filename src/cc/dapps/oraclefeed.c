@@ -330,7 +330,7 @@ cJSON *get_cli(char *refcoin,char **retstrp,char *acname,char *method,char *arg0
     {
         if ( refcoin[0] == 0 )
             myprintf("must supply reference coin\n");
-        sprintf(cmdstr,"./komodo-cli -ac_name=%s %s %s %s %s %s > %s 2>/tmp/oraclefeed.error\n",acname,method,arg0,arg1,arg2,arg3,fname);
+        sprintf(cmdstr,"./safecoin-cli -ac_name=%s %s %s %s %s %s > %s 2>/tmp/oraclefeed.error\n",acname,method,arg0,arg1,arg2,arg3,fname);
     }
     else if ( REFCOIN_CLI != 0 && REFCOIN_CLI[0] != 0 )
     {
@@ -516,7 +516,7 @@ cJSON *get_rawmempool(char *refcoin,char *acname)
 cJSON *get_addressutxos(char *refcoin,char *acname,char *coinaddr)
 {
     cJSON *retjson; char *retstr,jsonbuf[256];
-    if ( refcoin[0] != 0 && strcmp(refcoin,"KMD") != 0 )
+    if ( refcoin[0] != 0 && strcmp(refcoin,"SAFE") != 0 )
         myprintf("warning: assumes %s has addressindex enabled\n",refcoin);
     sprintf(jsonbuf,"{\\\"addresses\\\":[\\\"%s\\\"]}",coinaddr);
     if ( (retjson= get_cli(refcoin,&retstr,acname,"getaddressutxos",jsonbuf,"","","")) != 0 )
@@ -882,7 +882,7 @@ int32_t markerexists(char *refcoin,char *acname,char *coinaddr)
 void update_gatewayspending(int8_t type,char *refcoin,char *acname,char *bindtxidstr,int32_t M,int32_t N)
 {
     // check queue to prevent duplicate
-    // check KMD chain and mempool for txidaddr
+    // check SAFE chain and mempool for txidaddr
     // if txidaddr exists properly, spend the marker (txid.2)
     // create withdraw tx and sign it
     /// if enough sigs, sendrawtransaction and when it confirms spend marker (txid.2)
@@ -1070,7 +1070,7 @@ int32_t main(int32_t argc,char **argv)
     bindtxidstr = argv[5];
     if ( argc > 6 )
         REFCOIN_CLI = argv[6];
-    else REFCOIN_CLI = "./komodo-cli";
+    else REFCOIN_CLI = "./safecoin-cli";
     if ( strncmp(format,"Ihh",3) != 0 && format[0] != 'L' )
     {
         myprintf("only formats of L and Ihh are supported now\n");
@@ -1086,7 +1086,7 @@ int32_t main(int32_t argc,char **argv)
             if ( refcoin[0] == 0 && jstr(clijson,"name") != 0 )
             {
                 strcpy(refcoin,jstr(clijson,"name"));
-                if ( strcmp("KMD",refcoin) != 0 && argc != 7 )
+                if ( strcmp("SAFE",refcoin) != 0 && argc != 7 )
                 {
                     myprintf("need to specify path to refcoin's cli as last argv\n");
                     exit(0);

@@ -46,7 +46,7 @@
 #include <thread>
 
 #include "paymentdisclosuredb.h"
-int32_t komodo_blockheight(uint256 hash);
+int32_t safecoin_blockheight(uint256 hash);
 
 using namespace libzcash;
 
@@ -678,7 +678,7 @@ bool AsyncRPCOperation_mergetoaddress::main_impl()
                 if (mapBlockIndex.find(wtx.hashBlock) == mapBlockIndex.end()) {
                     throw JSONRPCError(RPC_WALLET_ERROR, strprintf("mapBlockIndex does not contain block hash %s", wtx.hashBlock.ToString()));
                 }
-                wtxHeight = komodo_blockheight(wtx.hashBlock);
+                wtxHeight = safecoin_blockheight(wtx.hashBlock);
                 wtxDepth = wtx.GetDepthInMainChain();
             }
             LogPrint("zrpcunsafe", "%s: spending note (txid=%s, vjoinsplit=%d, ciphertext=%d, amount=%s, height=%d, confirmations=%d)\n",

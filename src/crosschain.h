@@ -18,7 +18,7 @@
 
 #include "cc/eval.h"
 
-const int CROSSCHAIN_KOMODO = 1;
+const int CROSSCHAIN_SAFECOIN = 1;
 const int CROSSCHAIN_TXSCL = 2;
 const int CROSSCHAIN_STAKED = 3;
 
@@ -34,15 +34,15 @@ bool CheckTxAuthority(const CTransaction &tx, CrosschainAuthority auth);
 /* On assetchain */
 TxProof GetAssetchainProof(uint256 hash,CTransaction burnTx);
 
-/* On KMD */
-uint256 CalculateProofRoot(const char* symbol, uint32_t targetCCid, int kmdHeight,
+/* On SAFE */
+uint256 CalculateProofRoot(const char* symbol, uint32_t targetCCid, int safeHeight,
         std::vector<uint256> &moms, uint256 &destNotarisationTxid);
 TxProof GetCrossChainProof(const uint256 txid, const char* targetSymbol, uint32_t targetCCid,
         const TxProof assetChainProof,int32_t offset);
 void CompleteImportTransaction(CTransaction &importTx,int32_t offset);
 
 /* On assetchain */
-bool CheckMoMoM(uint256 kmdNotarisationHash, uint256 momom);
+bool CheckMoMoM(uint256 safeNotarisationHash, uint256 momom);
 bool CheckNotariesApproval(uint256 burntxid, const std::vector<uint256> & notaryTxids);
 
 #endif /* CROSSCHAIN_H */

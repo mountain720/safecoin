@@ -40,7 +40,7 @@
 #include "wallet/wallet.h"
 #endif
 
-#include "komodo_defs.h"
+#include "safecoin_defs.h"
 
 #include <stdint.h>
 
@@ -48,12 +48,12 @@
 
 #include <univalue.h>
 
-int32_t komodo_notarized_height(int32_t *prevMoMheightp,uint256 *hashp,uint256 *txidp);
+int32_t safecoin_notarized_height(int32_t *prevMoMheightp,uint256 *hashp,uint256 *txidp);
 
 using namespace std;
 
 extern char ASSETCHAINS_SYMBOL[];
-int32_t komodo_dpowconfs(int32_t height,int32_t numconfs);
+int32_t safecoin_dpowconfs(int32_t height,int32_t numconfs);
 
 void ScriptPubKeyToJSON(const CScript& scriptPubKey, UniValue& out, bool fIncludeHex)
 {
@@ -140,7 +140,7 @@ UniValue TxJoinSplitToJSON(const CTransaction& tx) {
     return vjoinsplit;
 }
 
-uint64_t komodo_accrued_interest(int32_t *txheightp,uint32_t *locktimep,uint256 hash,int32_t n,int32_t checkheight,uint64_t checkvalue,int32_t tipheight);
+uint64_t safecoin_accrued_interest(int32_t *txheightp,uint32_t *locktimep,uint256 hash,int32_t n,int32_t checkheight,uint64_t checkvalue,int32_t tipheight);
 
 UniValue TxShieldedSpendsToJSON(const CTransaction& tx) {
     UniValue vdesc(UniValue::VARR);
@@ -188,7 +188,7 @@ int32_t myIsutxo_spent(uint256 &spenttxid,uint256 txid,int32_t vout)
 void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue& entry, int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
 {
     uint256 notarized_hash,notarized_desttxid; int32_t prevMoMheight,notarized_height;
-    notarized_height = komodo_notarized_height(&prevMoMheight,&notarized_hash,&notarized_desttxid);
+    notarized_height = safecoin_notarized_height(&prevMoMheight,&notarized_hash,&notarized_desttxid);
     uint256 txid = tx.GetHash();
     entry.push_back(Pair("txid", txid.GetHex()));
     entry.push_back(Pair("overwintered", tx.fOverwintered));
@@ -275,7 +275,7 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
         if ( ASSETCHAINS_SYMBOL[0] == 0 && pindex != 0 && tx.nLockTime >= 500000000 && (tipindex= chainActive.LastTip()) != 0 )
         {
             int64_t interest; int32_t txheight; uint32_t locktime;
-            interest = komodo_accrued_interest(&txheight,&locktime,tx.GetHash(),i,0,txout.nValue,(int32_t)tipindex->GetHeight());
+            interest = safecoin_accrued_interest(&txheight,&locktime,tx.GetHash(),i,0,txout.nValue,(int32_t)tipindex->GetHeight());
             out.push_back(Pair("interest", ValueFromAmount(interest)));
         }
         out.push_back(Pair("valueSat", txout.nValue)); // [+] Decker
@@ -324,7 +324,7 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
 
         if (nConfirmations > 0) {
             entry.push_back(Pair("height", nHeight));
-            entry.push_back(Pair("confirmations", komodo_dpowconfs(nHeight,nConfirmations)));
+            entry.push_back(Pair("confirmations", safecoin_dpowconfs(nHeight,nConfirmations)));
             entry.push_back(Pair("rawconfirmations", nConfirmations));
             entry.push_back(Pair("time", nBlockTime));
             entry.push_back(Pair("blocktime", nBlockTime));
@@ -374,10 +374,10 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
         const CTxOut& txout = tx.vout[i];
         UniValue out(UniValue::VOBJ);
         out.push_back(Pair("value", ValueFromAmount(txout.nValue)));
-        if ( KOMODO_NSPV_FULLNODE && ASSETCHAINS_SYMBOL[0] == 0 && tx.nLockTime >= 500000000 && (tipindex= chainActive.LastTip()) != 0 )
+        if ( SAFECOIN_NSPV_FULLNODE && ASSETCHAINS_SYMBOL[0] == 0 && tx.nLockTime >= 500000000 && (tipindex= chainActive.LastTip()) != 0 )
         {
             int64_t interest; int32_t txheight; uint32_t locktime;
-            interest = komodo_accrued_interest(&txheight,&locktime,tx.GetHash(),i,0,txout.nValue,(int32_t)tipindex->GetHeight());
+            interest = safecoin_accrued_interest(&txheight,&locktime,tx.GetHash(),i,0,txout.nValue,(int32_t)tipindex->GetHeight());
             out.push_back(Pair("interest", ValueFromAmount(interest)));
         }        
         out.push_back(Pair("valueZat", txout.nValue));
@@ -411,7 +411,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
             if (chainActive.Contains(pindex)) {
                 entry.push_back(Pair("height", pindex->GetHeight()));
                 entry.push_back(Pair("rawconfirmations", 1 + chainActive.Height() - pindex->GetHeight()));
-                entry.push_back(Pair("confirmations", komodo_dpowconfs(pindex->GetHeight(),1 + chainActive.Height() - pindex->GetHeight())));
+                entry.push_back(Pair("confirmations", safecoin_dpowconfs(pindex->GetHeight(),1 + chainActive.Height() - pindex->GetHeight())));
                 entry.push_back(Pair("time", pindex->GetBlockTime()));
                 entry.push_back(Pair("blocktime", pindex->GetBlockTime()));
             } else {
@@ -470,7 +470,7 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp, const CPubKey& my
             "         \"reqSigs\" : n,            (numeric) The required sigs\n"
             "         \"type\" : \"pubkeyhash\",  (string) The type, eg 'pubkeyhash'\n"
             "         \"addresses\" : [           (json array of string)\n"
-            "           \"komodoaddress\"          (string) Komodo address\n"
+            "           \"safecoinaddress\"          (string) Safecoin address\n"
             "           ,...\n"
             "         ]\n"
             "       }\n"
@@ -479,8 +479,8 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp, const CPubKey& my
             "  ],\n"
             "  \"vjoinsplit\" : [        (array of json objects, only for version >= 2)\n"
             "     {\n"
-            "       \"vpub_old\" : x.xxx,         (numeric) public input value in KMD\n"
-            "       \"vpub_new\" : x.xxx,         (numeric) public output value in KMD\n"
+            "       \"vpub_old\" : x.xxx,         (numeric) public input value in SAFE\n"
+            "       \"vpub_new\" : x.xxx,         (numeric) public output value in SAFE\n"
             "       \"anchor\" : \"hex\",         (string) the anchor\n"
             "       \"nullifiers\" : [            (json array of string)\n"
             "         \"hex\"                     (string) input note nullifier\n"
@@ -744,13 +744,13 @@ UniValue createrawtransaction(const UniValue& params, bool fHelp, const CPubKey&
             "       {\n"
             "         \"txid\":\"id\",    (string, required) The transaction id\n"
             "         \"vout\":n,         (numeric, required) The output number\n"
-            "         \"sequence\":n      (numeric, optional) The sequence number\n"
-            "       } \n"
+            "         \"sequence\":n    (numeric, optional) The sequence number\n"
+            "       }\n"
             "       ,...\n"
             "     ]\n"
             "2. \"outputs\"               (object, required) a json object with outputs\n"
             "    {\n"
-            "      \"address\": x.xxx,    (numeric or string, required) The key is the komodo address or script (in hex), the numeric value (can be string) is the " + CURRENCY_UNIT + " amount\n"
+            "      \"address\": x.xxx,    (numeric or string, required) The key is the safecoin address or script (in hex), the numeric value (can be string) is the " + CURRENCY_UNIT + " amount\n"
             "      \"data\": \"hex\"      (string, required) The key is \"data\", the value is hex encoded data\n"
             "      ,...\n"
             "    }\n"
@@ -858,28 +858,28 @@ UniValue createrawtransaction(const UniValue& params, bool fHelp, const CPubKey&
                     (scriptPubKey.IsPayToPublicKeyHash() || scriptPubKey.IsPayToPublicKey() || scriptPubKey.IsPayToScriptHash())
                     )) {
                         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid script: ") + name_ + std::string(" (only P2PKH, P2PK and P2SH scripts are allowed)"));
-                }
+        }
             }
             else {
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Komodo address or script: ") + name_);
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Safecoin address or script: ") + name_);
             }
 
-            if (!(fExperimentalMode && IS_KOMODO_NOTARY)) {
+            if (!(fExperimentalMode && IS_SAFECOIN_NOTARY)) {
                 // support of sending duplicates in createrawtransaction requires experimental features enabled and
                 // notary flag, to prevent common users to get messed up with duplicates
 
                 //if (!destinations.insert(EncodeDestination(destination)).second) {
-                if (!destinations.insert(destination).second) {
+        if (!destinations.insert(destination).second) {
                     throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated destination: ") + name_);
                 }
-            }
+        }
 
             // CAmount nAmount = AmountFromValue(sendTo[name_]);    // operator[](const std::string& key) const;
             CAmount nAmount = AmountFromValue(sendTo[idx]);         // operator[](size_t index) const;
 
-            CTxOut out(nAmount, scriptPubKey);
-            rawTx.vout.push_back(out);
-        }
+        CTxOut out(nAmount, scriptPubKey);
+        rawTx.vout.push_back(out);
+    }
     }
 
     return EncodeHexTx(rawTx);
@@ -925,7 +925,7 @@ UniValue decoderawtransaction(const UniValue& params, bool fHelp, const CPubKey&
             "         \"reqSigs\" : n,            (numeric) The required sigs\n"
             "         \"type\" : \"pubkeyhash\",  (string) The type, eg 'pubkeyhash'\n"
             "         \"addresses\" : [           (json array of string)\n"
-            "           \"RTZMZHDFSTFQst8XmX2dR4DaH87cEUs3gC\"   (string) komodo address\n"
+            "           \"RTZMZHDFSTFQst8XmX2dR4DaH87cEUs3gC\"   (string) safecoin address\n"
             "           ,...\n"
             "         ]\n"
             "       }\n"
@@ -934,8 +934,8 @@ UniValue decoderawtransaction(const UniValue& params, bool fHelp, const CPubKey&
             "  ],\n"
             "  \"vjoinsplit\" : [        (array of json objects, only for version >= 2)\n"
             "     {\n"
-            "       \"vpub_old\" : x.xxx,         (numeric) public input value in KMD\n"
-            "       \"vpub_new\" : x.xxx,         (numeric) public output value in KMD\n"
+            "       \"vpub_old\" : x.xxx,         (numeric) public input value in SAFE\n"
+            "       \"vpub_new\" : x.xxx,         (numeric) public output value in SAFE\n"
             "       \"anchor\" : \"hex\",         (string) the anchor\n"
             "       \"nullifiers\" : [            (json array of string)\n"
             "         \"hex\"                     (string) input note nullifier\n"
@@ -995,7 +995,7 @@ UniValue decodescript(const UniValue& params, bool fHelp, const CPubKey& mypk)
             "  \"type\":\"type\", (string) The output type\n"
             "  \"reqSigs\": n,    (numeric) The required signatures\n"
             "  \"addresses\": [   (json array of string)\n"
-            "     \"address\"     (string) Komodo address\n"
+            "     \"address\"     (string) Safecoin address\n"
             "     ,...\n"
             "  ],\n"
             "  \"p2sh\",\"address\" (string) script address\n"
@@ -1366,30 +1366,30 @@ UniValue sendrawtransaction(const UniValue& params, bool fHelp, const CPubKey& m
     bool fOverrideFees = false;
     if (params.size() > 1)
         fOverrideFees = params[1].get_bool();
-    if ( KOMODO_NSPV_FULLNODE )
+    if ( SAFECOIN_NSPV_FULLNODE )
     {
-        CCoinsViewCache &view = *pcoinsTip;
-        const CCoins* existingCoins = view.AccessCoins(hashTx);
-        bool fHaveMempool = mempool.exists(hashTx);
-        bool fHaveChain = existingCoins && existingCoins->nHeight < 1000000000;
-        if (!fHaveMempool && !fHaveChain) {
-            // push to local node and sync with wallets
-            CValidationState state;
-            bool fMissingInputs;
-            if (!AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs, !fOverrideFees)) {
-                if (state.IsInvalid()) {
-                    throw JSONRPCError(RPC_TRANSACTION_REJECTED, strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));
-                } else {
-                    if (fMissingInputs) {
-                        throw JSONRPCError(RPC_TRANSACTION_ERROR, "Missing inputs");
-                    }
-                    throw JSONRPCError(RPC_TRANSACTION_ERROR, state.GetRejectReason());
+    CCoinsViewCache &view = *pcoinsTip;
+    const CCoins* existingCoins = view.AccessCoins(hashTx);
+    bool fHaveMempool = mempool.exists(hashTx);
+    bool fHaveChain = existingCoins && existingCoins->nHeight < 1000000000;
+    if (!fHaveMempool && !fHaveChain) {
+        // push to local node and sync with wallets
+        CValidationState state;
+        bool fMissingInputs;
+        if (!AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs, !fOverrideFees)) {
+            if (state.IsInvalid()) {
+                throw JSONRPCError(RPC_TRANSACTION_REJECTED, strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));
+            } else {
+                if (fMissingInputs) {
+                    throw JSONRPCError(RPC_TRANSACTION_ERROR, "Missing inputs");
                 }
+                throw JSONRPCError(RPC_TRANSACTION_ERROR, state.GetRejectReason());
             }
-        } else if (fHaveChain) {
-            throw JSONRPCError(RPC_TRANSACTION_ALREADY_IN_CHAIN, "transaction already in block chain");
         }
-        RelayTransaction(tx);
+    } else if (fHaveChain) {
+        throw JSONRPCError(RPC_TRANSACTION_ALREADY_IN_CHAIN, "transaction already in block chain");
+    }
+    RelayTransaction(tx);
     }
     else
     {

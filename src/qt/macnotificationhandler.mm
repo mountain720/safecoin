@@ -13,7 +13,7 @@
 - (NSString *)__bundleIdentifier
 {
     if (self == [NSBundle mainBundle]) {
-        return @"org.bitcoinfoundation.Komodo-Qt";
+        return @"org.bitcoinfoundation.Safecoin-Qt";
     } else {
         return [self __bundleIdentifier];
     }

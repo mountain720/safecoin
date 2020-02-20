@@ -80,7 +80,7 @@ UniValue test_ac(const UniValue& params, bool fHelp, const CPubKey& mypk)
     uint256 fundingtxid = Parseuint256((char *)params[3].get_str().c_str());
 
     CPubKey myPubkey = pubkey2pk(Mypubkey());
-    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), komodo_nextheight());
+    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), safecoin_nextheight());
 
     int64_t normalInputs = AddNormalinputs(mtx, myPubkey, txfee + amount, 60);
 
@@ -111,7 +111,7 @@ UniValue test_heirmarker(const UniValue& params, bool fHelp, const CPubKey& mypk
     uint256 fundingtxid = Parseuint256((char *)params[0].get_str().c_str());
 
     CPubKey myPubkey = pubkey2pk(Mypubkey());
-    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), komodo_nextheight());
+    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), safecoin_nextheight());
 
     int64_t normalInputs = AddNormalinputs(mtx, myPubkey, 10000, 60);
     if (normalInputs < 10000)
@@ -142,7 +142,7 @@ UniValue test_burntx(const UniValue& params, bool fHelp, const CPubKey& mypk)
     uint256 tokenid = Parseuint256((char *)params[0].get_str().c_str());
 
     CPubKey myPubkey = pubkey2pk(Mypubkey());
-    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), komodo_nextheight());
+    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), safecoin_nextheight());
 
     int64_t normalInputs = AddNormalinputs(mtx, myPubkey, 10000, 60);
     if (normalInputs < 10000)
@@ -236,7 +236,7 @@ UniValue test_pricesmarker(const UniValue& params, bool fHelp, const CPubKey& my
 
     cp = CCinit(&C, EVAL_PRICES);
     CPubKey myPubkey = pubkey2pk(Mypubkey());
-    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), komodo_nextheight());
+    CMutableTransaction mtx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), safecoin_nextheight());
 
     int64_t normalInputs = AddNormalinputs(mtx, myPubkey, 10000, 60);
     if (normalInputs < 10000)

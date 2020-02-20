@@ -53,7 +53,7 @@ void setupChain()
 
     // Init blockchain
     ClearDatadirCache();
-    auto pathTemp = GetTempPath() / strprintf("test_komodo_%li_%i", GetTime(), GetRand(100000));
+    auto pathTemp = GetTempPath() / strprintf("test_safecoin_%li_%i", GetTime(), GetRand(100000));
     if (ASSETCHAINS_SYMBOL[0])
         pathTemp = pathTemp / strprintf("_%s", ASSETCHAINS_SYMBOL);
     boost::filesystem::create_directories(pathTemp);

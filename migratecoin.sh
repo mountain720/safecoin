@@ -11,7 +11,7 @@ address="RFw7byY4xZpZCrtkMk3nFuuG1NTs9rSGgQ"
 amount=1
 
 # Alias for running cli on source chain
-cli_source="komodo-cli -ac_name=$source"
+cli_source="safecoin-cli -ac_name=$source"
 
 # Raw tx that we will work with
 txraw=`$cli_source createrawtransaction "[]" "{\"$address\":$amount}"`
@@ -33,11 +33,11 @@ exportSignedTx=`echo $exportSignedData | jq -r .hex`
 echo "Sending export tx"
 $cli_source sendrawtransaction $exportSignedTx
 
-read -p "Wait for a notarisation to KMD, and then two more notarisations from the target chain, and then press enter to continue"
+read -p "Wait for a notarisation to SAFE, and then two more notarisations from the target chain, and then press enter to continue"
 
 # Create import
 importTx=`$cli_source migrate_createimporttransaction $exportSignedTx $payouts`
-importTx=`komodo-cli migrate_completeimporttransaction $importTx`
+importTx=`safecoin-cli migrate_completeimporttransaction $importTx`
 
 # Send import
-komodo-cli -ac_name=$target sendrawtransaction $importTx
+safecoin-cli -ac_name=$target sendrawtransaction $importTx

@@ -436,7 +436,7 @@ bool CBlockTreeDB::ReadAddressIndex(uint160 addressHash, int type,
 }
 
 bool getAddressFromIndex(const int &type, const uint160 &hash, std::string &address);
-uint32_t komodo_segid32(char *coinaddr);
+uint32_t safecoin_segid32(char *coinaddr);
 
 #define DECLARE_IGNORELIST std::map <std::string,int> ignoredMap = { \
     {"RReUxSs5hGE39ELU23DfydX8riUuzdrHAE", 1}, \
@@ -590,7 +590,7 @@ UniValue CBlockTreeDB::Snapshot(int top)
           	char amount[32];
           	sprintf(amount, "%.8f", (double) it->first / COIN);
           	obj.push_back( make_pair("amount", amount) );
-            obj.push_back( make_pair("segid",(int32_t)komodo_segid32((char *)it->second.c_str()) & 0x3f) );
+            obj.push_back( make_pair("segid",(int32_t)safecoin_segid32((char *)it->second.c_str()) & 0x3f) );
           	addressesSorted.push_back(obj);
             topN++;
             // If requested, only show top N addresses in output JSON
@@ -672,7 +672,7 @@ bool CBlockTreeDB::ReadFlag(const std::string &name, bool &fValue) {
     return true;
 }
 
-void komodo_index2pubkey33(uint8_t *pubkey33,CBlockIndex *pindex,int32_t height);
+void safecoin_index2pubkey33(uint8_t *pubkey33,CBlockIndex *pindex,int32_t height);
 
 bool CBlockTreeDB::blockOnchainActive(const uint256 &hash) {
     BlockMap::const_iterator it = mapBlockIndex.find(hash);
@@ -729,7 +729,7 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                 if ( 0 ) // POW will be checked before any block is connected
                 {
                     uint8_t pubkey33[33];
-                    komodo_index2pubkey33(pubkey33,pindexNew,pindexNew->GetHeight());
+                    safecoin_index2pubkey33(pubkey33,pindexNew,pindexNew->GetHeight());
                     if (!CheckProofOfWork(header,pubkey33,pindexNew->GetHeight(),Params().GetConsensus()))
                         return error("LoadBlockIndex(): CheckProofOfWork failed: %s", pindexNew->ToString());
                 }

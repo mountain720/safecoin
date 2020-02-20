@@ -59,7 +59,7 @@ public:
     CMutableTransaction MakePostEvidenceTx(uint256 signedSessionTxHash,
             int playerIndex, std::vector<unsigned char> state);
 
-    // on KMD
+    // on SAFE
     CC* MakePayoutCond(uint256 signedSessionTxHash);
     CMutableTransaction MakeStakeTx(CAmount totalPayout, uint256 signedSessionTx);
     CMutableTransaction MakeAgreePayoutTx(std::vector<CTxOut> payouts, uint256 signedStakeTxHash);

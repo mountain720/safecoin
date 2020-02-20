@@ -30,7 +30,7 @@
 #include "utiltime.h"
 #include "wallet/wallet.h"
 #include "zcash/Proof.hpp"
-#include "komodo_defs.h"
+#include "safecoin_defs.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
@@ -41,7 +41,7 @@ using namespace std;
 
 static uint64_t nAccountingEntryNumber = 0;
 static list<uint256> deadTxns; 
-extern CBlockIndex *komodo_blockindex(uint256 hash);
+extern CBlockIndex *safecoin_blockindex(uint256 hash);
 
 //
 // CWalletDB
@@ -486,7 +486,7 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             ssValue >> wtx;
             CValidationState state;
             auto verifier = libzcash::ProofVerifier::Strict();
-            // ac_public chains set at height like KMD and ZEX, will force a rescan if we dont ignore this error: bad-txns-acpublic-chain
+            // ac_public chains set at height like SAFE and ZEX, will force a rescan if we dont ignore this error: bad-txns-acpublic-chain
             // there cannot be any ztx in the wallet on ac_public chains that started from block 1, so this wont affect those. 
             // PIRATE fails this check for notary nodes, need exception. Triggers full rescan without it. 
             if ( !(CheckTransaction(0,wtx, state, verifier, 0, 0) && (wtx.GetHash() == hash) && state.IsValid()) && (state.GetRejectReason() != "bad-txns-acpublic-chain" && state.GetRejectReason() != "bad-txns-acprivacy-chain" && state.GetRejectReason() != "bad-txns-stakingtx") )
@@ -972,7 +972,7 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
             if (!EraseTx(hash))
                 fprintf(stderr, "could not delete tx.%s\n",hash.ToString().c_str());
             uint256 blockhash; CTransaction tx; CBlockIndex* pindex;
-            if ( GetTransaction(hash,tx,blockhash,false) && (pindex= komodo_blockindex(blockhash)) != 0 && chainActive.Contains(pindex) )
+            if ( GetTransaction(hash,tx,blockhash,false) && (pindex= safecoin_blockindex(blockhash)) != 0 && chainActive.Contains(pindex) )
             {
                 CWalletTx wtx(pwallet,tx);
                 pwallet->AddToWallet(wtx, true, NULL);
