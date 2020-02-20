@@ -780,7 +780,7 @@ uint32_t safecoin_assetmagic(char *symbol,uint64_t supply,uint8_t *extraptr,int3
 
 uint16_t safecoin_assetport(uint32_t magic,int32_t extralen)
 {
-    if ( magic == 0x8de4eef9 )
+    if ( magic == 0x8fe2edf1 )
         return(8770);
     else if ( extralen == 0 )
         return(8000 + (magic % 7777));
@@ -791,7 +791,7 @@ uint16_t safecoin_port(char *symbol,uint64_t supply,uint32_t *magicp,uint8_t *ex
 {
     if ( symbol == 0 || symbol[0] == 0 || strcmp("SAFE",symbol) == 0 )
     {
-        *magicp = 0x8de4eef9;
+        *magicp = 0x8fe2edf1;
         return(8770);
     }
     *magicp = safecoin_assetmagic(symbol,supply,extraptr,extralen);
