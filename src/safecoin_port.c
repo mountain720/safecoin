@@ -766,7 +766,7 @@ uint32_t safecoin_assetmagic(char *symbol,uint64_t supply,uint8_t *extraptr,int3
 {
     uint8_t buf[512]; uint32_t crc0=0; int32_t len = 0; bits256 hash;
     if ( strcmp(symbol,"SAFE") == 0 )
-        return(0x8de4eef9);
+        return(0x8fe2edf1);
     len = iguana_rwnum(1,&buf[len],sizeof(supply),(void *)&supply);
     strcpy((char *)&buf[len],symbol);
     len += strlen(symbol);
