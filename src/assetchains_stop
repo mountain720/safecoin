@@ -1,6 +1,0 @@
-#!/bin/bash
-set -eo pipefail
-
-./listassetchains | while read chain; do
-  ./safecoin-cli --ac_name=$chain stop
-done
