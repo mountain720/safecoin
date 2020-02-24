@@ -1,4 +1,4 @@
-name: Komodo CI
+name: Safecoin CI
 
 on: [push, pull_request]
 
@@ -33,14 +33,14 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           # flag for some CC tests transactions - so DO NOT USE THIS CI ARTIFACTS IN PRODUCTION!!!
-          CONFIGURE_FLAGS='CPPFLAGS=-DTESTMODE' ./zcutil/build.sh -j$(nproc)
-          tar -czvf komodo-linux.tar.gz src/komodod src/komodo-cli
+          CONFIGURE_FLAGS='CPPFLAGS=-DTESTMODE' ./zcutil/build.sh --disable-tests -j$(nproc)
+          tar -czvf safecoin-linux.tar.gz src/safecoind src/safecoin-cli
 
-      - name: Upload komodo-linux.tar.gz as artifact
+      - name: Upload safecoin-linux.tar.gz as artifact
         uses: actions/upload-artifact@v1
         with:
-          name: komodo-linux
-          path: ./komodo-linux.tar.gz
+          name: safecoin-linux
+          path: ./safecoin-linux.tar.gz
 #       - name: Install deps (macOS)
 #         if: runner.os == 'macOS'
 #         run: |
@@ -89,18 +89,18 @@ jobs:
           python3 -m pip install setuptools wheel
           python3 -m pip install slick-bitcoinrpc pytest wget jsonschema
 
-      - name: Download komodo-linux.tar.gz
+      - name: Download safecoin-linux.tar.gz
         uses: actions/download-artifact@v1
         with:
-          name: komodo-linux
+          name: safecoin-linux
 
       - name: Test CC (Linux)
         run: |
-          mv komodo-linux/komodo-linux.tar.gz .
+          mv safecoin-linux/safecoin-linux.tar.gz .
           mkdir -p src
-          tar xzvf komodo-linux.tar.gz
+          tar xzvf safecoin-linux.tar.gz
           ./zcutil/fetch-params.sh
-          cd qa/pytest_komodo
+          cd qa/pytest_safecoin
           ./ci_setup.sh "cc_modules/test_dice.py cc_modules/test_faucet.py cc_modules/test_token.py cc_modules/test_rewards.py"
 
   linux-test-oracles:
@@ -125,18 +125,18 @@ jobs:
           python3 -m pip install setuptools wheel
           python3 -m pip install slick-bitcoinrpc pytest wget jsonschema
 
-      - name: Download komodo-linux.tar.gz
+      - name: Download safecoin-linux.tar.gz
         uses: actions/download-artifact@v1
         with:
-          name: komodo-linux
+          name: safecoin-linux
 
       - name: Oracles Test (Linux)
         run: |
-          mv komodo-linux/komodo-linux.tar.gz .
+          mv safecoin-linux/safecoin-linux.tar.gz .
           mkdir -p src
-          tar xzvf komodo-linux.tar.gz
+          tar xzvf safecoin-linux.tar.gz
           ./zcutil/fetch-params.sh
-          cd qa/pytest_komodo
+          cd qa/pytest_safecoin
           ./ci_setup.sh cc_modules/test_oracles.py
 
   linux-test-baserpc:
@@ -161,18 +161,18 @@ jobs:
           python3 -m pip install setuptools wheel
           python3 -m pip install slick-bitcoinrpc pytest wget jsonschema
 
-      - name: Download komodo-linux.tar.gz
+      - name: Download safecoin-linux.tar.gz
         uses: actions/download-artifact@v1
         with:
-          name: komodo-linux
+          name: safecoin-linux
 
       - name: BasicRPC Test (Linux)
         run: |
-          mv komodo-linux/komodo-linux.tar.gz .
+          mv safecoin-linux/safecoin-linux.tar.gz .
           mkdir -p src
-          tar xzvf komodo-linux.tar.gz
+          tar xzvf safecoin-linux.tar.gz
           ./zcutil/fetch-params.sh
-          cd qa/pytest_komodo
+          cd qa/pytest_safecoin
           ./ci_setup.sh basic
 
   linux-test-channels:
@@ -197,18 +197,18 @@ jobs:
           python3 -m pip install setuptools wheel
           python3 -m pip install slick-bitcoinrpc pytest wget jsonschema
 
-      - name: Download komodo-linux.tar.gz
+      - name: Download safecoin-linux.tar.gz
         uses: actions/download-artifact@v1
         with:
-          name: komodo-linux
+          name: safecoin-linux
 
       - name: Channels Test (Linux)
         run: |
-          mv komodo-linux/komodo-linux.tar.gz .
+          mv safecoin-linux/safecoin-linux.tar.gz .
           mkdir -p src
-          tar xzvf komodo-linux.tar.gz
+          tar xzvf safecoin-linux.tar.gz
           ./zcutil/fetch-params.sh
-          cd qa/pytest_komodo
+          cd qa/pytest_safecoin
           ./ci_setup.sh cc_modules/test_channels.py
 
   linux-test-heir:
@@ -233,18 +233,18 @@ jobs:
           python3 -m pip install setuptools wheel
           python3 -m pip install slick-bitcoinrpc pytest wget jsonschema
 
-      - name: Download komodo-linux.tar.gz
+      - name: Download safecoin-linux.tar.gz
         uses: actions/download-artifact@v1
         with:
-          name: komodo-linux
+          name: safecoin-linux
 
       - name: Heir Test (Linux)
         run: |
-          mv komodo-linux/komodo-linux.tar.gz .
+          mv safecoin-linux/safecoin-linux.tar.gz .
           mkdir -p src
-          tar xzvf komodo-linux.tar.gz
+          tar xzvf safecoin-linux.tar.gz
           ./zcutil/fetch-params.sh
-          cd qa/pytest_komodo
+          cd qa/pytest_safecoin
           ./ci_setup.sh cc_modules/test_heir.py
 
   windows-build:
@@ -269,10 +269,10 @@ jobs:
         rustup target add x86_64-pc-windows-gnu
         sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
         sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
-        CONFIGURE_FLAGS='CPPFLAGS=-DTESTMODE' ./zcutil/build-win.sh -j$(nproc)
-        zip --junk-paths komodod_win src/komodod.exe
-    - name: Upload komodod.exe as artifact
+        CONFIGURE_FLAGS='CPPFLAGS=-DTESTMODE' ./zcutil/build-win.sh --disable-tests -j$(nproc)
+        zip --junk-paths safecoind_win src/safecoind.exe
+    - name: Upload safecoind.exe as artifact
       uses: actions/upload-artifact@v1
       with:
-        name: komodod_win
-        path: ./komodod_win.zip
+        name: safecoind_win
+        path: ./safecoind_win.zip
