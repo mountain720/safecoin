@@ -2995,6 +2995,10 @@ UniValue listunspent(const UniValue& params, bool fHelp, const CPubKey& mypk)
 
 uint64_t safecoin_interestsum()
 {
+#ifndef SAFECOIN_ENABLE_INTEREST
+    return 0;
+#endif    
+    
 #ifdef ENABLE_WALLET
     if ( ASSETCHAINS_SYMBOL[0] == 0 && GetBoolArg("-disablewallet", false) == 0 && SAFECOIN_NSPV_FULLNODE )
     {
