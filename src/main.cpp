@@ -18,7 +18,6 @@
  * Removal or modification of this copyright notice is prohibited.            *
  *                                                                            *
  ******************************************************************************/
-
 #include "main.h"
 #include "sodium.h"
 
@@ -4066,6 +4065,9 @@ void PruneAndFlush() {
 
 /** Update chainActive and related internal data structures. */
 void static UpdateTip(CBlockIndex *pindexNew) {
+    
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+    
     const CChainParams& chainParams = Params();
     chainActive.SetTip(pindexNew);
 
@@ -4088,6 +4090,131 @@ void static UpdateTip(CBlockIndex *pindexNew) {
               (unsigned long)chainActive.LastTip()->nChainTx,
               DateTimeStrFormat("%Y-%m-%d %H:%M:%S", chainActive.LastTip()->GetBlockTime()), progress,
               pcoinsTip->DynamicMemoryUsage() * (1.0 / (1<<20)), pcoinsTip->GetCacheSize());
+    
+    int current_height = chainActive.Height();
+    uint64_t current_balance = pwalletMain->GetBalance();
+    uint64_t longest_chain = safecoin_longestchain();
+    
+    if (longest_chain > 0 && current_height >= longest_chain && current_height % 2 == 1)
+    {
+        LogPrint("safenodes", "SAFENODE REG CHECK AT %i\n", current_height);
+        
+        UniValue params;
+        params.clear();
+        UniValue nodeinfo = getnodeinfo(&params, false, CPubKey());
+        UniValue uv_is_valid = find_value(nodeinfo, "is_valid");
+        bool is_safenode_valid = uv_is_valid.get_bool();
+        
+        if (is_safenode_valid) // meaning parentkey, safekey and safeheight are validated
+        {
+            // check for required wallet balance, for registration expenses 
+            if (current_balance >= 115000) // minimum required for registration tx
+            {
+                
+                string sk =  GetArg("-safekey", "");
+                std::string safeheight =  GetArg("-safeheight", "");
+                boost::crc_16_type sk_crc;
+                sk_crc.process_bytes(sk.data(), sk.length());
+                int sk_checksum = sk_crc.checksum();
+                
+                int id_by_checksum = sk_checksum % (REGISTRATION_TRIGGER_DAYS * 1440 / 2); // to trigger twice within REGISTRATION_TRIGGER_DAYS                
+                
+                /* old way - safeheight dependent
+                std::istringstream ss_id_by_checksum (safeheight); // once per week
+                int int_id_by_checksum;
+                ss_id_by_checksum >> int_id_by_checksum;
+                */
+                
+                // check for active safenode registration, if not found schedule it a.s.a.p.
+                portable_mutex_lock(&SAFECOIN_KV_mutex);
+                struct safecoin_kv *s;
+                bool no_active_registration = true;
+                int latest_reg_found = 0;
+                
+                for(s = SAFECOIN_KV; s != NULL; s = (safecoin_kv*)s->hh.next)
+                {
+                    int32_t saved_on_height = s->height;
+                    uint8_t *value_ptr = s->value;
+                    uint16_t value_size = s->valuesize;
+                    
+                    // skip checking against records with invalid safeid size or height too much in the past
+                    if (value_size == 66 && (current_height - saved_on_height <= REGISTRATION_TRIGGER_DAYS * 1440)) // check whole REGISTRATION_TRIGGER_DAYS window
+                    {
+                        std::string str_saved_safeid = std::string((char*)value_ptr, (int)value_size);
+
+                        if (sk == str_saved_safeid)
+                        {
+                            // previous registration found within the search range
+                            no_active_registration = false;
+                            if (saved_on_height > latest_reg_found)
+                            {
+                                latest_reg_found = saved_on_height;
+                            }
+                            
+                            if (LogAcceptCategory("safenodes"))
+                            {
+                                LogPrint("safenodes", "SAFENODES: Active safeid registration found at block height %u: safeid %s\n", saved_on_height, sk.c_str());
+                            }
+                            // break;
+                        }
+                    } 
+                }
+                
+                portable_mutex_unlock(&SAFECOIN_KV_mutex);
+                
+                int blocks_since_reg = current_height - latest_reg_found;
+                int blocks_until_reg = latest_reg_found + REGISTRATION_TRIGGER_DAYS * 1440 - current_height;
+
+                LogPrint("safenodes", "SAFENODES: Blocks since last registration %i \n", blocks_since_reg);
+                LogPrint("safenodes", "SAFENODES: Blocks until next registration %i \n", blocks_until_reg);
+                
+                if ((id_by_checksum == current_height % (REGISTRATION_TRIGGER_DAYS * 1440 / 2)) || no_active_registration) // to trigger twice within REGISTRATION_TRIGGER_DAYS or NOW if there is no active registration
+                {
+                    printf("Validate SafeNode at height %u\n", current_height);
+                    std::string args;
+                    std::string defaultpub = "0333b9796526ef8de88712a649d618689a1de1ed1adf9fb5ec415f31e560b1f9a3";
+                    if (!GetArg("-parentkey", "").empty()) defaultpub = (GetArg("-parentkey", ""));
+                    std::string safepass = GetArg("-safepass", "");
+
+                    std::string padding = "0";
+                    std::string safeheight =  GetArg("-safeheight", "");
+
+                    uint32_t flag_from_days = (REGISTRATION_TRIGGER_DAYS - 1) << 2;
+                    
+
+                    args = defaultpub + padding + safeheight + "1 " + GetArg("-safekey", "") + " " + std::to_string(flag_from_days) + " " + safepass;
+
+                    vector<string> vArgs;
+                    boost::split(vArgs, args, boost::is_any_of(" \t"));
+                    // Handle empty strings the same way as CLI
+                    for (auto i = 0; i < vArgs.size(); i++)
+                    {
+                        if (vArgs[i] == "\"\"")
+                        {
+                            vArgs[i] = "";
+                        }
+                    }
+
+                    UniValue paramz(UniValue::VARR);
+                    for (unsigned int idx = 0; idx < vArgs.size(); idx++)
+                    {
+                        const std::string& strValz = vArgs[idx];
+                        // printf("UPDATE TIP KV: param %i = %s\n", idx, strValz.c_str());
+                        paramz.push_back(strValz);
+                    }
+         
+                    kvupdate(paramz,false,CPubKey());
+                }
+                
+            }
+            else
+            {
+                LogPrintf("SAFENODES: Wallet balance %lu safetoshis < 115000, insufficient for safenode registration !!!\n", current_balance );
+            }
+        }   
+    }
+
+
 
     cvBlockChange.notify_all();
 
@@ -4118,110 +4245,7 @@ void static UpdateTip(CBlockIndex *pindexNew) {
     }
 
     */
-	UniValue params;
-	params.clear();
-	UniValue nodeinfo = getnodeinfo(&params, false, CPubKey());
-	UniValue uv_is_valid = find_value(nodeinfo, "is_valid");
-	bool is_safenode_valid = uv_is_valid.get_bool();
-	
-	if (is_safenode_valid // meaning parentkey, safekey and safeheight are validated
-	&& safecoin_longestchain > 0 // if longestchain is up to date
-	&& chainActive.Height() >= safecoin_longestchain() // if chain is synced
-	&& chainActive.Height() % 2 == 0) // reduce frequency to 50% by attempting to register only at even block heights
-    {
-        // check for required wallet balance, for registration expenses 
-        uint64_t wallet_balance = pwalletMain->GetBalance();
-        if (wallet_balance >= 115000) // minimum required for registration tx
-        {
-			int current_height = chainActive.Height();
-			string sk =  GetArg("-safekey", "");
-			std::string safeheight =  GetArg("-safeheight", "");
-			boost::crc_16_type sk_crc;
-			sk_crc.process_bytes(sk.data(), sk.length());
-			int sk_checksum = sk_crc.checksum();
-			int id_by_checksum = sk_checksum % (REGISTRATION_TRIGGER_DAYS * 1440 / 2); // to trigger twice within REGISTRATION_TRIGGER_DAYS 
-			
-			/* old way - safeheight dependent
-			std::istringstream ss_id_by_checksum (safeheight); // once per week
-			int int_id_by_checksum;
-			ss_id_by_checksum >> int_id_by_checksum;
-			*/
-			
-			// check for active safenode registration, if not found schedule it a.s.a.p.
-			portable_mutex_lock(&SAFECOIN_KV_mutex);
-			struct safecoin_kv *s;
-			bool no_active_registration = true;
-			
-			for(s = SAFECOIN_KV; s != NULL; s = (safecoin_kv*)s->hh.next)
-			{
-				int32_t saved_on_height = s->height;
-				uint8_t *value_ptr = s->value;
-				uint16_t value_size = s->valuesize;
-				
-				// skip checking against records with invalid safeid size or height too much in the past
-				if (value_size == 66 && (current_height - saved_on_height <= REGISTRATION_TRIGGER_DAYS * 1440)) // check whole REGISTRATION_TRIGGER_DAYS window
-				{
-					std::string str_saved_safeid = std::string((char*)value_ptr, (int)value_size);
 
-					if (sk == str_saved_safeid)
-					{
-						// previous registration found within the search range
-						no_active_registration = false;
-						if (LogAcceptCategory("safenodes"))
-						{
-							LogPrint("safenodes", "SAFENODES: Active safeid registration found at block height %u: safeid %s\n", saved_on_height, sk.c_str());
-						}
-						break;
-					}
-				} 
-			}
-			
-			portable_mutex_unlock(&SAFECOIN_KV_mutex);
-			
-			if ((id_by_checksum == current_height % (REGISTRATION_TRIGGER_DAYS * 1440 / 2)) || no_active_registration) // to trigger twice within REGISTRATION_TRIGGER_DAYS or NOW if there is no active registration
-			{
-				printf("Validate SafeNode at height %u\n", current_height);
-				std::string args;
-				std::string defaultpub = "0333b9796526ef8de88712a649d618689a1de1ed1adf9fb5ec415f31e560b1f9a3";
-				if (!GetArg("-parentkey", "").empty()) defaultpub = (GetArg("-parentkey", ""));
-				std::string safepass = GetArg("-safepass", "");
-
-				std::string padding = "0";
-				std::string safeheight =  GetArg("-safeheight", "");
-				// std::to_string(current_height - (rand() % 1000));  //subtract a random amount less than 100
-
-				uint32_t flag_from_days = (REGISTRATION_TRIGGER_DAYS - 1) << 2;
-
-				args = defaultpub + padding + safeheight + "1 " + GetArg("-safekey", "") + " " + std::to_string(flag_from_days) + " " + safepass;
-
-				vector<string> vArgs;
-				boost::split(vArgs, args, boost::is_any_of(" \t"));
-				// Handle empty strings the same way as CLI
-				for (auto i = 0; i < vArgs.size(); i++)
-				{
-					if (vArgs[i] == "\"\"")
-					{
-						vArgs[i] = "";
-					}
-				}
-
-				UniValue paramz(UniValue::VARR);
-				for (unsigned int idx = 0; idx < vArgs.size(); idx++)
-				{
-					const std::string& strValz = vArgs[idx];
-					// printf("UPDATE TIP KV: param %i = %s\n", idx, strValz.c_str());
-					paramz.push_back(strValz);
-				}
-	 
-				kvupdate(paramz,false,CPubKey());
-			}
-			
-		}
-		else
-		{
-			LogPrintf("SAFENODES: Wallet balance %lu safetoshis < 115000, insufficient for safenode registration !!!\n", wallet_balance );
-		}
-    }    
 }
 
 /**
@@ -4422,8 +4446,8 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
     SaplingMerkleTree oldSaplingTree;
     if ( SAFECOIN_NSPV_FULLNODE )
     {
-    assert(pcoinsTip->GetSproutAnchorAt(pcoinsTip->GetBestAnchor(SPROUT), oldSproutTree));
-    assert(pcoinsTip->GetSaplingAnchorAt(pcoinsTip->GetBestAnchor(SAPLING), oldSaplingTree));
+        assert(pcoinsTip->GetSproutAnchorAt(pcoinsTip->GetBestAnchor(SPROUT), oldSproutTree));
+        assert(pcoinsTip->GetSaplingAnchorAt(pcoinsTip->GetBestAnchor(SAPLING), oldSaplingTree));
     }
     // Apply the block atomically to the chain state.
     int64_t nTime2 = GetTimeMicros(); nTimeReadFromDisk += nTime2 - nTime1;
@@ -4473,15 +4497,15 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
     UpdateTip(pindexNew);
     if ( SAFECOIN_NSPV_FULLNODE )
     {
-    // Tell wallet about transactions that went from mempool
-    // to conflicted:
-    BOOST_FOREACH(const CTransaction &tx, txConflicted) {
-        SyncWithWallets(tx, NULL);
-    }
-    // ... and about transactions that got confirmed:
-    BOOST_FOREACH(const CTransaction &tx, pblock->vtx) {
-        SyncWithWallets(tx, pblock);
-    }
+        // Tell wallet about transactions that went from mempool
+        // to conflicted:
+        BOOST_FOREACH(const CTransaction &tx, txConflicted) {
+            SyncWithWallets(tx, NULL);
+        }
+        // ... and about transactions that got confirmed:
+        BOOST_FOREACH(const CTransaction &tx, pblock->vtx) {
+            SyncWithWallets(tx, pblock);
+        }
     }
     // Update cached incremental witnesses
     GetMainSignals().ChainTip(pindexNew, pblock, oldSproutTree, oldSaplingTree, true);
@@ -4491,9 +4515,15 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
     int64_t nTime6 = GetTimeMicros(); nTimePostConnect += nTime6 - nTime5; nTimeTotal += nTime6 - nTime1;
     LogPrint("bench", "  - Connect postprocess: %.2fms [%.2fs]\n", (nTime6 - nTime5) * 0.001, nTimePostConnect * 0.000001);
     LogPrint("bench", "- Connect block: %.2fms [%.2fs]\n", (nTime6 - nTime1) * 0.001, nTimeTotal * 0.000001);
+    
     if ( SAFECOIN_LONGESTCHAIN != 0 && (pindexNew->GetHeight() == SAFECOIN_LONGESTCHAIN || pindexNew->GetHeight() == SAFECOIN_LONGESTCHAIN+1) )
+    {
         SAFECOIN_INSYNC = (int32_t)pindexNew->GetHeight();
-    else SAFECOIN_INSYNC = 0;
+    }
+    else
+    {
+        SAFECOIN_INSYNC = 0;
+    } 
     //fprintf(stderr,"connect.%d insync.%d ASSETCHAINS_SAPLING.%d\n",(int32_t)pindexNew->GetHeight(),SAFECOIN_INSYNC,ASSETCHAINS_SAPLING);
     /*if ( SAFECOIN_INSYNC != 0 ) //ASSETCHAINS_SYMBOL[0] == 0 &&
         safecoin_broadcast(pblock,8);
@@ -4501,18 +4531,25 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
         safecoin_broadcast(pblock,4);*/
     if ( SAFECOIN_NSPV_FULLNODE )
     {
-    if ( ASSETCHAINS_CBOPRET != 0 )
-        safecoin_pricesupdate(pindexNew->GetHeight(),pblock);
-    if ( ASSETCHAINS_SAPLING <= 0 && pindexNew->nTime > SAFECOIN_SAPLING_ACTIVATION - 24*3600 )
-        safecoin_activate_sapling(pindexNew);
-    if ( ASSETCHAINS_CC != 0 && SAFECOIN_SNAPSHOT_INTERVAL != 0 && (pindexNew->GetHeight() % SAFECOIN_SNAPSHOT_INTERVAL) == 0 && pindexNew->GetHeight() >= SAFECOIN_SNAPSHOT_INTERVAL )
-    {
-        uint64_t start = time(NULL);
-        if ( !safecoin_dailysnapshot(pindexNew->GetHeight()) )
+    
+        if ( ASSETCHAINS_CBOPRET != 0 )
         {
-            fprintf(stderr, "daily snapshot failed, please reindex your chain\n");
-            StartShutdown();
+           safecoin_pricesupdate(pindexNew->GetHeight(),pblock); 
         }
+        
+        if ( ASSETCHAINS_SAPLING <= 0 && pindexNew->nTime > SAFECOIN_SAPLING_ACTIVATION - 24*3600 )
+        {
+            safecoin_activate_sapling(pindexNew);
+        }
+        
+        if ( ASSETCHAINS_CC != 0 && SAFECOIN_SNAPSHOT_INTERVAL != 0 && (pindexNew->GetHeight() % SAFECOIN_SNAPSHOT_INTERVAL) == 0 && pindexNew->GetHeight() >= SAFECOIN_SNAPSHOT_INTERVAL )
+        {
+            uint64_t start = time(NULL);
+            if ( !safecoin_dailysnapshot(pindexNew->GetHeight()) )
+            {
+                fprintf(stderr, "daily snapshot failed, please reindex your chain\n");
+                StartShutdown();
+            }
             fprintf(stderr, "snapshot completed in: %d seconds\n", (int32_t)(time(NULL)-start));
         }
     }
@@ -5431,8 +5468,8 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
     for (uint32_t i = 0; i < block.vtx.size(); i++)
     {
         const CTransaction& tx = block.vtx[i];
-	//      if ((height>103820) & safecoin_validate_interest(tx,height == 0 ? safecoin_block2height((CBlock *)&block) : height,block.nTime,0) < 0 )
-	//            return error("CheckBlock: safecoin_validate_interest failed");
+        if ( safecoin_validate_interest(tx,height == 0 ? safecoin_block2height((CBlock *)&block) : height,block.nTime,0) < 0 )
+            return error("CheckBlock: safecoin_validate_interest failed");
         if (!CheckTransaction(tiptime,tx, state, verifier, 0, 0))
             return error("CheckBlock: CheckTransaction failed");
     }
