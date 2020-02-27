@@ -276,7 +276,7 @@ UniValue getinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
             if ( ASSETCHAINS_SYMBOL[0] == 0 )
             {
                 obj.push_back(Pair("interest",       ValueFromAmount(SAFECOIN_INTERESTSUM)));
-                obj.push_back(Pair("balance",       ValueFromAmount(SAFECOIN_WALLETBALANCE))); //pwalletMain->GetBalance()
+                obj.push_back(Pair("balance",       ValueFromAmount(pwalletMain->GetBalance()))); //SAFECOIN_WALLETBALANCE ???
             }
             else
             {
