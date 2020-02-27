@@ -1119,7 +1119,7 @@ UniValue safeids(const UniValue& params, bool fHelp, const CPubKey& mypk)
 				safeid_item.push_back(Pair("SAFE-address", str_si_address.c_str()));
 				safeid_item.push_back(Pair("blocks", (int32_t)si_count.second));
 				int64_t balance_satoshis = 0;
-				uint32_t minconf = COLLATERAL_MATURITY; // required balance maturity set to 20000 
+				uint32_t minconf = COLLATERAL_MATURITY; 
 				int type = 0;
 				CBitcoinAddress address(str_si_address);
 				uint160 hashBytes;
