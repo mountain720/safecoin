@@ -35,7 +35,7 @@
 #define SAFECOIN_SAPLING_ACTIVATION 1551916800 // March 7th, 2019
 #define SAFECOIN_SAPLING_DEADLINE 1551398400 // March 1st, 2019
 
-#define COLLATERAL_MATURITY 10080 // 100 blocks during testing phase, in production should be at least one week => 10080
+#define COLLATERAL_MATURITY 4320 // one week => 10080, 3 days => 4320, n days => n * 1440
 #define REGISTRATION_GAP 900 // min number of blocks allowed since last safenode registration
 #define REGISTRATION_TRIGGER_DAYS 7 // number of days between two automatic safenode registrations
 #define COLLATERAL_MIN_TIER_1 10000
