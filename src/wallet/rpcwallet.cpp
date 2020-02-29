@@ -53,6 +53,7 @@
 #include <stdint.h>
 
 #include <boost/assign/list_of.hpp>
+#include <boost/algorithm/string.hpp>
 //#include <utf8.h>
 
 #include <univalue.h>
@@ -60,6 +61,7 @@
 #include <numeric>
 
 #include "safecoin_defs.h"
+#include "safecoin_structs.h"
 #include <string.h>
 
 using namespace std;
@@ -68,6 +70,8 @@ using namespace libzcash;
 
 extern char ASSETCHAINS_SYMBOL[SAFECOIN_ASSETCHAIN_MAXLEN];
 extern std::string ASSETCHAINS_OVERRIDE_PUBKEY;
+extern struct safecoin_kv *SAFECOIN_KV;
+extern pthread_mutex_t SAFECOIN_KV_mutex;
 const std::string ADDR_TYPE_SPROUT = "sprout";
 const std::string ADDR_TYPE_SAPLING = "sapling";
 extern UniValue TxJoinSplitToJSON(const CTransaction& tx);
@@ -730,6 +734,125 @@ UniValue kvupdate(const UniValue& params, bool fHelp, const CPubKey& mypk)
         SendMoney(destaddress.Get(),10000,false,wtx,opretbuf,opretlen,fee);
         ret.push_back(Pair("txid",wtx.GetHash().GetHex()));
     } else ret.push_back(Pair("error",(char *)"null key"));
+    return ret;
+}
+
+UniValue regnode(const UniValue& params, bool fHelp, const CPubKey& mypk)
+{
+    if (fHelp || params.size() != 0 )
+    {
+        throw runtime_error(
+            "regnode\n"
+            "\nRegister this safenode with params provided in safecoin.conf.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("regnode", "")
+            + HelpExampleRpc("regnode", "")
+        );
+    }
+
+    int current_height = chainActive.Height();
+    uint64_t current_balance = pwalletMain->GetBalance();
+    uint64_t longest_chain = safecoin_longestchain();
+
+    UniValue ret(UniValue::VOBJ), gni_params;
+    gni_params.clear();
+    
+    UniValue nodeinfo = getnodeinfo(&gni_params, false, CPubKey());
+    UniValue uv_is_valid = find_value(nodeinfo, "is_valid");
+    bool is_safenode_valid = uv_is_valid.get_bool();
+    if (!is_safenode_valid)
+    {
+        ret.push_back(Pair("error", "Safenode is not valid, check safekey and safepass in safecoin.conf"));
+    }
+    else
+    {
+        string sk =  GetArg("-safekey", "");
+        std::string safeheight =  GetArg("-safeheight", "");
+                  
+        // check for active safenode registration
+        pthread_mutex_lock(&SAFECOIN_KV_mutex);
+        struct safecoin_kv *s;
+        int latest_reg_found = 0;
+        
+        for(s = SAFECOIN_KV; s != NULL; s = (safecoin_kv*)s->hh.next)
+        {
+            int32_t saved_on_height = s->height;
+            uint8_t *value_ptr = s->value;
+            uint16_t value_size = s->valuesize;
+            
+            // skip checking against records with invalid safeid size or height too much in the past
+            if (value_size == 66 && (current_height - saved_on_height <= REGISTRATION_TRIGGER_DAYS * 1440)) // check whole REGISTRATION_TRIGGER_DAYS window
+            {
+                std::string str_saved_safeid = std::string((char*)value_ptr, (int)value_size);
+                if (sk == str_saved_safeid)
+                {
+                    // previous registration found within the search range
+                    if (saved_on_height > latest_reg_found)
+                    {
+                        latest_reg_found = saved_on_height;
+                    }
+                    
+                    if (LogAcceptCategory("safenodes"))
+                    {
+                        LogPrint("safenodes", "SAFENODES: Active safeid registration found at block height %u: safeid %s\n", saved_on_height, sk.c_str());
+                    }
+                    // break;
+                }
+            } 
+        }
+        
+        pthread_mutex_unlock(&SAFECOIN_KV_mutex);
+        
+        int blocks_since_reg = current_height - latest_reg_found;
+        int blocks_until_reg = latest_reg_found + REGISTRATION_TRIGGER_DAYS * 1440 - current_height;
+
+        printf("Validate SafeNode at height %u\n", current_height);
+        std::string args;
+        std::string defaultpub = "0333b9796526ef8de88712a649d618689a1de1ed1adf9fb5ec415f31e560b1f9a3";
+        if (!GetArg("-parentkey", "").empty()) defaultpub = (GetArg("-parentkey", ""));
+        std::string safepass = GetArg("-safepass", "");
+
+        std::string padding = "0";
+
+        uint32_t flag_from_days = (REGISTRATION_TRIGGER_DAYS - 1) << 2;
+
+        args = defaultpub + padding + safeheight + "1 " + GetArg("-safekey", "") + " " + std::to_string(flag_from_days) + " " + safepass;
+
+        vector<string> vArgs;
+        boost::split(vArgs, args, boost::is_any_of(" \t"));
+        // Handle empty strings the same way as CLI
+        for (auto i = 0; i < vArgs.size(); i++)
+        {
+            if (vArgs[i] == "\"\"")
+            {
+                vArgs[i] = "";
+            }
+        }
+
+        UniValue paramz(UniValue::VARR);
+        for (unsigned int idx = 0; idx < vArgs.size(); idx++)
+        {
+            const std::string& strValz = vArgs[idx];
+            // printf("UPDATE TIP KV: param %i = %s\n", idx, strValz.c_str());
+            paramz.push_back(strValz);
+        }
+
+        UniValue kv_ret = kvupdate(paramz, false, CPubKey());
+        UniValue uv_reg_txid = find_value(kv_ret, "txid");
+        std::string reg_txid = uv_reg_txid.get_str();
+
+        ret.push_back(Pair("is_valid", is_safenode_valid));
+        ret.push_back(Pair("current_height", current_height));
+        ret.push_back(Pair("longest_chain", longest_chain));
+        ret.push_back(Pair("latest_reg_found", latest_reg_found));
+        ret.push_back(Pair("blocks_since_reg", blocks_since_reg));
+        ret.push_back(Pair("blocks_until_expiry", blocks_until_reg));
+        ret.push_back(Pair("reg_txid", reg_txid));
+        
+        printf("Safenode new registration txid = %s from block height %i\n", reg_txid.c_str(), current_height);
+        LogPrint("safenodes", "SAFENODES: new registration txid = %s from block height %i\n", reg_txid.c_str(), current_height);
+    }
+
     return ret;
 }
 
@@ -2995,6 +3118,10 @@ UniValue listunspent(const UniValue& params, bool fHelp, const CPubKey& mypk)
 
 uint64_t safecoin_interestsum()
 {
+#ifndef SAFECOIN_ENABLE_INTEREST
+    return 0;
+#endif    
+    
 #ifdef ENABLE_WALLET
     if ( ASSETCHAINS_SYMBOL[0] == 0 && GetBoolArg("-disablewallet", false) == 0 && SAFECOIN_NSPV_FULLNODE )
     {

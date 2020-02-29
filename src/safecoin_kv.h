@@ -185,6 +185,7 @@ void safecoin_kvupdate(uint8_t *opretbuf,int32_t opretlen,uint64_t value)
             
             bool is_valid_beacon_kv = true;
 
+/*
             // CHECK FOR DUPLICATES
             portable_mutex_lock(&SAFECOIN_KV_mutex);
             int32_t current_height = height;
@@ -215,6 +216,8 @@ void safecoin_kvupdate(uint8_t *opretbuf,int32_t opretlen,uint64_t value)
             }
             
             portable_mutex_unlock(&SAFECOIN_KV_mutex);
+*/
+
             
             if (is_valid_beacon_kv && 0) // we are skipping collateral check for now
             {
@@ -318,8 +321,6 @@ void safecoin_kvupdate(uint8_t *opretbuf,int32_t opretlen,uint64_t value)
 				newflag = 1;
                  
 				HASH_ADD_KEYPTR(hh,SAFECOIN_KV,ptr->key,ptr->keylen,ptr);
-				// Added by Pop
-				printf("KV add.(%s) (%s)\n",ptr->key,valueptr);
 				//LogPrintf("KV add.(%s) (%s)\n",ptr->key,valueptr);
 			}
 				

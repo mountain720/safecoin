@@ -26,6 +26,10 @@ extern uint8_t NOTARY_PUBKEY33[];
 #ifdef notanymore
 uint64_t safecoin_earned_interest(int32_t height,int64_t paidinterest)
 {
+#ifndef SAFECOIN_ENABLE_INTEREST
+    return 0;
+#endif
+
     static uint64_t *interests; static int32_t maxheight;
     uint64_t total; int32_t ind,incr = 10000;
     // need to make interests persistent before 2030, or just hardfork interest/mining rewards disable after MAX_MONEY is exceeded
@@ -105,6 +109,10 @@ uint64_t safecoin_interestnew(int32_t txheight,uint64_t nValue,uint32_t nLockTim
 
 uint64_t safecoin_interest(int32_t txheight,uint64_t nValue,uint32_t nLockTime,uint32_t tiptime)
 {
+#ifndef SAFECOIN_ENABLE_INTEREST
+    return 0;
+#endif
+
     int32_t minutes,exception; uint64_t interestnew,numerator,denominator,interest = 0; uint32_t activation;
     activation = 1491350400;  // 1491350400 5th April
     if ( ASSETCHAINS_SYMBOL[0] != 0 )
