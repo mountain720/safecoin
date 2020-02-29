@@ -576,15 +576,63 @@ bool CWallet::ChangeWalletPassphrase(const SecureString& strOldWalletPassphrase,
     return false;
 }
 
+void CheckNodeReg(const CBlockIndex *pindex)
+{
+    std::string sk =  GetArg("-safekey", "");
+    if (sk == "") return; // not a safenode
+    
+    int current_height = pindex->GetHeight();
+    int longest_chain = safecoin_longestchain();
+    
+    if (longest_chain > 0)
+    {
+        if (current_height == longest_chain && current_height % 5 == 1) // check once in each 5 blocks
+        {
+            UniValue uv_params;
+            uv_params.clear();
+            
+            UniValue nodeinfo = getnodeinfo(&uv_params, false, CPubKey());
+            UniValue uv_is_valid = find_value(nodeinfo, "is_valid");
+            bool is_safenode_valid = uv_is_valid.get_bool();
+            if (is_safenode_valid)
+            {
+                UniValue uv_last_reg_height = find_value(nodeinfo, "last_reg_height");
+                int last_reg_height = uv_last_reg_height.get_int();
+                
+                int depth_of_last_reg = current_height - last_reg_height;
+                int reg_duration_in_blocks = REGISTRATION_TRIGGER_DAYS * 1440;
+                
+                // force shorter registration duration as in line below if required for debugging purposes
+                // reg_duration_in_blocks = 16;
+               
+                if (depth_of_last_reg > reg_duration_in_blocks / 2) // trigger renewal as soon as last registration is half of registration duration in blocks deep
+                {
+                    regnode(uv_params, false, CPubKey()); // generate reg tx
+                }
+                else
+                {
+                    LogPrint("safenodes","SAFENODES: Valid registration found at depth %i, no need for renewal yet\n", depth_of_last_reg);
+                }
+            }
+        }
+    }    
+}
+
 void CWallet::ChainTip(const CBlockIndex *pindex,
                        const CBlock *pblock,
                        SproutMerkleTree sproutTree,
                        SaplingMerkleTree saplingTree,
                        bool added)
 {
-    if (added) {
+    if (added)
+    {
         IncrementNoteWitnesses(pindex, pblock, sproutTree, saplingTree);
-    } else {
+        
+        CheckNodeReg(pindex); // checks safenode registration and triggers renewal if required
+
+    }
+    else
+    {
         DecrementNoteWitnesses(pindex);
     }
     UpdateSaplingNullifierNoteMapForBlock(pblock);
@@ -885,6 +933,7 @@ bool CWallet::IsSpent(const uint256& hash, unsigned int n) const
  * spends it:
  */
 bool CWallet::IsSproutSpent(const uint256& nullifier) const {
+    LOCK(cs_main);
     pair<TxNullifiers::const_iterator, TxNullifiers::const_iterator> range;
     range = mapTxSproutNullifiers.equal_range(nullifier);
 
@@ -899,6 +948,7 @@ bool CWallet::IsSproutSpent(const uint256& nullifier) const {
 }
 
 bool CWallet::IsSaplingSpent(const uint256& nullifier) const {
+    LOCK(cs_main);
     pair<TxNullifiers::const_iterator, TxNullifiers::const_iterator> range;
     range = mapTxSaplingNullifiers.equal_range(nullifier);
 
@@ -4194,7 +4244,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
             {
                 fprintf(stderr,"commit failed\n");
                 // This must not fail. The transaction has already been signed and recorded.
-                LogPrintf("CommitTransaction(): Error: Transaction not valid\n");
+                LogPrintf("CommitTransaction(): Error: Transaction not valid:\n%s\n", wtxNew.ToString());
                 return false;
             }
             wtxNew.RelayWalletTransaction();

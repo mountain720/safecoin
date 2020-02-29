@@ -4090,131 +4090,6 @@ void static UpdateTip(CBlockIndex *pindexNew) {
               (unsigned long)chainActive.LastTip()->nChainTx,
               DateTimeStrFormat("%Y-%m-%d %H:%M:%S", chainActive.LastTip()->GetBlockTime()), progress,
               pcoinsTip->DynamicMemoryUsage() * (1.0 / (1<<20)), pcoinsTip->GetCacheSize());
-    
-    int current_height = chainActive.Height();
-    uint64_t current_balance = pwalletMain->GetBalance();
-    uint64_t longest_chain = safecoin_longestchain();
-    
-    if (longest_chain > 0 && current_height >= longest_chain && current_height % 2 == 1)
-    {
-        LogPrint("safenodes", "SAFENODE REG CHECK AT %i\n", current_height);
-        
-        UniValue params;
-        params.clear();
-        UniValue nodeinfo = getnodeinfo(&params, false, CPubKey());
-        UniValue uv_is_valid = find_value(nodeinfo, "is_valid");
-        bool is_safenode_valid = uv_is_valid.get_bool();
-        
-        if (is_safenode_valid) // meaning parentkey, safekey and safeheight are validated
-        {
-            // check for required wallet balance, for registration expenses 
-            if (current_balance >= 115000) // minimum required for registration tx
-            {
-                
-                string sk =  GetArg("-safekey", "");
-                std::string safeheight =  GetArg("-safeheight", "");
-                boost::crc_16_type sk_crc;
-                sk_crc.process_bytes(sk.data(), sk.length());
-                int sk_checksum = sk_crc.checksum();
-                
-                int id_by_checksum = sk_checksum % (REGISTRATION_TRIGGER_DAYS * 1440 / 2); // to trigger twice within REGISTRATION_TRIGGER_DAYS                
-                
-                /* old way - safeheight dependent
-                std::istringstream ss_id_by_checksum (safeheight); // once per week
-                int int_id_by_checksum;
-                ss_id_by_checksum >> int_id_by_checksum;
-                */
-                
-                // check for active safenode registration, if not found schedule it a.s.a.p.
-                portable_mutex_lock(&SAFECOIN_KV_mutex);
-                struct safecoin_kv *s;
-                bool no_active_registration = true;
-                int latest_reg_found = 0;
-                
-                for(s = SAFECOIN_KV; s != NULL; s = (safecoin_kv*)s->hh.next)
-                {
-                    int32_t saved_on_height = s->height;
-                    uint8_t *value_ptr = s->value;
-                    uint16_t value_size = s->valuesize;
-                    
-                    // skip checking against records with invalid safeid size or height too much in the past
-                    if (value_size == 66 && (current_height - saved_on_height <= REGISTRATION_TRIGGER_DAYS * 1440)) // check whole REGISTRATION_TRIGGER_DAYS window
-                    {
-                        std::string str_saved_safeid = std::string((char*)value_ptr, (int)value_size);
-
-                        if (sk == str_saved_safeid)
-                        {
-                            // previous registration found within the search range
-                            no_active_registration = false;
-                            if (saved_on_height > latest_reg_found)
-                            {
-                                latest_reg_found = saved_on_height;
-                            }
-                            
-                            if (LogAcceptCategory("safenodes"))
-                            {
-                                LogPrint("safenodes", "SAFENODES: Active safeid registration found at block height %u: safeid %s\n", saved_on_height, sk.c_str());
-                            }
-                            // break;
-                        }
-                    } 
-                }
-                
-                portable_mutex_unlock(&SAFECOIN_KV_mutex);
-                
-                int blocks_since_reg = current_height - latest_reg_found;
-                int blocks_until_reg = latest_reg_found + REGISTRATION_TRIGGER_DAYS * 1440 - current_height;
-
-                LogPrint("safenodes", "SAFENODES: Blocks since last registration %i \n", blocks_since_reg);
-                LogPrint("safenodes", "SAFENODES: Blocks until next registration %i \n", blocks_until_reg);
-                
-                if ((id_by_checksum == current_height % (REGISTRATION_TRIGGER_DAYS * 1440 / 2)) || no_active_registration) // to trigger twice within REGISTRATION_TRIGGER_DAYS or NOW if there is no active registration
-                {
-                    printf("Validate SafeNode at height %u\n", current_height);
-                    std::string args;
-                    std::string defaultpub = "0333b9796526ef8de88712a649d618689a1de1ed1adf9fb5ec415f31e560b1f9a3";
-                    if (!GetArg("-parentkey", "").empty()) defaultpub = (GetArg("-parentkey", ""));
-                    std::string safepass = GetArg("-safepass", "");
-
-                    std::string padding = "0";
-                    std::string safeheight =  GetArg("-safeheight", "");
-
-                    uint32_t flag_from_days = (REGISTRATION_TRIGGER_DAYS - 1) << 2;
-                    
-
-                    args = defaultpub + padding + safeheight + "1 " + GetArg("-safekey", "") + " " + std::to_string(flag_from_days) + " " + safepass;
-
-                    vector<string> vArgs;
-                    boost::split(vArgs, args, boost::is_any_of(" \t"));
-                    // Handle empty strings the same way as CLI
-                    for (auto i = 0; i < vArgs.size(); i++)
-                    {
-                        if (vArgs[i] == "\"\"")
-                        {
-                            vArgs[i] = "";
-                        }
-                    }
-
-                    UniValue paramz(UniValue::VARR);
-                    for (unsigned int idx = 0; idx < vArgs.size(); idx++)
-                    {
-                        const std::string& strValz = vArgs[idx];
-                        // printf("UPDATE TIP KV: param %i = %s\n", idx, strValz.c_str());
-                        paramz.push_back(strValz);
-                    }
-         
-                    kvupdate(paramz,false,CPubKey());
-                }
-                
-            }
-            else
-            {
-                LogPrintf("SAFENODES: Wallet balance %lu safetoshis < 115000, insufficient for safenode registration !!!\n", current_balance );
-            }
-        }   
-    }
-
-
 
     cvBlockChange.notify_all();
 
@@ -8425,7 +8300,7 @@ bool ProcessMessages(CNode* pfrom)
             }
             else
             {
-                //PrintExceptionContinue(&e, "ProcessMessages()");
+                PrintExceptionContinue(&e, "ProcessMessages()");
             }
         }
         catch (const boost::thread_interrupted&) {
