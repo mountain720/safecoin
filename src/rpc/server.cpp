@@ -343,6 +343,7 @@ static const CRPCCommand vRPCCommands[] =
     { "blockchain",         "safeids",                &safeids,                true  },
     { "blockchain",         "kvsearch",               &kvsearch,               true  },
     { "blockchain",         "kvupdate",               &kvupdate,               true  },
+    { "blockchain",         "regnode",                &regnode,                true  },
 
     /* Cross chain utilities */
     { "crosschain",         "MoMoMdata",              &MoMoMdata,              true  },

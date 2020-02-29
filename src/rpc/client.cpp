@@ -173,6 +173,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "safeids", 3 },
     { "kvsearch", 1 },
     { "kvupdate", 4 },
+    { "regnode", 0 },
     { "z_importkey", 2 },
     { "z_importviewingkey", 2 },
     { "z_getpaymentdisclosure", 1},

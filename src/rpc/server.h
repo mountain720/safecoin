@@ -532,6 +532,7 @@ extern UniValue minerids(const UniValue& params, bool fHelp, const CPubKey& mypk
 extern UniValue safeids(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue kvsearch(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue kvupdate(const UniValue& params, bool fHelp, const CPubKey& mypk);
+extern UniValue regnode(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue paxprice(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue paxpending(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue paxprices(const UniValue& params, bool fHelp, const CPubKey& mypk);
