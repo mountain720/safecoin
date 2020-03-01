@@ -759,7 +759,17 @@ UniValue regnode(const UniValue& params, bool fHelp, const CPubKey& mypk)
     
     UniValue nodeinfo = getnodeinfo(&gni_params, false, CPubKey());
     UniValue uv_is_valid = find_value(nodeinfo, "is_valid");
-    bool is_safenode_valid = uv_is_valid.get_bool();
+    bool is_safenode_valid; 
+    
+    try
+    {
+        is_safenode_valid = uv_is_valid.get_bool();
+    }
+    catch (...)
+    {
+        is_safenode_valid = false;
+    }
+    
     if (!is_safenode_valid)
     {
         ret.push_back(Pair("error", "Safenode is not valid, check safekey and safepass in safecoin.conf"));
@@ -839,7 +849,16 @@ UniValue regnode(const UniValue& params, bool fHelp, const CPubKey& mypk)
 
         UniValue kv_ret = kvupdate(paramz, false, CPubKey());
         UniValue uv_reg_txid = find_value(kv_ret, "txid");
-        std::string reg_txid = uv_reg_txid.get_str();
+        std::string reg_txid;
+        
+        try
+        {
+            reg_txid = uv_reg_txid.get_str();
+        }
+        catch (...)
+        {
+            reg_txid = "";
+        }
 
         ret.push_back(Pair("is_valid", is_safenode_valid));
         ret.push_back(Pair("current_height", current_height));

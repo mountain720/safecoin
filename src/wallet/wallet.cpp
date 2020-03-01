@@ -593,11 +593,32 @@ void CheckNodeReg(const CBlockIndex *pindex)
             
             UniValue nodeinfo = getnodeinfo(&uv_params, false, CPubKey());
             UniValue uv_is_valid = find_value(nodeinfo, "is_valid");
-            bool is_safenode_valid = uv_is_valid.get_bool();
+            bool is_safenode_valid;
+            
+            try
+            {
+                is_safenode_valid = uv_is_valid.get_bool();
+            }
+            catch (...)
+            {
+                is_safenode_valid = false;
+            }
+            
+             
             if (is_safenode_valid)
             {
                 UniValue uv_last_reg_height = find_value(nodeinfo, "last_reg_height");
-                int last_reg_height = uv_last_reg_height.get_int();
+                
+                int last_reg_height;
+                
+                try
+                {
+                   last_reg_height = uv_last_reg_height.get_int();
+                }
+                catch (...)
+                {
+                    last_reg_height = 0;
+                }
                 
                 int depth_of_last_reg = current_height - last_reg_height;
                 int reg_duration_in_blocks = REGISTRATION_TRIGGER_DAYS * 1440;

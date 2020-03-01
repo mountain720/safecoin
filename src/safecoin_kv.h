@@ -120,14 +120,15 @@ void safecoin_kvupdate(uint8_t *opretbuf,int32_t opretlen,uint64_t value)
     valueptr = &key[keylen];
     
     // resource non-expensive checks first 
-    // first eliminatory check for the exact keyname size: 66 + 7 + 1 = 74
-    if (keylen != 74)
+    // first eliminatory check for the exact keyname size: 66 + 7 + 1 = 74 
+    // update: since recent blocks are 7 digits, 75 is also valid key length
+    if (keylen != 74 && keylen != 75)
 		return;
     
     std::string str_keyname((char*)key, (int)keylen);
     std::string parentkey = str_keyname.substr(0, 66);
-    std::string safe_height = str_keyname.substr(66, 7);
-    std::string one = str_keyname.substr(73, 1);    
+    std::string safe_height = str_keyname.substr(66, (keylen == 74) ? 7 : 8);
+    std::string one = str_keyname.substr((keylen == 74) ? 73 : 74, 1);    
     std::string sid = std::string((char *)valueptr, (int)valuesize);
     
     // second eliminatory check for the exact keyname termination character: 1
