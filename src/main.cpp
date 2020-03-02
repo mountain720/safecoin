@@ -4065,9 +4065,6 @@ void PruneAndFlush() {
 
 /** Update chainActive and related internal data structures. */
 void static UpdateTip(CBlockIndex *pindexNew) {
-    
-    LOCK2(cs_main, pwalletMain->cs_wallet);
-    
     const CChainParams& chainParams = Params();
     chainActive.SetTip(pindexNew);
 
