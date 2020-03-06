@@ -274,7 +274,7 @@ public:
         nMinerThreads = 0;
         consensus.nPowMaxAdjustDown = 32; // 32% adjustment down
         consensus.nPowMaxAdjustUp = 16; // 16% adjustment up
-        consensus.nPowTargetSpacing = 2.5 * 60;
+        consensus.nPowTargetSpacing = 1 * 60;
         consensus.nPowAllowMinDifficultyBlocksAfterHeight = 299187;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nProtocolVersion = 170002;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nActivationHeight =
@@ -282,10 +282,10 @@ public:
         consensus.vUpgrades[Consensus::UPGRADE_TESTDUMMY].nProtocolVersion = 170002;
         consensus.vUpgrades[Consensus::UPGRADE_TESTDUMMY].nActivationHeight =
             Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT;
-        consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nProtocolVersion = 170003;
-        consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = 207500;
-        consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nProtocolVersion = 170007;
-        consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 280000;
+        consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nProtocolVersion = 170020;
+        consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = 20;
+        consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nProtocolVersion = 170021;
+        consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 30;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000001d0c4d9cd");
@@ -301,10 +301,10 @@ public:
         eh_epoch_1 = eh200_9;
         eh_epoch_2 = eh144_5;
         eh_epoch_3 = eh192_7;
-        eh_epoch_1_endblock = 10;
-        eh_epoch_2_startblock = 30;
-        eh_epoch_2_endblock = 40;
-        eh_epoch_3_startblock = 50;
+        eh_epoch_1_endblock = 1;
+        eh_epoch_2_startblock = 1;
+        eh_epoch_2_endblock = 1;
+        eh_epoch_3_startblock = 1;
 
 
          const char* pszTimestamp = "CNN 2018/02/07 Internet rights advocate John Perry Barlow dies";
