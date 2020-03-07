@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -721,7 +721,7 @@ void safecoin_paxpricefeed(int32_t height,uint8_t *pricefeed,int32_t opretlen)
 
 uint64_t PAX_fiatdest(uint64_t *seedp,int32_t tosafecoin,char *destaddr,uint8_t pubkey33[33],char *coinaddr,int32_t height,char *origbase,int64_t fiatoshis)
 {
-    uint8_t shortflag = 0; char base[4]; int32_t i,baseid; uint8_t addrtype,rmd160[20]; int64_t safecoinshis = 0;
+    uint8_t shortflag = 0; char base[4]; int32_t i,baseid; uint8_t addrtype,rmd160[20]; int64_t safetoshis = 0;
     *seedp = safecoin_seed(height);
     if ( (baseid= safecoin_baseid(origbase)) < 0 || baseid == MAX_CURRENCIES )
     {
@@ -734,12 +734,12 @@ uint64_t PAX_fiatdest(uint64_t *seedp,int32_t tosafecoin,char *destaddr,uint8_t 
     base[i] = 0;
     if ( fiatoshis < 0 )
         shortflag = 1, fiatoshis = -fiatoshis;
-    safecoinshis = safecoin_paxprice(seedp,height,base,(char *)"SAFE",(uint64_t)fiatoshis);
-    //printf("PAX_fiatdest ht.%d price %s %.8f -> SAFE %.8f seed.%llx\n",height,base,(double)fiatoshis/COIN,(double)safecoinshis/COIN,(long long)*seedp);
+    safetoshis = safecoin_paxprice(seedp,height,base,(char *)"SAFE",(uint64_t)fiatoshis);
+    //printf("PAX_fiatdest ht.%d price %s %.8f -> SAFE %.8f seed.%llx\n",height,base,(double)fiatoshis/COIN,(double)safetoshis/COIN,(long long)*seedp);
     if ( bitcoin_addr2rmd160(&addrtype,rmd160,coinaddr) == 20 )
     {
-        PAX_pubkey(1,pubkey33,&addrtype,rmd160,base,&shortflag,tosafecoin != 0 ? &safecoinshis : &fiatoshis);
+        PAX_pubkey(1,pubkey33,&addrtype,rmd160,base,&shortflag,tosafecoin != 0 ? &safetoshis : &fiatoshis);
         bitcoin_address(destaddr,SAFECOIN_PUBTYPE,pubkey33,33);
     }
-    return(safecoinshis);
+    return(safetoshis);
 }

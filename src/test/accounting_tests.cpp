@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 
+#include <boost/foreach.hpp>
 #include <boost/test/unit_test.hpp>
 
 extern CWallet* pwalletMain;
@@ -23,7 +24,7 @@ GetResults(CWalletDB& walletdb, std::map<CAmount, CAccountingEntry>& results)
     results.clear();
     BOOST_CHECK(walletdb.ReorderTransactions(pwalletMain) == DB_LOAD_OK);
     walletdb.ListAccountCreditDebit("", aes);
-    for (CAccountingEntry& ae : aes)
+    BOOST_FOREACH(CAccountingEntry& ae, aes)
     {
         results[ae.nOrderPos] = ae;
     }

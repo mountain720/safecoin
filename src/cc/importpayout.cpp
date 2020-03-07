@@ -1,3 +1,18 @@
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #include <cryptoconditions.h>
 
 #include "main.h"
@@ -13,7 +28,7 @@
  * notarised on another chain.
  *
  * IN: params - condition params
- * IN: importTx - Payout transaction on value chain (SAFE)
+ * IN: importTx - Payout transaction on value chain (KMD)
  * IN: nIn  - index of input of stake
  *
  * importTx: Spends stakeTx with payouts from asset chain

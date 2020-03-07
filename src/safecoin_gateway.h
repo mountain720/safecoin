@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -15,6 +15,19 @@
 
 // paxdeposit equivalent in reverse makes opreturn and SAFE does the same in reverse
 #include "safecoin_defs.h"
+
+/*#include "secp256k1/include/secp256k1.h"
+#include "secp256k1/include/secp256k1_schnorrsig.h"
+#include "secp256k1/include/secp256k1_musig.h"
+
+int32_t dummy_linker_tricker()
+{
+    secp256k1_context *ctx = 0; std::vector<uint8_t> musig64; CPubKey pk; secp256k1_schnorrsig musig; secp256k1_pubkey combined_pk;
+    if ( secp256k1_schnorrsig_parse((const secp256k1_context *)ctx,&musig,(const uint8_t *)&musig64[0]) > 0 && secp256k1_ec_pubkey_parse(ctx,&combined_pk,pk.begin(),33) > 0 )
+        return(1);
+}*/
+
+int32_t MarmaraValidateCoinbase(int32_t height,CTransaction tx);
 
 int32_t pax_fiatstatus(uint64_t *available,uint64_t *deposited,uint64_t *issued,uint64_t *withdrawn,uint64_t *approved,uint64_t *redeemed,char *base)
 {
@@ -89,8 +102,8 @@ struct pax_transaction *safecoin_paxmark(int32_t height,uint256 txid,uint16_t vo
     {
         pax->marked = mark;
         //if ( height > 214700 || pax->height > 214700 )
-        //    printf("mark ht.%d %.8f %.8f\n",pax->height,dstr(pax->safecoinshis),dstr(pax->fiatoshis));
-        
+        //    printf("mark ht.%d %.8f %.8f\n",pax->height,dstr(pax->safetoshis),dstr(pax->fiatoshis));
+
     }
     pthread_mutex_unlock(&safecoin_mutex);
     return(pax);
@@ -136,7 +149,7 @@ void safecoin_gateway_deposit(char *coinaddr,uint64_t value,char *symbol,uint64_
     {
         strcpy(pax->coinaddr,coinaddr);
         if ( value != 0 )
-            pax->safecoinshis = value;
+            pax->safetoshis = value;
         if ( symbol != 0 )
             strcpy(pax->symbol,symbol);
         if ( source != 0 )
@@ -177,7 +190,7 @@ int32_t safecoin_rwapproval(int32_t rwflag,uint8_t *opretbuf,struct pax_transact
         pax->vout += ((uint32_t)opretbuf[len++] << 8);
         //printf(" txid v.%d\n",pax->vout);
     }
-    len += iguana_rwnum(rwflag,&opretbuf[len],sizeof(pax->safecoinshis),&pax->safecoinshis);
+    len += iguana_rwnum(rwflag,&opretbuf[len],sizeof(pax->safetoshis),&pax->safetoshis);
     len += iguana_rwnum(rwflag,&opretbuf[len],sizeof(pax->fiatoshis),&pax->fiatoshis);
     len += iguana_rwnum(rwflag,&opretbuf[len],sizeof(pax->height),&pax->height);
     len += iguana_rwnum(rwflag,&opretbuf[len],sizeof(pax->otherheight),&pax->otherheight);
@@ -203,9 +216,9 @@ int32_t safecoin_issued_opreturn(char *base,uint256 *txids,uint16_t *vouts,int64
     //    return(0);
     incr = 34 + (issafecoin * (2*sizeof(fiatoshis) + 2*sizeof(height) + 20 + 4));
     //41e77b91cb68dc2aa02fa88550eae6b6d44db676a7e935337b6d1392d9718f03cb0200305c90660400000000fbcbeb1f000000bde801006201000058e7945ad08ddba1eac9c9b6c8e1e97e8016a2d152
-    
+
     // 41e94d736ec69d88c08b5d238abeeca609c02357a8317e0d56c328bcb1c259be5d0200485bc80200000000404b4c000000000059470200b80b000061f22ba7d19fe29ac3baebd839af8b7127d1f9075553440046bb4cc7a3b5cd39dffe7206507a3482a00780e617f68b273cce9817ed69298d02001069ca1b0000000080f0fa02000000005b470200b90b000061f22ba7d19fe29ac3baebd839af8b7127d1f90755
-    
+
     //for (i=0; i<opretlen; i++)
     //    printf("%02x",opretbuf[i]);
     //printf(" opretlen.%d (%s)\n",opretlen,base);
@@ -224,8 +237,8 @@ int32_t safecoin_issued_opreturn(char *base,uint256 *txids,uint16_t *vouts,int64
                 {
                     txids[n] = p.txid;
                     vouts[n] = p.vout;
-                    values[n] = (strcmp("SAFE",base) == 0) ? p.safecoinshis : p.fiatoshis;
-                    srcvalues[n] = (strcmp("SAFE",base) == 0) ? p.fiatoshis : p.safecoinshis;
+                    values[n] = (strcmp("SAFE",base) == 0) ? p.safetoshis : p.fiatoshis;
+                    srcvalues[n] = (strcmp("SAFE",base) == 0) ? p.fiatoshis : p.safetoshis;
                     safeheights[n] = p.height;
                     otherheights[n] = p.otherheight;
                     memcpy(&rmd160s[n * 20],p.rmd160,20);
@@ -252,8 +265,8 @@ int32_t safecoin_issued_opreturn(char *base,uint256 *txids,uint16_t *vouts,int64
                 baseids[n] = safecoin_baseid(base);
                 if ( (pax= safecoin_paxfinds(txids[n],vouts[n])) != 0 )
                 {
-                    values[n] = (strcmp("SAFE",base) == 0) ? pax->safecoinshis : pax->fiatoshis;
-                    srcvalues[n] = (strcmp("SAFE",base) == 0) ? pax->fiatoshis : pax->safecoinshis;
+                    values[n] = (strcmp("SAFE",base) == 0) ? pax->safetoshis : pax->fiatoshis;
+                    srcvalues[n] = (strcmp("SAFE",base) == 0) ? pax->fiatoshis : pax->safetoshis;
                     safeheights[n] = pax->height;
                     otherheights[n] = pax->otherheight;
                     memcpy(&rmd160s[n * 20],pax->rmd160,20);
@@ -312,12 +325,12 @@ uint64_t safecoin_paxtotal()
                 {
                     if ( pax2->fiatoshis != 0 )
                     {
-                        pax->safecoinshis = pax2->safecoinshis;
+                        pax->safetoshis = pax2->safetoshis;
                         pax->fiatoshis = pax2->fiatoshis;
                         basesp->issued += pax->fiatoshis;
                         pax->didstats = 1;
                         if ( strcmp(str,ASSETCHAINS_SYMBOL) == 0 )
-                            printf("########### %p issued %s += %.8f safeheight.%d %.8f other.%d\n",basesp,str,dstr(pax->fiatoshis),pax->height,dstr(pax->safecoinshis),pax->otherheight);
+                            printf("########### %p issued %s += %.8f safeheight.%d %.8f other.%d\n",basesp,str,dstr(pax->fiatoshis),pax->height,dstr(pax->safetoshis),pax->otherheight);
                         pax2->marked = pax->height;
                         pax->marked = pax->height;
                     }
@@ -327,18 +340,18 @@ uint64_t safecoin_paxtotal()
                     //bitcoin_address(coinaddr,addrtype,rmd160,20);
                     if ( (checktoshis= safecoin_paxprice(&seed,pax->height,pax->source,(char *)"SAFE",(uint64_t)pax->fiatoshis)) != 0 )
                     {
-                        if ( safecoin_paxcmp(pax->source,pax->height,pax->safecoinshis,checktoshis,seed) != 0 )
+                        if ( safecoin_paxcmp(pax->source,pax->height,pax->safetoshis,checktoshis,seed) != 0 )
                         {
                             pax->marked = pax->height;
-                            //printf("WITHDRAW.%s mark <- %d %.8f != %.8f\n",pax->source,pax->height,dstr(checktoshis),dstr(pax->safecoinshis));
+                            //printf("WITHDRAW.%s mark <- %d %.8f != %.8f\n",pax->source,pax->height,dstr(checktoshis),dstr(pax->safetoshis));
                         }
                         else if ( pax->validated == 0 )
                         {
-                            pax->validated = pax->safecoinshis = checktoshis;
+                            pax->validated = pax->safetoshis = checktoshis;
                             //int32_t j; for (j=0; j<32; j++)
                             //    printf("%02x",((uint8_t *)&pax->txid)[j]);
                             //if ( strcmp(str,ASSETCHAINS_SYMBOL) == 0 )
-                            //    printf(" v%d %p got WITHDRAW.%s safe.%d ht.%d %.8f -> %.8f/%.8f\n",pax->vout,pax,pax->source,pax->height,pax->otherheight,dstr(pax->fiatoshis),dstr(pax->safecoinshis),dstr(checktoshis));
+                            //    printf(" v%d %p got WITHDRAW.%s safe.%d ht.%d %.8f -> %.8f/%.8f\n",pax->vout,pax,pax->source,pax->height,pax->otherheight,dstr(pax->fiatoshis),dstr(pax->safetoshis),dstr(checktoshis));
                         }
                     }
                 }
@@ -350,7 +363,7 @@ uint64_t safecoin_paxtotal()
     {
         pax->ready = 0;
         if ( 0 && pax->type == 'A' )
-            printf("%p pax.%s <- %s marked.%d %.8f -> %.8f validated.%d approved.%d\n",pax,pax->symbol,pax->source,pax->marked,dstr(pax->safecoinshis),dstr(pax->fiatoshis),pax->validated != 0,pax->approved != 0);
+            printf("%p pax.%s <- %s marked.%d %.8f -> %.8f validated.%d approved.%d\n",pax,pax->symbol,pax->source,pax->marked,dstr(pax->safetoshis),dstr(pax->fiatoshis),pax->validated != 0,pax->approved != 0);
         if ( pax->marked != 0 )
             continue;
         if ( strcmp(symbol,pax->symbol) == 0 || pax->type == 'A' )
@@ -369,28 +382,28 @@ uint64_t safecoin_paxtotal()
                 {
                     if ( pax->validated != 0 )
                     {
-                        total += pax->safecoinshis;
+                        total += pax->safetoshis;
                         pax->ready = 1;
                     }
                     else
                     {
                         seed = 0;
                         checktoshis = safecoin_paxprice(&seed,pax->height,pax->source,(char *)"SAFE",(uint64_t)pax->fiatoshis);
-                        //printf("paxtotal PAX_fiatdest ht.%d price %s %.8f -> SAFE %.8f vs %.8f\n",pax->height,pax->symbol,(double)pax->fiatoshis/COIN,(double)pax->safecoinshis/COIN,(double)checktoshis/COIN);
-                        //printf(" v%d %.8f k.%d ht.%d\n",pax->vout,dstr(pax->safecoinshis),pax->height,pax->otherheight);
+                        //printf("paxtotal PAX_fiatdest ht.%d price %s %.8f -> SAFE %.8f vs %.8f\n",pax->height,pax->symbol,(double)pax->fiatoshis/COIN,(double)pax->safetoshis/COIN,(double)checktoshis/COIN);
+                        //printf(" v%d %.8f k.%d ht.%d\n",pax->vout,dstr(pax->safetoshis),pax->height,pax->otherheight);
                         if ( seed != 0 && checktoshis != 0 )
                         {
-                            if ( checktoshis == pax->safecoinshis )
+                            if ( checktoshis == pax->safetoshis )
                             {
-                                total += pax->safecoinshis;
-                                pax->validated = pax->safecoinshis;
+                                total += pax->safetoshis;
+                                pax->validated = pax->safetoshis;
                                 pax->ready = 1;
                             } else pax->marked = pax->height;
                         }
                     }
                 }
                 if ( 0 && pax->ready != 0 )
-                    printf("%p (%c) pax.%s marked.%d %.8f -> %.8f validated.%d approved.%d ready.%d ht.%d\n",pax,pax->type,pax->symbol,pax->marked,dstr(pax->safecoinshis),dstr(pax->fiatoshis),pax->validated != 0,pax->approved != 0,pax->ready,pax->height);
+                    printf("%p (%c) pax.%s marked.%d %.8f -> %.8f validated.%d approved.%d ready.%d ht.%d\n",pax,pax->type,pax->symbol,pax->marked,dstr(pax->safetoshis),dstr(pax->fiatoshis),pax->validated != 0,pax->approved != 0,pax->ready,pax->height);
             }
         }
     }
@@ -403,8 +416,8 @@ static int _paxorder(const void *a,const void *b)
 #define pax_a (*(struct pax_transaction **)a)
 #define pax_b (*(struct pax_transaction **)b)
     uint64_t aval,bval;
-    aval = pax_a->fiatoshis + pax_a->safecoinshis + pax_a->height;
-    bval = pax_b->fiatoshis + pax_b->safecoinshis + pax_b->height;
+    aval = pax_a->fiatoshis + pax_a->safetoshis + pax_a->height;
+    bval = pax_b->fiatoshis + pax_b->safetoshis + pax_b->height;
 	if ( bval > aval )
 		return(-1);
 	else if ( bval < aval )
@@ -441,7 +454,7 @@ int32_t safecoin_pending_withdraws(char *opretstr) // todo: enforce deterministi
                     paxes[n++] = pax;
                     //int32_t j; for (j=0; j<32; j++)
                     //    printf("%02x",((uint8_t *)&pax->txid)[j]);
-                    //printf(" %s.(safeht.%d ht.%d marked.%u approved.%d validated %.8f) %.8f\n",pax->source,pax->height,pax->otherheight,pax->marked,pax->approved,dstr(pax->validated),dstr(pax->safecoinshis));
+                    //printf(" %s.(safeht.%d ht.%d marked.%u approved.%d validated %.8f) %.8f\n",pax->source,pax->height,pax->otherheight,pax->marked,pax->approved,dstr(pax->validated),dstr(pax->safetoshis));
                 }
             }
         }
@@ -505,18 +518,18 @@ int32_t safecoin_gateway_deposits(CMutableTransaction *txNew,char *base,int32_t 
             if ( pax->height > 236000 )
             {
                 if ( safesp != 0 && safesp->NOTARIZED_HEIGHT >= pax->height )
-                    pax->validated = pax->safecoinshis;
+                    pax->validated = pax->safetoshis;
                 else if ( safesp->CURRENT_HEIGHT > pax->height+30 )
                     pax->validated = pax->ready = 0;
             }
             else
             {
                 if ( safesp != 0 && (safesp->NOTARIZED_HEIGHT >= pax->height || safesp->CURRENT_HEIGHT > pax->height+30) ) // assumes same chain as notarize
-                    pax->validated = pax->safecoinshis;
+                    pax->validated = pax->safetoshis;
                 else pax->validated = pax->ready = 0;
             }
 #else
-            pax->validated = pax->safecoinshis;
+            pax->validated = pax->safetoshis;
 #endif
         }
         if ( ASSETCHAINS_SYMBOL[0] != 0 && (pax_fiatstatus(&available,&deposited,&issued,&withdrawn,&approved,&redeemed,symbol) != 0 || available < pax->fiatoshis) )
@@ -525,7 +538,7 @@ int32_t safecoin_gateway_deposits(CMutableTransaction *txNew,char *base,int32_t 
             //    printf("miner.[%s]: skip %s %.8f when avail %.8f deposited %.8f, issued %.8f withdrawn %.8f approved %.8f redeemed %.8f\n",ASSETCHAINS_SYMBOL,symbol,dstr(pax->fiatoshis),dstr(available),dstr(deposited),dstr(issued),dstr(withdrawn),dstr(approved),dstr(redeemed));
             continue;
         }
-        /*printf("pax.%s marked.%d %.8f -> %.8f ready.%d validated.%d\n",pax->symbol,pax->marked,dstr(pax->safecoinshis),dstr(pax->fiatoshis),pax->ready!=0,pax->validated!=0);
+        /*printf("pax.%s marked.%d %.8f -> %.8f ready.%d validated.%d\n",pax->symbol,pax->marked,dstr(pax->safetoshis),dstr(pax->fiatoshis),pax->ready!=0,pax->validated!=0);
         if ( pax->marked != 0 || (pax->type != 'D' && pax->type != 'A') || pax->ready == 0 )
         {
             printf("reject 2\n");
@@ -552,9 +565,9 @@ int32_t safecoin_gateway_deposits(CMutableTransaction *txNew,char *base,int32_t 
             } else continue;
         }
 
-        //printf("redeem.%d? (%c) %p pax.%s marked.%d %.8f -> %.8f ready.%d validated.%d approved.%d\n",tosafecoin,pax->type,pax,pax->symbol,pax->marked,dstr(pax->safecoinshis),dstr(pax->fiatoshis),pax->ready!=0,pax->validated!=0,pax->approved!=0);
+        //printf("redeem.%d? (%c) %p pax.%s marked.%d %.8f -> %.8f ready.%d validated.%d approved.%d\n",tosafecoin,pax->type,pax,pax->symbol,pax->marked,dstr(pax->safetoshis),dstr(pax->fiatoshis),pax->ready!=0,pax->validated!=0,pax->approved!=0);
         if ( 0 && ASSETCHAINS_SYMBOL[0] != 0 )
-            printf("pax.%s marked.%d %.8f -> %.8f\n",ASSETCHAINS_SYMBOL,pax->marked,dstr(pax->safecoinshis),dstr(pax->fiatoshis));
+            printf("pax.%s marked.%d %.8f -> %.8f\n",ASSETCHAINS_SYMBOL,pax->marked,dstr(pax->safetoshis),dstr(pax->fiatoshis));
         if ( opcode == 'I' )
         {
             sum += pax->fiatoshis;
@@ -562,7 +575,7 @@ int32_t safecoin_gateway_deposits(CMutableTransaction *txNew,char *base,int32_t 
                 break;
         }
         txNew->vout.resize(numvouts+1);
-        txNew->vout[numvouts].nValue = (opcode == 'I') ? pax->fiatoshis : pax->safecoinshis;
+        txNew->vout[numvouts].nValue = (opcode == 'I') ? pax->fiatoshis : pax->safetoshis;
         txNew->vout[numvouts].scriptPubKey.resize(25);
         script = (uint8_t *)&txNew->vout[numvouts].scriptPubKey[0];
         *script++ = 0x76;
@@ -582,7 +595,7 @@ int32_t safecoin_gateway_deposits(CMutableTransaction *txNew,char *base,int32_t 
         else
         {
             len += safecoin_rwapproval(1,&data[len],pax);
-            PENDING_SAFECOIN_TX += pax->safecoinshis;
+            PENDING_SAFECOIN_TX += pax->safetoshis;
             printf(" len.%d vout.%u DEPOSIT %.8f <- pax.%s pending ht %d %d %.8f | ",len,pax->vout,(double)txNew->vout[numvouts].nValue/COIN,symbol,pax->height,pax->otherheight,dstr(PENDING_SAFECOIN_TX));
         }
         if ( numvouts++ >= 64 || sum > COIN )
@@ -638,13 +651,22 @@ const char *banned_txids[] =
     "0fb11c0e7e4cc52475f3155e53ea5d863b1b8ef8ea1646dbb333a05002490a3b",
 };
 
+int32_t safecoin_checkvout(int32_t vout,int32_t k,int32_t indallvouts)
+{
+    if ( k < indallvouts )
+        return(vout == 1);
+    else if ( k == indallvouts || k == indallvouts+1 )
+        return(1);
+    else return(vout == 0);
+}
+
 int32_t safecoin_bannedset(int32_t *indallvoutsp,uint256 *array,int32_t max)
 {
     int32_t i;
     if ( sizeof(banned_txids)/sizeof(*banned_txids) > max )
     {
-        fprintf(stderr,"safecoin_bannedset: buffer too small %ld vs %d\n",sizeof(banned_txids)/sizeof(*banned_txids),max);
-        exit(-1);
+        fprintf(stderr,"safecoin_bannedset: buffer too small %d vs %d\n",(int32_t)(sizeof(banned_txids)/sizeof(*banned_txids)),max);
+        StartShutdown();
     }
     for (i=0; i<sizeof(banned_txids)/sizeof(*banned_txids); i++)
         array[i] = uint256S(banned_txids[i]);
@@ -674,15 +696,36 @@ int32_t safecoin_check_deposit(int32_t height,const CBlock& block,uint32_t prevt
         {
             if ( i == 0 && txn_count > 1 && block.vtx[txn_count-1].vout.size() > 0 && block.vtx[txn_count-1].vout[0].nValue == 5000 )
             {
+                /*
                 if ( block.vtx[txn_count-1].vin.size() == 1 && GetTransaction(block.vtx[txn_count-1].vin[0].prevout.hash,tx,hash,false) && block.vtx[0].vout[0].scriptPubKey == tx.vout[block.vtx[txn_count-1].vin[0].prevout.n].scriptPubKey )
                     notmatched = 1;
+                */
+                if ( block.vtx[txn_count-1].vin.size() == 1 ) {
+                    uint256 hashNotaryProofVin = block.vtx[txn_count-1].vin[0].prevout.hash;
+                    int fNotaryProofVinTxFound = GetTransaction(hashNotaryProofVin,tx,hash,false);
+                    if (!fNotaryProofVinTxFound) {
+                        // try to search in the same block
+                        BOOST_FOREACH(const CTransaction &txInThisBlock, block.vtx) {
+                            if (txInThisBlock.GetHash() == hashNotaryProofVin) {
+                                fNotaryProofVinTxFound = 1;
+                                tx = txInThisBlock;
+                                hash = block.GetHash();
+                                break;
+                            }
+                        }
+                    }
+                    if ( fNotaryProofVinTxFound && block.vtx[0].vout[0].scriptPubKey == tx.vout[block.vtx[txn_count-1].vin[0].prevout.n].scriptPubKey )
+                        {
+                            notmatched = 1;
+                        }
+                }  
             }
             n = block.vtx[i].vin.size();
             for (j=0; j<n; j++)
             {
                 for (k=0; k<numbanned; k++)
                 {
-                    if ( block.vtx[i].vin[j].prevout.hash == array[k] && (block.vtx[i].vin[j].prevout.n == 1 || k >= indallvouts)  )
+                    if ( block.vtx[i].vin[j].prevout.hash == array[k] && safecoin_checkvout(block.vtx[i].vin[j].prevout.n,k,indallvouts) != 0 ) //(block.vtx[i].vin[j].prevout.n == 1 || k >= indallvouts)  )
                     {
                         printf("banned tx.%d being used at ht.%d txi.%d vini.%d\n",k,height,i,j);
                         return(-1);
@@ -691,9 +734,17 @@ int32_t safecoin_check_deposit(int32_t height,const CBlock& block,uint32_t prevt
             }
         }
     }
+    if ( height > 0 && ASSETCHAINS_MARMARA != 0 && (height & 1) == 0 )
+    {
+        if ( MarmaraValidateCoinbase(height,block.vtx[0]) < 0 )
+        {
+            fprintf(stderr,"MARMARA error ht.%d constrains even height blocks to pay 100%% to CC in vout0 with opreturn\n",height);
+            return(-1);
+        }
+    }
     // we don't want these checks in VRSC, leave it at the Sapling upgrade
-    if ( ASSETCHAINS_SYMBOL[0] == 0 || 
-         (ASSETCHAINS_COMMISSION != 0 && height > 1) ||
+    if ( ASSETCHAINS_SYMBOL[0] == 0 ||
+         ((ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_FOUNDERS_REWARD) && height > 1) ||
          NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING) )
     {
         n = block.vtx[0].vout.size();
@@ -744,13 +795,18 @@ int32_t safecoin_check_deposit(int32_t height,const CBlock& block,uint32_t prevt
             else if ( height > 814000 )
             {
                 script = (uint8_t *)&block.vtx[0].vout[0].scriptPubKey[0];
+                //int32_t notary = safecoin_electednotary(&num,script+1,height,0);
+                //if ( (-1 * (safecoin_electednotary(&num,script+1,height,0) >= 0) * (height > 1000000)) < 0 )
+                //    fprintf(stderr, ">>>>>>> FAILED BLOCK.%d notary.%d insync.%d\n",height,notary,SAFECOIN_INSYNC);
+                //else
+                //    fprintf(stderr, "<<<<<<< VALID BLOCK.%d notary.%d insync.%d\n",height,notary,SAFECOIN_INSYNC);
                 return(-1 * (safecoin_electednotary(&num,script+1,height,0) >= 0) * (height > 1000000));
             }
         }
         else
         {
             checktoshis = 0;
-            if ( ASSETCHAINS_COMMISSION != 0 && height > 1 )
+            if ( (ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_FOUNDERS_REWARD) && height > 1 )
             {
                 if ( (checktoshis= safecoin_checkcommission((CBlock *)&block,height)) < 0 )
                 {
@@ -778,7 +834,7 @@ int32_t safecoin_check_deposit(int32_t height,const CBlock& block,uint32_t prevt
 
 const char *safecoin_opreturn(int32_t height,uint64_t value,uint8_t *opretbuf,int32_t opretlen,uint256 txid,uint16_t vout,char *source)
 {
-    uint8_t rmd160[20],rmd160s[64*20],addrtype,shortflag,pubkey33[33]; int32_t didstats,i,j,n,kvheight,len,tosafecoin,safeheight,otherheights[64],safeheights[64]; int8_t baseids[64]; char base[4],coinaddr[64],destaddr[64]; uint256 txids[64]; uint16_t vouts[64]; uint64_t convtoshis,seed; int64_t fee,fiatoshis,safecoinshis,checktoshis,values[64],srcvalues[64]; struct pax_transaction *pax,*pax2; struct safecoin_state *basesp; double diff; 
+    uint8_t rmd160[20],rmd160s[64*20],addrtype,shortflag,pubkey33[33]; int32_t didstats,i,j,n,kvheight,len,tosafecoin,safeheight,otherheights[64],safeheights[64]; int8_t baseids[64]; char base[4],coinaddr[64],destaddr[64]; uint256 txids[64]; uint16_t vouts[64]; uint64_t convtoshis,seed; int64_t fee,fiatoshis,safetoshis,checktoshis,values[64],srcvalues[64]; struct pax_transaction *pax,*pax2; struct safecoin_state *basesp; double diff;
     const char *typestr = "unknown";
     if ( ASSETCHAINS_SYMBOL[0] != 0 && safecoin_baseid(ASSETCHAINS_SYMBOL) < 0 && opretbuf[0] != 'K' )
     {
@@ -843,7 +899,7 @@ const char *safecoin_opreturn(int32_t height,uint64_t value,uint8_t *opretbuf,in
                     {
                         pax->height = safeheight;
                         pax->validated = value;
-                        pax->safecoinshis = value;
+                        pax->safetoshis = value;
                         pax->fiatoshis = fiatoshis;
                         if ( didstats == 0 && pax->didstats == 0 )
                         {
@@ -852,7 +908,7 @@ const char *safecoin_opreturn(int32_t height,uint64_t value,uint8_t *opretbuf,in
                                 basesp->deposited += fiatoshis;
                                 didstats = 1;
                                 if ( 0 && strcmp(base,ASSETCHAINS_SYMBOL) == 0 )
-                                    printf("########### %p depositedB %s += %.8f/%.8f safeheight.%d/%d %.8f/%.8f\n",basesp,base,dstr(fiatoshis),dstr(pax->fiatoshis),safeheight,pax->height,dstr(value),dstr(pax->safecoinshis));
+                                    printf("########### %p depositedB %s += %.8f/%.8f safeheight.%d/%d %.8f/%.8f\n",basesp,base,dstr(fiatoshis),dstr(pax->fiatoshis),safeheight,pax->height,dstr(value),dstr(pax->safetoshis));
                             }
                         } //
                         if ( didstats != 0 )
@@ -860,7 +916,7 @@ const char *safecoin_opreturn(int32_t height,uint64_t value,uint8_t *opretbuf,in
                         if ( (pax2= safecoin_paxfind(txid,vout,'I')) != 0 )
                         {
                             pax2->fiatoshis = pax->fiatoshis;
-                            pax2->safecoinshis = pax->safecoinshis;
+                            pax2->safetoshis = pax->safetoshis;
                             pax->marked = pax2->marked = pax->height;
                             pax2->height = pax->height = height;
                             if ( pax2->didstats == 0 )
@@ -870,7 +926,7 @@ const char *safecoin_opreturn(int32_t height,uint64_t value,uint8_t *opretbuf,in
                                     basesp->issued += pax2->fiatoshis;
                                     pax2->didstats = 1;
                                     if ( 0 && strcmp(base,"USD") == 0 )
-                                        printf("########### %p issueda %s += %.8f safeheight.%d %.8f other.%d [%d]\n",basesp,base,dstr(pax2->fiatoshis),pax2->height,dstr(pax2->safecoinshis),pax2->otherheight,height);
+                                        printf("########### %p issueda %s += %.8f safeheight.%d %.8f other.%d [%d]\n",basesp,base,dstr(pax2->fiatoshis),pax2->height,dstr(pax2->safetoshis),pax2->otherheight,height);
                                 }
                             }
                         }
@@ -909,11 +965,11 @@ const char *safecoin_opreturn(int32_t height,uint64_t value,uint8_t *opretbuf,in
                     {
                         pax->type = opretbuf[0];
                         strcpy(pax->source,(char *)&opretbuf[opretlen-4]);
-                        if ( (pax2= safecoin_paxfind(txids[i],vouts[i],'D')) != 0 && pax2->fiatoshis != 0 && pax2->safecoinshis != 0 )
+                        if ( (pax2= safecoin_paxfind(txids[i],vouts[i],'D')) != 0 && pax2->fiatoshis != 0 && pax2->safetoshis != 0 )
                         {
                             // realtime path?
                             pax->fiatoshis = pax2->fiatoshis;
-                            pax->safecoinshis = pax2->safecoinshis;
+                            pax->safetoshis = pax2->safetoshis;
                             pax->marked = pax2->marked = pax2->height;
                             if ( pax->didstats == 0 )
                             {
@@ -924,7 +980,7 @@ const char *safecoin_opreturn(int32_t height,uint64_t value,uint8_t *opretbuf,in
                                     pax->height = pax2->height;
                                     pax->otherheight = height;
                                     if ( 1 && strcmp(CURRENCIES[baseids[i]],"USD") == 0 )
-                                        printf("########### %p issuedb %s += %.8f safeheight.%d %.8f other.%d [%d]\n",basesp,CURRENCIES[baseids[i]],dstr(pax->fiatoshis),pax->height,dstr(pax->safecoinshis),pax->otherheight,height);
+                                        printf("########### %p issuedb %s += %.8f safeheight.%d %.8f other.%d [%d]\n",basesp,CURRENCIES[baseids[i]],dstr(pax->fiatoshis),pax->height,dstr(pax->safetoshis),pax->otherheight,height);
                                 }
                             }
                         }
@@ -949,13 +1005,13 @@ const char *safecoin_opreturn(int32_t height,uint64_t value,uint8_t *opretbuf,in
         tosafecoin = 1;
         iguana_rwnum(0,&opretbuf[34],sizeof(safeheight),&safeheight);
         memset(base,0,sizeof(base));
-        PAX_pubkey(0,&opretbuf[1],&addrtype,rmd160,base,&shortflag,&safecoinshis);
+        PAX_pubkey(0,&opretbuf[1],&addrtype,rmd160,base,&shortflag,&safetoshis);
         bitcoin_address(coinaddr,addrtype,rmd160,20);
         checktoshis = PAX_fiatdest(&seed,tosafecoin,destaddr,pubkey33,coinaddr,safeheight,base,value);
         typestr = "withdraw";
-        //printf(" [%s] WITHDRAW %s.height.%d vs height.%d check %.8f/%.8f vs %.8f tosafecoin.%d %d seed.%llx -> (%s) len.%d\n",ASSETCHAINS_SYMBOL,base,safeheight,height,dstr(checktoshis),dstr(safecoinshis),dstr(value),safecoin_is_issuer(),strncmp(ASSETCHAINS_SYMBOL,base,strlen(base)) == 0,(long long)seed,coinaddr,opretlen);
+        //printf(" [%s] WITHDRAW %s.height.%d vs height.%d check %.8f/%.8f vs %.8f tosafecoin.%d %d seed.%llx -> (%s) len.%d\n",ASSETCHAINS_SYMBOL,base,safeheight,height,dstr(checktoshis),dstr(safetoshis),dstr(value),safecoin_is_issuer(),strncmp(ASSETCHAINS_SYMBOL,base,strlen(base)) == 0,(long long)seed,coinaddr,opretlen);
         didstats = 0;
-        //if ( safecoin_paxcmp(base,safeheight,safecoinshis,checktoshis,seed) == 0 )
+        //if ( safecoin_paxcmp(base,safeheight,safetoshis,checktoshis,seed) == 0 )
         {
             if ( value != 0 && ((pax= safecoin_paxfind(txid,vout,'W')) == 0 || pax->didstats == 0) )
             {
@@ -967,7 +1023,7 @@ const char *safecoin_opreturn(int32_t height,uint64_t value,uint8_t *opretbuf,in
                         printf("########### %p withdrawn %s += %.8f check %.8f\n",basesp,base,dstr(value),dstr(checktoshis));
                 }
                 if ( 0 && strcmp(base,"RUB") == 0 && (pax == 0 || pax->approved == 0) )
-                    printf("notarize %s %.8f -> %.8f safe.%d other.%d\n",ASSETCHAINS_SYMBOL,dstr(value),dstr(safecoinshis),safeheight,height);
+                    printf("notarize %s %.8f -> %.8f safe.%d other.%d\n",ASSETCHAINS_SYMBOL,dstr(value),dstr(safetoshis),safeheight,height);
             }
             safecoin_gateway_deposit(coinaddr,0,(char *)"SAFE",value,rmd160,txid,vout,'W',safeheight,height,source,0);
             if ( (pax= safecoin_paxfind(txid,vout,'W')) != 0 )
@@ -977,9 +1033,9 @@ const char *safecoin_opreturn(int32_t height,uint64_t value,uint8_t *opretbuf,in
                 strcpy(pax->symbol,"SAFE");
                 pax->height = safeheight;
                 pax->otherheight = height;
-                pax->safecoinshis = safecoinshis;
+                pax->safetoshis = safetoshis;
             }
-        } // else printf("withdraw %s paxcmp ht.%d %d error value %.8f -> %.8f vs %.8f\n",base,safeheight,height,dstr(value),dstr(safecoinshis),dstr(checktoshis));
+        } // else printf("withdraw %s paxcmp ht.%d %d error value %.8f -> %.8f vs %.8f\n",base,safeheight,height,dstr(value),dstr(safetoshis),dstr(checktoshis));
         // need to allocate pax
     }
     else if ( height < 236000 && tosafecoin != 0 && opretbuf[0] == 'A' && ASSETCHAINS_SYMBOL[0] == 0 )
@@ -1191,7 +1247,7 @@ void safecoin_stateind_set(struct safecoin_state *sp,uint32_t *inds,int32_t n,ui
     printf("numR.%d numV.%d numN.%d count.%d\n",numR,numV,numN,count);
     /*else if ( func == 'K' ) // SAFE height: stop after 1st
     else if ( func == 'T' ) // SAFE height+timestamp: stop after 1st
-        
+
     else if ( func == 'N' ) // notarization, scan backwards 1440+ blocks;
     else if ( func == 'V' ) // price feed: can stop after 1440+
     else if ( func == 'R' ) // opreturn:*/
@@ -1250,7 +1306,7 @@ long safecoin_stateind_validate(struct safecoin_state *sp,char *indfname,uint8_t
     if ( (inds= OS_fileptr(&fsize,indfname)) != 0 )
     {
         lastfpos = 0;
-        fprintf(stderr,"inds.%p validate %s fsize.%ld datalen.%ld n.%ld lastfpos.%ld\n",inds,indfname,fsize,datalen,fsize / sizeof(uint32_t),lastfpos);
+        fprintf(stderr,"inds.%p validate %s fsize.%ld datalen.%ld n.%d lastfpos.%ld\n",inds,indfname,fsize,datalen,(int32_t)(fsize / sizeof(uint32_t)),lastfpos);
         if ( (fsize % sizeof(uint32_t)) == 0 )
         {
             n = (int32_t)(fsize / sizeof(uint32_t));
@@ -1341,7 +1397,7 @@ int32_t safecoin_faststateinit(struct safecoin_state *sp,char *fname,char *symbo
             if ( (indfp= fopen(indfname,"rb+")) != 0 )
             {
                 lastfpos = fpos = validated;
-                fprintf(stderr,"datalen.%ld validated %ld -> indcounter %u, prevpos100 %u offset.%ld\n",datalen,validated,indcounter,prevpos100,indcounter * sizeof(uint32_t));
+                fprintf(stderr,"datalen.%ld validated %ld -> indcounter %u, prevpos100 %u offset.%d\n",datalen,validated,indcounter,prevpos100,(int32_t)(indcounter * sizeof(uint32_t)));
                 if ( fpos < datalen )
                 {
                     fseek(indfp,indcounter * sizeof(uint32_t),SEEK_SET);
@@ -1377,9 +1433,9 @@ void safecoin_passport_iteration()
 {
     static long lastpos[34]; static char userpass[33][1024]; static uint32_t lasttime,callcounter,lastinterest;
     int32_t maxseconds = 10;
-    FILE *fp; uint8_t *filedata; long fpos,datalen,lastfpos; int32_t baseid,limit,n,ht,isrealtime,expired,refid,blocks,longest; struct safecoin_state *sp,*refsp; char *retstr,fname[512],*base,symbol[SAFECOIN_ASSETCHAIN_MAXLEN],dest[SAFECOIN_ASSETCHAIN_MAXLEN]; uint32_t buf[3],starttime; cJSON *infoobj,*result; uint64_t RTmask = 0; //CBlockIndex *pindex;
+    FILE *fp; uint8_t *filedata; long fpos,datalen,lastfpos; int32_t baseid,limit,n,ht,isrealtime,expired,refid,blocks,longest; struct safecoin_state *sp,*refsp; char *retstr,fname[512],*base,symbol[SAFECOIN_ASSETCHAIN_MAXLEN],dest[SAFECOIN_ASSETCHAIN_MAXLEN]; uint32_t buf[3],starttime; uint64_t RTmask = 0; //CBlockIndex *pindex;
     expired = 0;
-    while ( SAFECOIN_INITDONE == 0 )
+    while ( 0 && SAFECOIN_INITDONE == 0 )
     {
         fprintf(stderr,"[%s] PASSPORT iteration waiting for SAFECOIN_INITDONE\n",ASSETCHAINS_SYMBOL);
         sleep(3);
@@ -1526,3 +1582,1258 @@ void safecoin_passport_iteration()
     }
 }
 
+
+extern std::vector<uint8_t> Mineropret; // opreturn data set by the data gathering code
+#define PRICES_ERRORRATE (COIN / 100)	  // maximum acceptable change, set at 1%
+#define PRICES_SIZEBIT0 (sizeof(uint32_t) * 4) // 4 uint32_t unixtimestamp, BTCUSD, BTCGBP and BTCEUR
+#define SAFECOIN_LOCALPRICE_CACHESIZE 13
+#define SAFECOIN_MAXPRICES 2048
+#define PRICES_SMOOTHWIDTH 1
+
+#define issue_curl(cmdstr) bitcoind_RPC(0,(char *)"CBCOINBASE",cmdstr,0,0,0)
+
+const char *Cryptos[] = { "SAFE", "ETH" }; // must be on binance (for now)
+// "LTC", "BCHABC", "XMR", "IOTA", "ZEC", "WAVES",  "LSK", "DCR", "RVN", "DASH", "XEM", "BTS", "ICX", "HOT", "STEEM", "ENJ", "STRAT"
+const char *Forex[] =
+{ "BGN","NZD","ILS","RUB","CAD","PHP","CHF","AUD","JPY","TRY","HKD","MYR","HRK","CZK","IDR","DKK","NOK","HUF","GBP","MXN","THB","ISK","ZAR","BRL","SGD","PLN","INR","KRW","RON","CNY","SEK","EUR"
+}; // must be in ECB list
+
+struct safecoin_extremeprice
+{
+    uint256 blockhash;
+    uint32_t pricebits,timestamp;
+    int32_t height;
+    int16_t dir,ind;
+} ExtremePrice;
+
+struct safecoin_priceinfo
+{
+    FILE *fp;
+    char symbol[64];
+} PRICES[SAFECOIN_MAXPRICES];
+
+uint32_t PriceCache[SAFECOIN_LOCALPRICE_CACHESIZE][SAFECOIN_MAXPRICES];//4+sizeof(Cryptos)/sizeof(*Cryptos)+sizeof(Forex)/sizeof(*Forex)];
+int64_t PriceMult[SAFECOIN_MAXPRICES];
+int32_t safecoin_cbopretsize(uint64_t flags);
+
+void safecoin_PriceCache_shift()
+{
+    int32_t i;
+    for (i=SAFECOIN_LOCALPRICE_CACHESIZE-1; i>0; i--)
+        memcpy(PriceCache[i],PriceCache[i-1],sizeof(PriceCache[i]));
+    memcpy(PriceCache[0],Mineropret.data(),Mineropret.size());
+}
+
+int32_t _safecoin_heightpricebits(uint64_t *seedp,uint32_t *heightbits,CBlock *block)
+{
+    CTransaction tx; int32_t numvouts; std::vector<uint8_t> vopret;
+    tx = block->vtx[0];
+    numvouts = (int32_t)tx.vout.size();
+    GetOpReturnData(tx.vout[numvouts-1].scriptPubKey,vopret);
+    if ( vopret.size() >= PRICES_SIZEBIT0 )
+    {
+        if ( seedp != 0 )
+            memcpy(seedp,&block->hashMerkleRoot,sizeof(*seedp));
+        memcpy(heightbits,vopret.data(),vopret.size());
+        return((int32_t)(vopret.size()/sizeof(uint32_t)));
+    }
+    return(-1);
+}
+
+// safecoin_heightpricebits() extracts the price data in the coinbase for nHeight
+int32_t safecoin_heightpricebits(uint64_t *seedp,uint32_t *heightbits,int32_t nHeight)
+{
+    CBlockIndex *pindex; CBlock block;
+    if ( seedp != 0 )
+        *seedp = 0;
+    if ( (pindex= safecoin_chainactive(nHeight)) != 0 )
+    {
+        if ( safecoin_blockload(block,pindex) == 0 )
+        {
+            return(_safecoin_heightpricebits(seedp,heightbits,&block));
+        }
+    }
+    fprintf(stderr,"couldnt get pricebits for %d\n",nHeight);
+    return(-1);
+}
+
+/*
+ safecoin_pricenew() is passed in a reference price, the change tolerance and the proposed price. it needs to return a clipped price if it is too big and also set a flag if it is at or above the limit
+ */
+uint32_t safecoin_pricenew(char *maxflagp,uint32_t price,uint32_t refprice,int64_t tolerance)
+{
+    uint64_t highprice,lowprice;
+    if ( refprice < 2 )
+        return(0);
+    highprice = ((uint64_t)refprice * (COIN + tolerance)) / COIN; // calc highest acceptable price
+    lowprice = ((uint64_t)refprice * (COIN - tolerance)) / COIN;  // and lowest
+    if ( highprice == refprice )
+        highprice++;
+    if ( lowprice == refprice )
+        lowprice--;
+    if ( price >= highprice )
+    {
+        //fprintf(stderr,"high %u vs h%llu l%llu tolerance.%llu\n",price,(long long)highprice,(long long)lowprice,(long long)tolerance);
+        if ( price > highprice ) // return non-zero only if we violate the tolerance
+        {
+            *maxflagp = 2;
+            return(highprice);
+        }
+        *maxflagp = 1;
+    }
+    else if ( price <= lowprice )
+    {
+        //fprintf(stderr,"low %u vs h%llu l%llu tolerance.%llu\n",price,(long long)highprice,(long long)lowprice,(long long)tolerance);
+        if ( price < lowprice )
+        {
+            *maxflagp = -2;
+            return(lowprice);
+        }
+        *maxflagp = -1;
+    }
+    return(0);
+}
+
+// safecoin_pricecmp() returns -1 if any of the prices are beyond the tolerance
+int32_t safecoin_pricecmp(int32_t nHeight,int32_t n,char *maxflags,uint32_t *pricebitsA,uint32_t *pricebitsB,int64_t tolerance)
+{
+    int32_t i; uint32_t newprice;
+    for (i=1; i<n; i++)
+    {
+        if ( (newprice= safecoin_pricenew(&maxflags[i],pricebitsA[i],pricebitsB[i],tolerance)) != 0 )
+        {
+            fprintf(stderr,"ht.%d i.%d/%d %u vs %u -> newprice.%u out of tolerance maxflag.%d\n",nHeight,i,n,pricebitsB[i],pricebitsA[i],newprice,maxflags[i]);
+            return(-1);
+        }
+    }
+    return(0);
+}
+
+// safecoin_priceclamp() clamps any price that is beyond tolerance
+int32_t safecoin_priceclamp(int32_t n,uint32_t *pricebits,uint32_t *refprices,int64_t tolerance)
+{
+    int32_t i; uint32_t newprice; char maxflags[SAFECOIN_MAXPRICES];
+    memset(maxflags,0,sizeof(maxflags));
+    for (i=1; i<n; i++)
+    {
+        if ( (newprice= safecoin_pricenew(&maxflags[i],pricebits[i],refprices[i],tolerance)) != 0 )
+        {
+            fprintf(stderr,"priceclamped[%d of %d] %u vs %u -> %u\n",i,n,refprices[i],pricebits[i],newprice);
+            pricebits[i] = newprice;
+        }
+    }
+    return(0);
+}
+
+// safecoin_mineropret() returns a valid pricedata to add to the coinbase opreturn for nHeight
+CScript safecoin_mineropret(int32_t nHeight)
+{
+    CScript opret; char maxflags[SAFECOIN_MAXPRICES]; uint32_t pricebits[SAFECOIN_MAXPRICES],prevbits[SAFECOIN_MAXPRICES]; int32_t maxflag,i,n,numzero=0;
+    if ( Mineropret.size() >= PRICES_SIZEBIT0 )
+    {
+        n = (int32_t)(Mineropret.size() / sizeof(uint32_t));
+        numzero = 1;
+        while ( numzero > 0 )
+        {
+            memcpy(pricebits,Mineropret.data(),Mineropret.size());
+            for (i=numzero=0; i<n; i++)
+                if ( pricebits[i] == 0 )
+                {
+                    fprintf(stderr,"%d ",i);
+                    numzero++;
+                }
+            if ( numzero != 0 )
+            {
+                fprintf(stderr," safecoin_mineropret numzero.%d vs n.%d\n",numzero,n);
+                safecoin_cbopretupdate(1);
+                sleep(61);
+            }
+        }
+        if ( safecoin_heightpricebits(0,prevbits,nHeight-1) > 0 )
+        {
+            memcpy(pricebits,Mineropret.data(),Mineropret.size());
+            memset(maxflags,0,sizeof(maxflags));
+            if ( safecoin_pricecmp(0,n,maxflags,pricebits,prevbits,PRICES_ERRORRATE) < 0 )
+            {
+                // if the new prices are outside tolerance, update Mineropret with clamped prices
+                safecoin_priceclamp(n,pricebits,prevbits,PRICES_ERRORRATE);
+                //fprintf(stderr,"update Mineropret to clamped prices\n");
+                memcpy(Mineropret.data(),pricebits,Mineropret.size());
+            }
+        }
+        int32_t i;
+        for (i=0; i<Mineropret.size(); i++)
+            fprintf(stderr,"%02x",Mineropret[i]);
+        fprintf(stderr," <- Mineropret\n");
+        return(opret << OP_RETURN << Mineropret);
+    }
+    return(opret);
+}
+
+/*
+ safecoin_opretvalidate() is the entire price validation!
+ it prints out some useful info for debugging, like the lag from current time and prev block and the prices encoded in the opreturn.
+ 
+ The only way safecoin_opretvalidate() doesnt return an error is if maxflag is set or it is within tolerance of both the prior block and the local data. The local data validation only happens if it is a recent block and not a block from the past as the local node is only getting the current price data.
+ 
+ */
+
+
+void safecoin_queuelocalprice(int32_t dir,int32_t height,uint32_t timestamp,uint256 blockhash,int32_t ind,uint32_t pricebits)
+{
+    fprintf(stderr,"ExtremePrice dir.%d ht.%d ind.%d cmpbits.%u\n",dir,height,ind,pricebits);
+    ExtremePrice.dir = dir;
+    ExtremePrice.height = height;
+    ExtremePrice.blockhash = blockhash;
+    ExtremePrice.ind = ind;
+    ExtremePrice.timestamp = timestamp;
+    ExtremePrice.pricebits = pricebits;
+}
+
+int32_t safecoin_opretvalidate(const CBlock *block,CBlockIndex * const previndex,int32_t nHeight,CScript scriptPubKey)
+{
+    int32_t testchain_exemption = 0;
+    std::vector<uint8_t> vopret; char maxflags[SAFECOIN_MAXPRICES]; uint256 bhash; double btcusd,btcgbp,btceur; uint32_t localbits[SAFECOIN_MAXPRICES],pricebits[SAFECOIN_MAXPRICES],prevbits[SAFECOIN_MAXPRICES],newprice; int32_t i,j,prevtime,maxflag,lag,lag2,lag3,n,errflag,iter; uint32_t now;
+    now = (uint32_t)time(NULL);
+    if ( ASSETCHAINS_CBOPRET != 0 && nHeight > 0 )
+    {
+        bhash = block->GetHash();
+        GetOpReturnData(scriptPubKey,vopret);
+        if ( vopret.size() >= PRICES_SIZEBIT0 )
+        {
+            n = (int32_t)(vopret.size() / sizeof(uint32_t));
+            memcpy(pricebits,vopret.data(),Mineropret.size());
+            memset(maxflags,0,sizeof(maxflags));
+            if ( nHeight > 2 )
+            {
+                prevtime = previndex->nTime;
+                lag = (int32_t)(now - pricebits[0]);
+                lag2 = (int32_t)(pricebits[0] - prevtime);
+                lag3 = (int32_t)(block->nTime - pricebits[0]);
+                if ( lag < -60 ) // avoid data from future
+                {
+                    fprintf(stderr,"A ht.%d now.%u htstamp.%u %u - pricebits[0] %u -> lags.%d %d %d\n",nHeight,now,prevtime,block->nTime,pricebits[0],lag,lag2,lag3);
+                    return(-1);
+                }
+                if ( lag2 < -60 ) //testchain_exemption ) // must be close to last block timestamp
+                {
+                    fprintf(stderr,"B ht.%d now.%u htstamp.%u %u - pricebits[0] %u -> lags.%d %d %d vs %d cmp.%d\n",nHeight,now,prevtime,block->nTime,pricebits[0],lag,lag2,lag3,ASSETCHAINS_BLOCKTIME,lag2<-ASSETCHAINS_BLOCKTIME);
+                    if ( nHeight > testchain_exemption )
+                        return(-1);
+                }
+                if ( lag3 < -60 || lag3 > ASSETCHAINS_BLOCKTIME )
+                {
+                    fprintf(stderr,"C ht.%d now.%u htstamp.%u %u - pricebits[0] %u -> lags.%d %d %d\n",nHeight,now,prevtime,block->nTime,pricebits[0],lag,lag2,lag3);
+                    if ( nHeight > testchain_exemption )
+                        return(-1);
+                }
+                btcusd = (double)pricebits[1]/10000;
+                btcgbp = (double)pricebits[2]/10000;
+                btceur = (double)pricebits[3]/10000;
+                fprintf(stderr,"ht.%d: lag.%d %.4f USD, %.4f GBP, %.4f EUR, GBPUSD %.6f, EURUSD %.6f, EURGBP %.6f [%d]\n",nHeight,lag,btcusd,btcgbp,btceur,btcusd/btcgbp,btcusd/btceur,btcgbp/btceur,lag2);
+                if ( safecoin_heightpricebits(0,prevbits,nHeight-1) > 0 )
+                {
+                    if ( nHeight < testchain_exemption )
+                    {
+                        for (i=0; i<n; i++)
+                            if ( pricebits[i] == 0 )
+                                pricebits[i] = prevbits[i];
+                    }
+                    if ( safecoin_pricecmp(nHeight,n,maxflags,pricebits,prevbits,PRICES_ERRORRATE) < 0 )
+                    {
+                        for (i=1; i<n; i++)
+                            fprintf(stderr,"%.4f ",(double)prevbits[i]/10000);
+                        fprintf(stderr," oldprices.%d\n",nHeight);
+                        for (i=1; i<n; i++)
+                            fprintf(stderr,"%.4f ",(double)pricebits[i]/10000);
+                        fprintf(stderr," newprices.%d\n",nHeight);
+
+                        fprintf(stderr,"vs prev maxflag.%d cmp error\n",maxflag);
+                        return(-1);
+                    } // else this is the good case we hope to happen
+                } else return(-1);
+                if ( lag < ASSETCHAINS_BLOCKTIME && Mineropret.size() >= PRICES_SIZEBIT0 )
+                {
+                    memcpy(localbits,Mineropret.data(),Mineropret.size());
+                    if ( nHeight < testchain_exemption )
+                    {
+                        for (i=0; i<n; i++)
+                            if ( localbits[i] == 0 )
+                                localbits[i] = prevbits[i];
+                    }
+                    for (iter=0; iter<2; iter++) // first iter should just refresh prices if out of tolerance
+                    {
+                        for (i=1; i<n; i++)
+                        {
+                            if ( (maxflag= maxflags[i]) != 0 && localbits[i] != 0 )
+                            {
+                                // make sure local price is moving in right direction
+                                fprintf(stderr,"maxflag.%d i.%d localbits.%u vs pricebits.%u prevbits.%u\n",maxflag,i,localbits[i],pricebits[i],prevbits[i]);
+                                if ( maxflag > 0 && localbits[i] < prevbits[i] )
+                                {
+                                    if ( iter == 0 )
+                                        break;
+                                    // second iteration checks recent prices to see if within local volatility
+                                    for (j=0; j<SAFECOIN_LOCALPRICE_CACHESIZE; j++)
+                                        if ( PriceCache[j][i] >= prevbits[i] )
+                                        {
+                                            fprintf(stderr,"i.%d within recent localprices[%d] %u >= %u\n",i,j,PriceCache[j][i],prevbits[i]);
+                                            break;
+                                        }
+                                    if ( j == SAFECOIN_LOCALPRICE_CACHESIZE )
+                                    {
+                                        safecoin_queuelocalprice(1,nHeight,block->nTime,bhash,i,prevbits[i]);
+                                        break;
+                                    }
+                                }
+                                else if ( maxflag < 0 && localbits[i] > prevbits[i] )
+                                {
+                                    if ( iter == 0 )
+                                        break;
+                                    for (j=0; j<SAFECOIN_LOCALPRICE_CACHESIZE; j++)
+                                        if ( PriceCache[j][i] <= prevbits[i] )
+                                        {
+                                            fprintf(stderr,"i.%d within recent localprices[%d] %u <= prev %u\n",i,j,PriceCache[j][i],prevbits[i]);
+                                            break;
+                                        }
+                                    if ( j == SAFECOIN_LOCALPRICE_CACHESIZE )
+                                    {
+                                        safecoin_queuelocalprice(-1,nHeight,block->nTime,bhash,i,prevbits[i]);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if ( i != n )
+                        {
+                            if ( iter == 0 )
+                            {
+                                fprintf(stderr,"force update prices\n");
+                                safecoin_cbopretupdate(1);
+                                memcpy(localbits,Mineropret.data(),Mineropret.size());
+                            } else return(-1);
+                        }
+                    }
+                }
+            }
+            if ( bhash == ExtremePrice.blockhash )
+            {
+                fprintf(stderr,"approved a previously extreme price based on new data ht.%d vs %u vs %u\n",ExtremePrice.height,ExtremePrice.timestamp,(uint32_t)block->nTime);
+                memset(&ExtremePrice,0,sizeof(ExtremePrice));
+            }
+            return(0);
+        } else fprintf(stderr,"wrong size %d vs %d, scriptPubKey size %d [%02x]\n",(int32_t)vopret.size(),(int32_t)Mineropret.size(),(int32_t)scriptPubKey.size(),scriptPubKey[0]);
+        return(-1);
+    }
+    return(0);
+}
+
+char *nonportable_path(char *str)
+{
+    int32_t i;
+    for (i=0; str[i]!=0; i++)
+        if ( str[i] == '/' )
+            str[i] = '\\';
+    return(str);
+}
+
+char *portable_path(char *str)
+{
+#ifdef _WIN32
+    return(nonportable_path(str));
+#else
+#ifdef __PNACL
+    /*int32_t i,n;
+     if ( str[0] == '/' )
+     return(str);
+     else
+     {
+     n = (int32_t)strlen(str);
+     for (i=n; i>0; i--)
+     str[i] = str[i-1];
+     str[0] = '/';
+     str[n+1] = 0;
+     }*/
+#endif
+    return(str);
+#endif
+}
+
+void *loadfile(char *fname,uint8_t **bufp,long *lenp,long *allocsizep)
+{
+    FILE *fp;
+    long  filesize,buflen = *allocsizep;
+    uint8_t *buf = *bufp;
+    *lenp = 0;
+    if ( (fp= fopen(portable_path(fname),"rb")) != 0 )
+    {
+        fseek(fp,0,SEEK_END);
+        filesize = ftell(fp);
+        if ( filesize == 0 )
+        {
+            fclose(fp);
+            *lenp = 0;
+            //printf("loadfile null size.(%s)\n",fname);
+            return(0);
+        }
+        if ( filesize > buflen )
+        {
+            *allocsizep = filesize;
+            *bufp = buf = (uint8_t *)realloc(buf,(long)*allocsizep+64);
+        }
+        rewind(fp);
+        if ( buf == 0 )
+            printf("Null buf ???\n");
+        else
+        {
+            if ( fread(buf,1,(long)filesize,fp) != (unsigned long)filesize )
+                printf("error reading filesize.%ld\n",(long)filesize);
+            buf[filesize] = 0;
+        }
+        fclose(fp);
+        *lenp = filesize;
+        //printf("loaded.(%s)\n",buf);
+    } //else printf("OS_loadfile couldnt load.(%s)\n",fname);
+    return(buf);
+}
+
+void *filestr(long *allocsizep,char *_fname)
+{
+    long filesize = 0; char *fname,*buf = 0; void *retptr;
+    *allocsizep = 0;
+    fname = (char *)malloc(strlen(_fname)+1);
+    strcpy(fname,_fname);
+    retptr = loadfile(fname,(uint8_t **)&buf,&filesize,allocsizep);
+    free(fname);
+    return(retptr);
+}
+
+cJSON *send_curl(char *url,char *fname)
+{
+    long fsize; char curlstr[1024],*jsonstr; cJSON *json=0;
+    sprintf(curlstr,"wget -q \"%s\" -O %s",url,fname);
+    if ( system(curlstr) == 0 )
+    {
+        if ( (jsonstr= (char *)filestr((long *)&fsize,fname)) != 0 )
+        {
+            json = cJSON_Parse(jsonstr);
+            free(jsonstr);
+        }
+    }
+    return(json);
+}
+
+// get_urljson just returns the JSON returned by the URL using issue_curl
+
+
+/*
+const char *Techstocks[] =
+{ "AAPL","ADBE","ADSK","AKAM","AMD","AMZN","ATVI","BB","CDW","CRM","CSCO","CYBR","DBX","EA","FB","GDDY","GOOG","GRMN","GSAT","HPQ","IBM","INFY","INTC","INTU","JNPR","MSFT","MSI","MU","MXL","NATI","NCR","NFLX","NTAP","NVDA","ORCL","PANW","PYPL","QCOM","RHT","S","SHOP","SNAP","SPOT","SYMC","SYNA","T","TRIP","TWTR","TXN","VMW","VOD","VRSN","VZ","WDC","XRX","YELP","YNDX","ZEN"
+};
+const char *Metals[] = { "XAU", "XAG", "XPT", "XPD", };
+
+const char *Markets[] = { "DJIA", "SPX", "NDX", "VIX" };
+*/
+
+cJSON *get_urljson(char *url)
+{
+    char *jsonstr; cJSON *json = 0;
+    if ( (jsonstr= issue_curl(url)) != 0 )
+    {
+        //fprintf(stderr,"(%s) -> (%s)\n",url,jsonstr);
+        json = cJSON_Parse(jsonstr);
+        free(jsonstr);
+    }
+    return(json);
+}
+
+int32_t get_stockprices(uint32_t now,uint32_t *prices,std::vector<std::string> symbols)
+{
+    char url[32768],*symbol,*timestr; cJSON *json,*obj; int32_t i,n=0,retval=-1; uint32_t uprice,timestamp;
+    sprintf(url,"https://api.iextrading.com/1.0/tops/last?symbols=%s",GetArg("-ac_stocks","").c_str());
+    fprintf(stderr,"url.(%s)\n",url);
+    if ( (json= get_urljson(url)) != 0 ) //if ( (json= send_curl(url,(char *)"iex")) != 0 ) //
+    {
+        fprintf(stderr,"stocks.(%s)\n",jprint(json,0));
+        if ( (n= cJSON_GetArraySize(json)) > 0 )
+        {
+            retval = n;
+            for (i=0; i<n; i++)
+            {
+                obj = jitem(json,i);
+                if ( (symbol= jstr(obj,(char *)"symbol")) != 0 )
+                {
+                    uprice = jdouble(obj,(char *)"price")*100 + 0.0049;
+                    prices[i] = uprice;
+                    /*timestamp = j64bits(obj,(char *)"time");
+                    if ( timestamp > now+60 || timestamp < now-ASSETCHAINS_BLOCKTIME )
+                    {
+                        fprintf(stderr,"time error.%d (%u vs %u)\n",timestamp-now,timestamp,now);
+                        retval = -1;
+                    }*/
+                    if ( symbols[i] != symbol )
+                    {
+                        retval = -1;
+                        fprintf(stderr,"MISMATCH.");
+                    }
+                    fprintf(stderr,"(%s %u) ",symbol,uprice);
+                }
+            }
+            fprintf(stderr,"numstocks.%d\n",n);
+        }
+        //https://api.iextrading.com/1.0/tops/last?symbols=AAPL -> [{"symbol":"AAPL","price":198.63,"size":100,"time":1555092606076}]
+        free_json(json);
+    }
+    return(retval);
+}
+
+uint32_t get_dailyfx(uint32_t *prices)
+{
+    //{"base":"USD","rates":{"BGN":1.74344803,"NZD":1.471652701,"ILS":3.6329113924,"RUB":65.1997682296,"CAD":1.3430201462,"USD":1.0,"PHP":52.8641469068,"CHF":0.9970582992,"AUD":1.4129078267,"JPY":110.6792654662,"TRY":5.6523444464,"HKD":7.8499732573,"MYR":4.0824567659,"HRK":6.6232840078,"CZK":22.9862720628,"IDR":14267.4986628633,"DKK":6.6551078624,"NOK":8.6806917454,"HUF":285.131039401,"GBP":0.7626582278,"MXN":19.4183455161,"THB":31.8702085933,"ISK":122.5708682475,"ZAR":14.7033339276,"BRL":3.9750401141,"SGD":1.3573720806,"PLN":3.8286682118,"INR":69.33187734,"KRW":1139.1602781244,"RON":4.2423783206,"CNY":6.7387234801,"SEK":9.3385630237,"EUR":0.8914244963},"date":"2019-03-28"}
+    char url[512],*datestr; cJSON *json,*rates; int32_t i; uint32_t datenum=0,price = 0;
+    sprintf(url,"https://api.openrates.io/latest?base=USD");
+    if ( (json= get_urljson(url)) != 0 ) //if ( (json= send_curl(url,(char *)"dailyfx")) != 0 )
+    {
+        if ( (rates= jobj(json,(char *)"rates")) != 0 )
+        {
+            for (i=0; i<sizeof(Forex)/sizeof(*Forex); i++)
+            {
+                price = jdouble(rates,(char *)Forex[i]) * 10000 + 0.000049;
+                fprintf(stderr,"(%s %.4f) ",Forex[i],(double)price/10000);
+                prices[i] = price;
+            }
+        }
+        if ( (datestr= jstr(json,(char *)"date")) != 0 )
+            fprintf(stderr,"(%s)",datestr);
+        fprintf(stderr,"\n");
+        free_json(json);
+    }
+    return(datenum);
+}
+
+uint32_t get_binanceprice(const char *symbol)
+{
+    char url[512]; cJSON *json; uint32_t price = 0;
+    sprintf(url,"https://api.binance.com/api/v1/ticker/price?symbol=%sBTC",symbol);
+    if ( (json= get_urljson(url)) != 0 ) //if ( (json= send_curl(url,(char *)"bnbprice")) != 0 )
+    {
+        price = jdouble(json,(char *)"price")*SATOSHIDEN + 0.0000000049;
+        free_json(json);
+    }
+    usleep(100000);
+    return(price);
+}
+
+int32_t get_cryptoprices(uint32_t *prices,const char *list[],int32_t n,std::vector<std::string> strvec)
+{
+    int32_t i,errs=0; uint32_t price; char *symbol;
+    for (i=0; i<n+strvec.size(); i++)
+    {
+        if ( i < n )
+            symbol = (char *)list[i];
+        else symbol = (char *)strvec[i - n].c_str();
+        if ( (price= get_binanceprice(symbol)) == 0 )
+            errs++;
+        fprintf(stderr,"(%s %.8f) ",symbol,(double)price/SATOSHIDEN);
+        prices[i] = price;
+    }
+    fprintf(stderr," errs.%d\n",errs);
+    return(-errs);
+}
+
+/*uint32_t oldget_stockprice(const char *symbol)
+{
+    char url[512]; cJSON *json,*obj; uint32_t high,low,price = 0;
+    sprintf(url,"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=%s&interval=15min&apikey=%s",symbol,NOTARY_PUBKEY.data()+50);
+    if ( (json= get_urljson(url)) != 0 )
+    {
+        if ( (obj= jobj(json,(char *)"Time Series (15min)")) != 0 )
+        {
+            high = jdouble(jitem(obj,0),(char *)"2. high")*10000 + 0.000049;
+            low = jdouble(jitem(obj,0),(char *)"3. low")*10000 + 0.000049;
+            price = (high + low) / 2;
+        }
+        free_json(json);
+    }
+    return(price);
+}
+
+uint32_t get_currencyprice(const char *symbol)
+{
+    char url[512]; cJSON *json,*obj; uint32_t price = 0;
+    sprintf(url,"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=%s&to_currency=USD&apikey=%s",symbol,NOTARY_PUBKEY.data()+50);
+    if ( (json= send_curl(url,(char *)"curldata")) != 0 )//get_urljson(url)) != 0 )
+    {
+        if ( (obj= jobj(jitem(json,0),0)) != 0 )
+            price = jdouble(obj,(char *)"5. Exchange Rate")*10000 + 0.000049;
+        free_json(json);
+    }
+    return(price);
+}
+
+int32_t get_stocks(const char *list[],int32_t n)
+{
+    int32_t i,errs=0; uint32_t price;
+    for (i=0; i<n; i++)
+    {
+        if ( (price= get_stockprice(list[i])) == 0 )
+            errs++;
+        else fprintf(stderr,"(%s %.4f) ",list[i],(double)price/10000);
+    }
+    fprintf(stderr," errs.%d\n",errs);
+    return(-errs);
+}*/
+
+// parse the coindesk specific data. yes, if this changes, it will require an update. However, regardless if the format from the data source changes, then the code that extracts it must be changed. One way to mitigate this is to have a large variety of data sources so that there is only a very remote chance that all of them are not available. Certainly the data gathering needs to be made more robust, but it doesnt really affect the proof of concept for the decentralized trustless oracle. The trustlessness is achieved by having all nodes get the oracle data.
+
+int32_t get_btcusd(uint32_t pricebits[4])
+{
+    cJSON *pjson,*bpi,*obj; char str[512]; double dbtcgbp,dbtcusd,dbtceur; uint64_t btcusd = 0,btcgbp = 0,btceur = 0;
+    if ( (pjson= get_urljson((char *)"http://api.coindesk.com/v1/bpi/currentprice.json")) != 0 )
+    {
+        if ( (bpi= jobj(pjson,(char *)"bpi")) != 0 )
+        {
+            pricebits[0] = (uint32_t)time(NULL);
+            if ( (obj= jobj(bpi,(char *)"USD")) != 0 )
+            {
+                btcusd = jdouble(obj,(char *)"rate_float") * SATOSHIDEN;
+                pricebits[1] = ((btcusd / 10000) & 0xffffffff);
+            }
+            if ( (obj= jobj(bpi,(char *)"GBP")) != 0 )
+            {
+                btcgbp = jdouble(obj,(char *)"rate_float") * SATOSHIDEN;
+                pricebits[2] = ((btcgbp / 10000) & 0xffffffff);
+            }
+            if ( (obj= jobj(bpi,(char *)"EUR")) != 0 )
+            {
+                btceur = jdouble(obj,(char *)"rate_float") * SATOSHIDEN;
+                pricebits[3] = ((btceur / 10000) & 0xffffffff);
+            }
+        }
+        free_json(pjson);
+        dbtcusd = (double)pricebits[1]/10000;
+        dbtcgbp = (double)pricebits[2]/10000;
+        dbtceur = (double)pricebits[3]/10000;
+        fprintf(stderr,"BTC/USD %.4f, BTC/GBP %.4f, BTC/EUR %.4f GBPUSD %.6f, EURUSD %.6f EURGBP %.6f\n",dbtcusd,dbtcgbp,dbtceur,dbtcusd/dbtcgbp,dbtcusd/dbtceur,dbtcgbp/dbtceur);
+        return(0);
+    }
+    return(-1);
+}
+
+// safecoin_cbopretupdate() obtains the external price data and encodes it into Mineropret, which will then be used by the miner and validation
+// save history, use new data to approve past rejection, where is the auto-reconsiderblock?
+
+int32_t safecoin_cbopretsize(uint64_t flags)
+{
+    int32_t size = 0;
+    if ( (ASSETCHAINS_CBOPRET & 1) != 0 )
+    {
+        size = PRICES_SIZEBIT0;
+        if ( (ASSETCHAINS_CBOPRET & 2) != 0 )
+            size += (sizeof(Forex)/sizeof(*Forex)) * sizeof(uint32_t);
+        if ( (ASSETCHAINS_CBOPRET & 4) != 0 )
+            size += (sizeof(Cryptos)/sizeof(*Cryptos) + ASSETCHAINS_PRICES.size()) * sizeof(uint32_t);
+        if ( (ASSETCHAINS_CBOPRET & 8) != 0 )
+            size += (ASSETCHAINS_STOCKS.size() * sizeof(uint32_t));
+    }
+    return(size);
+}
+
+extern uint256 Queued_reconsiderblock;
+
+void safecoin_cbopretupdate(int32_t forceflag)
+{
+    static uint32_t lasttime,lastbtc,pending;
+    static uint32_t pricebits[4],pricebuf[SAFECOIN_MAXPRICES],forexprices[sizeof(Forex)/sizeof(*Forex)];
+    int32_t size; uint32_t flags=0,now; CBlockIndex *pindex;
+    if ( Queued_reconsiderblock != zeroid )
+    {
+        fprintf(stderr,"Queued_reconsiderblock %s\n",Queued_reconsiderblock.GetHex().c_str());
+        safecoin_reconsiderblock(Queued_reconsiderblock);
+        Queued_reconsiderblock = zeroid;
+    }
+    if ( forceflag != 0 && pending != 0 )
+    {
+        while ( pending != 0 )
+            fprintf(stderr,"pricewait "), sleep(1);
+        return;
+    }
+    pending = 1;
+    now = (uint32_t)time(NULL);
+    if ( (ASSETCHAINS_CBOPRET & 1) != 0 )
+    {
+//if ( safecoin_nextheight() > 333 ) // for debug only!
+//    ASSETCHAINS_CBOPRET = 7;
+        size = safecoin_cbopretsize(ASSETCHAINS_CBOPRET);
+        if ( Mineropret.size() < size )
+            Mineropret.resize(size);
+        size = PRICES_SIZEBIT0;
+        if ( (forceflag != 0 || now > lastbtc+120) && get_btcusd(pricebits) == 0 )
+        {
+            if ( flags == 0 )
+                safecoin_PriceCache_shift();
+            memcpy(PriceCache[0],pricebits,PRICES_SIZEBIT0);
+            flags |= 1;
+        }
+        if ( (ASSETCHAINS_CBOPRET & 2) != 0 )
+        {
+            if ( now > lasttime+3600*5 || forexprices[0] == 0 ) // cant assume timestamp is valid for forex price as it is a daily weekday changing thing anyway.
+            {
+                get_dailyfx(forexprices);
+                if ( flags == 0 )
+                    safecoin_PriceCache_shift();
+                flags |= 2;
+                memcpy(&PriceCache[0][size/sizeof(uint32_t)],forexprices,sizeof(forexprices));
+            }
+            size += (sizeof(Forex)/sizeof(*Forex)) * sizeof(uint32_t);
+        }
+        if ( (ASSETCHAINS_CBOPRET & 4) != 0 )
+        {
+            if ( forceflag != 0 || flags != 0 )
+            {
+                get_cryptoprices(pricebuf,Cryptos,(int32_t)(sizeof(Cryptos)/sizeof(*Cryptos)),ASSETCHAINS_PRICES);
+                if ( flags == 0 )
+                    safecoin_PriceCache_shift();
+                memcpy(&PriceCache[0][size/sizeof(uint32_t)],pricebuf,(sizeof(Cryptos)/sizeof(*Cryptos)+ASSETCHAINS_PRICES.size()) * sizeof(uint32_t));
+                flags |= 4; // very rarely we can see flags == 6 case
+            }
+            size += (sizeof(Cryptos)/sizeof(*Cryptos)+ASSETCHAINS_PRICES.size()) * sizeof(uint32_t);
+        }
+        now = (uint32_t)time(NULL);
+        if ( (ASSETCHAINS_CBOPRET & 8) != 0 )
+        {
+            if ( forceflag != 0 || flags != 0 )
+            {
+                if ( get_stockprices(now,pricebuf,ASSETCHAINS_STOCKS) == ASSETCHAINS_STOCKS.size() )
+                {
+                    if ( flags == 0 )
+                        safecoin_PriceCache_shift();
+                    memcpy(&PriceCache[0][size/sizeof(uint32_t)],pricebuf,ASSETCHAINS_STOCKS.size() * sizeof(uint32_t));
+                    flags |= 8; // very rarely we can see flags == 10 case
+                }
+            }
+            size += (ASSETCHAINS_STOCKS.size()) * sizeof(uint32_t);
+        }
+        if ( flags != 0 )
+        {
+            if ( (flags & 1) != 0 )
+                lastbtc = now;
+            if ( (flags & 2) != 0 )
+                lasttime = now;
+            memcpy(Mineropret.data(),PriceCache[0],size);
+            if ( ExtremePrice.dir != 0 && ExtremePrice.ind > 0 && ExtremePrice.ind < size/sizeof(uint32_t) && now < ExtremePrice.timestamp+3600 )
+            {
+                fprintf(stderr,"cmp dir.%d PriceCache[0][ExtremePrice.ind] %u >= %u ExtremePrice.pricebits\n",ExtremePrice.dir,PriceCache[0][ExtremePrice.ind],ExtremePrice.pricebits);
+                if ( (ExtremePrice.dir > 0 && PriceCache[0][ExtremePrice.ind] >= ExtremePrice.pricebits) || (ExtremePrice.dir < 0 && PriceCache[0][ExtremePrice.ind] <= ExtremePrice.pricebits) )
+                {
+                    fprintf(stderr,"future price is close enough to allow approving previously rejected block ind.%d %u vs %u\n",ExtremePrice.ind,PriceCache[0][ExtremePrice.ind],ExtremePrice.pricebits);
+                    if ( (pindex= safecoin_blockindex(ExtremePrice.blockhash)) != 0 )
+                        pindex->nStatus &= ~BLOCK_FAILED_MASK;
+                    else fprintf(stderr,"couldnt find block.%s\n",ExtremePrice.blockhash.GetHex().c_str());
+                }
+            }
+            // high volatility still strands nodes so we need to check new prices to approve a stuck block
+            // scan list of stuck blocks (one?) and auto reconsiderblock if it changed state
+            
+            //int32_t i; for (i=0; i<Mineropret.size(); i++)
+            //    fprintf(stderr,"%02x",Mineropret[i]);
+            //fprintf(stderr," <- set Mineropret[%d] size.%d %ld\n",(int32_t)Mineropret.size(),size,sizeof(PriceCache[0]));
+        }
+    }
+    pending = 0;
+}
+
+int64_t safecoin_pricemult(int32_t ind)
+{
+    int32_t i,j;
+    if ( (ASSETCHAINS_CBOPRET & 1) != 0 && ind < SAFECOIN_MAXPRICES )
+    {
+        if ( PriceMult[0] == 0 )
+        {
+            for (i=0; i<4; i++)
+                PriceMult[i] = 10000;
+            if ( (ASSETCHAINS_CBOPRET & 2) != 0 )
+            {
+                for (j=0; j<sizeof(Forex)/sizeof(*Forex); j++)
+                    PriceMult[i++] = 10000;
+            }
+            if ( (ASSETCHAINS_CBOPRET & 4) != 0 )
+            {
+                for (j=0; j<sizeof(Cryptos)/sizeof(*Cryptos)+ASSETCHAINS_PRICES.size(); j++)
+                    PriceMult[i++] = 1;
+            }
+            if ( (ASSETCHAINS_CBOPRET & 8) != 0 )
+            {
+                for (j=0; j<ASSETCHAINS_STOCKS.size(); j++)
+                    PriceMult[i++] = 1000000;
+            }
+        }
+        return(PriceMult[ind]);
+    }
+    return(0);
+}
+
+char *safecoin_pricename(char *name,int32_t ind)
+{
+    strcpy(name,"error");
+    if ( (ASSETCHAINS_CBOPRET & 1) != 0 && ind < SAFECOIN_MAXPRICES )
+    {
+        if ( ind < 4 )
+        {
+            switch ( ind )
+            {
+                case 0: strcpy(name,"timestamp"); break;
+                case 1: strcpy(name,"BTC_USD"); break;
+                case 2: strcpy(name,"BTC_GBP"); break;
+                case 3: strcpy(name,"BTC_EUR"); break;
+                default: return(0); break;
+            }
+            return(name);
+        }
+        else
+        {
+            ind -= 4;
+            if ( (ASSETCHAINS_CBOPRET & 2) != 0 )
+            {
+                if ( ind < 0 )
+                    return(0);
+                if ( ind < sizeof(Forex)/sizeof(*Forex) )
+                {
+                    name[0] = 'U', name[1] = 'S', name[2] = 'D', name[3] = '_';
+                    strcpy(name+4,Forex[ind]);
+                    return(name);
+                } else ind -= sizeof(Forex)/sizeof(*Forex);
+            }
+            if ( (ASSETCHAINS_CBOPRET & 4) != 0 )
+            {
+                if ( ind < 0 )
+                    return(0);
+                if ( ind < sizeof(Cryptos)/sizeof(*Cryptos) + ASSETCHAINS_PRICES.size() )
+                {
+                    if ( ind < sizeof(Cryptos)/sizeof(*Cryptos) )
+                        strcpy(name,Cryptos[ind]);
+                    else
+                    {
+                        ind -= (sizeof(Cryptos)/sizeof(*Cryptos));
+                        strcpy(name,ASSETCHAINS_PRICES[ind].c_str());
+                    }
+                    strcat(name,"_BTC");
+                    return(name);
+                } else ind -= (sizeof(Cryptos)/sizeof(*Cryptos) + ASSETCHAINS_PRICES.size());
+            }
+            if ( (ASSETCHAINS_CBOPRET & 8) != 0 )
+            {
+                if ( ind < 0 )
+                    return(0);
+                if ( ind < ASSETCHAINS_STOCKS.size() )
+                {
+                    strcpy(name,ASSETCHAINS_STOCKS[ind].c_str());
+                    strcat(name,"_USD");
+                    return(name);
+                } else ind -= ASSETCHAINS_STOCKS.size();
+            }
+        }
+    }
+    return(0);
+}
+// finds index for its symbol name
+int32_t safecoin_priceind(const char *symbol)
+{
+    char name[65]; int32_t i,n = (int32_t)(safecoin_cbopretsize(ASSETCHAINS_CBOPRET) / sizeof(uint32_t));
+    for (i=1; i<n; i++)
+    {
+        safecoin_pricename(name,i);
+        if ( strcmp(name,symbol) == 0 )
+            return(i);
+    }
+    return(-1);
+}
+// returns price value which is in a 10% interval for more than 50% points for the preceding 24 hours
+int64_t safecoin_pricecorrelated(uint64_t seed,int32_t ind,uint32_t *rawprices,int32_t rawskip,uint32_t *nonzprices,int32_t smoothwidth)
+{
+    int32_t i,j,k,n,iter,correlation,maxcorrelation=0; int64_t firstprice,price,sum,den,mult,refprice,lowprice,highprice;
+    if ( PRICES_DAYWINDOW < 2 || ind >= SAFECOIN_MAXPRICES )
+        return(-1);
+    mult = safecoin_pricemult(ind);
+    if ( nonzprices != 0 )
+        memset(nonzprices,0,sizeof(*nonzprices)*PRICES_DAYWINDOW);
+    //for (i=0; i<PRICES_DAYWINDOW; i++)
+    //    fprintf(stderr,"%u ",rawprices[i*rawskip]);
+    //fprintf(stderr,"ind.%d\n",ind);
+    for (iter=0; iter<PRICES_DAYWINDOW; iter++)
+    {
+        correlation = 0;
+        i = (iter + seed) % PRICES_DAYWINDOW;
+        refprice = rawprices[i*rawskip];
+        highprice = (refprice * (COIN + PRICES_ERRORRATE*5)) / COIN;
+        lowprice = (refprice * (COIN - PRICES_ERRORRATE*5)) / COIN;
+        if ( highprice == refprice )
+            highprice++;
+        if ( lowprice == refprice )
+            lowprice--;
+        sum = 0;
+        //fprintf(stderr,"firsti.%d: ",i);
+        for (j=0; j<PRICES_DAYWINDOW; j++,i++)
+        {
+            if ( i >= PRICES_DAYWINDOW )
+                i = 0;
+            if ( (price= rawprices[i*rawskip]) == 0 )
+            {
+                fprintf(stderr,"null rawprice.[%d]\n",i);
+                return(-1);
+            }
+            if ( price >= lowprice && price <= highprice )
+            {
+                //fprintf(stderr,"%.1f ",(double)price/10000);
+                sum += price;
+                correlation++;
+                if ( correlation > (PRICES_DAYWINDOW>>1) )
+                {
+                    if ( nonzprices == 0 )
+                        return(refprice * mult);
+                    //fprintf(stderr,"-> %.4f\n",(double)sum*mult/correlation);
+                    //return(sum*mult/correlation);
+                    n = 0;
+                    i = (iter + seed) % PRICES_DAYWINDOW;
+                    for (k=0; k<PRICES_DAYWINDOW; k++,i++)
+                    {
+                        if ( i >= PRICES_DAYWINDOW )
+                            i = 0;
+                        if ( n > (PRICES_DAYWINDOW>>1) )
+                            nonzprices[i] = 0;
+                        else
+                        {
+                            price = rawprices[i*rawskip];
+                            if ( price < lowprice || price > highprice )
+                                nonzprices[i] = 0;
+                            else
+                            {
+                                nonzprices[i] = price;
+                                //fprintf(stderr,"(%d %u) ",i,rawprices[i*rawskip]);
+                                n++;
+                            }
+                        }
+                    }
+                    //fprintf(stderr,"ind.%d iter.%d j.%d i.%d n.%d correlation.%d ref %llu -> %llu\n",ind,iter,j,i,n,correlation,(long long)refprice,(long long)sum/correlation);
+                    if ( n != correlation )
+                        return(-1);
+                    sum = den = n = 0;
+                    for (i=0; i<PRICES_DAYWINDOW; i++)
+                        if ( nonzprices[i] != 0 )
+                            break;
+                    firstprice = nonzprices[i];
+                    //fprintf(stderr,"firsti.%d: ",i);
+                    for (i=0; i<PRICES_DAYWINDOW; i++)
+                    {
+                        if ( (price= nonzprices[i]) != 0 )
+                        {
+                            den += (PRICES_DAYWINDOW - i);
+                            sum += ((PRICES_DAYWINDOW - i) * (price + firstprice*4)) / 5;
+                            n++;
+                        }
+                    }
+                    if ( n != correlation || sum == 0 || den == 0 )
+                    {
+                        fprintf(stderr,"seed.%llu n.%d vs correlation.%d sum %llu, den %llu\n",(long long)seed,n,correlation,(long long)sum,(long long)den);
+                        return(-1);
+                    }
+                    //fprintf(stderr,"firstprice.%llu weighted -> %.8f\n",(long long)firstprice,((double)(sum*mult) / den) / COIN);
+                    return((sum * mult) / den);
+                }
+            }
+        }
+        if ( correlation > maxcorrelation )
+            maxcorrelation = correlation;
+    }
+    fprintf(stderr,"ind.%d iter.%d maxcorrelation.%d ref.%llu high.%llu low.%llu\n",ind,iter,maxcorrelation,(long long)refprice,(long long)highprice,(long long)lowprice);
+    return(0);
+}
+
+int64_t _pairave64(int64_t valA,int64_t valB)
+{
+    if ( valA != 0 && valB != 0 )
+        return((valA + valB) / 2);
+    else if ( valA != 0 ) return(valA);
+    else return(valB);
+}
+
+int64_t _pairdiff64(register int64_t valA,register int64_t valB)
+{
+    if ( valA != 0 && valB != 0 )
+        return(valA - valB);
+    else return(0);
+}
+
+int64_t balanced_ave64(int64_t buf[],int32_t i,int32_t width)
+{
+    register int32_t nonz,j; register int64_t sum,price;
+    nonz = 0;
+    sum = 0;
+    for (j=-width; j<=width; j++)
+    {
+        price = buf[i + j];
+        if ( price != 0 )
+        {
+            sum += price;
+            nonz++;
+        }
+    }
+    if ( nonz != 0 )
+        sum /= nonz;
+    return(sum);
+}
+
+void buf_trioave64(int64_t dest[],int64_t src[],int32_t n)
+{
+    register int32_t i,j,width = 3;
+    for (i=0; i<128; i++)
+        src[i] = 0;
+    //for (i=n-width-1; i>width; i--)
+    //	dest[i] = balanced_ave(src,i,width);
+    //for (i=width; i>0; i--)
+    //	dest[i] = balanced_ave(src,i,i);
+    for (i=1; i<width; i++)
+        dest[i] = balanced_ave64(src,i,i);
+    for (i=width; i<n-width; i++)
+        dest[i] = balanced_ave64(src,i,width);
+    dest[0] = _pairave64(dest[0],dest[1] - _pairdiff64(dest[2],dest[1]));
+    j = width-1;
+    for (i=n-width; i<n-1; i++,j--)
+        dest[i] = balanced_ave64(src,i,j);
+    if ( dest[n-3] != 0. && dest[n-2] != 0. )
+        dest[n-1] = ((2 * dest[n-2]) - dest[n-3]);
+    else dest[n-1] = 0;
+}
+
+void smooth64(int64_t dest[],int64_t src[],int32_t width,int32_t smoothiters)
+{
+    int64_t smoothbufA[1024],smoothbufB[1024]; int32_t i;
+    if ( width < sizeof(smoothbufA)/sizeof(*smoothbufA) )
+    {
+        buf_trioave64(smoothbufA,src,width);
+        for (i=0; i<smoothiters; i++)
+        {
+            buf_trioave64(smoothbufB,smoothbufA,width);
+            buf_trioave64(smoothbufA,smoothbufB,width);
+        }
+        buf_trioave64(dest,smoothbufA,width);
+    } else memcpy(dest,src,width*sizeof(*dest));
+}
+
+// http://www.holoborodko.com/pavel/numerical-methods/noise-robust-smoothing-filter/
+//const int64_t coeffs[7] = { -2, 0, 18, 32, 18, 0, -2 };
+static int cmp_llu(const void *a, const void*b)
+{
+    if(*(int64_t *)a < *(int64_t *)b) return -1;
+    else if(*(int64_t *)a > *(int64_t *)b) return 1;
+    else if ( (uint64_t)a < (uint64_t)b ) // jl777 prevent nondeterminism
+        return(-1);
+    else return(1);
+}
+
+static void sort64(int64_t *l, int32_t llen)
+{
+    qsort(l,llen,sizeof(uint64_t),cmp_llu);
+}
+
+static int revcmp_llu(const void *a, const void*b)
+{
+    if(*(int64_t *)a < *(int64_t *)b) return 1;
+    else if(*(int64_t *)a > *(int64_t *)b) return -1;
+    else if ( (uint64_t)a < (uint64_t)b ) // jl777 prevent nondeterminism
+        return(-1);
+    else return(1);
+}
+
+static void revsort64(int64_t *l, int32_t llen)
+{
+    qsort(l,llen,sizeof(uint64_t),revcmp_llu);
+}
+
+int64_t safecoin_priceave(int64_t *buf,int64_t *correlated,int32_t cskip)
+{
+    int32_t i,dir=0; int64_t sum=0,nonzprice,price,halfave,thirdave,fourthave,decayprice;
+    if ( PRICES_DAYWINDOW < 2 )
+        return(0);
+    for (i=0; i<PRICES_DAYWINDOW; i++)
+    {
+        if ( (nonzprice= correlated[i*cskip]) != 0 )
+            break;
+    }
+    if ( nonzprice == 0 )
+        return(-1);
+    for (i=0; i<PRICES_DAYWINDOW; i++)
+    {
+        if ( (price= correlated[i*cskip]) != 0 )
+            nonzprice = price;
+        buf[PRICES_DAYWINDOW+i] = nonzprice;
+        sum += nonzprice;
+        if ( i == PRICES_DAYWINDOW/2 )
+            halfave = (sum / (PRICES_DAYWINDOW/2));
+        else if ( i == PRICES_DAYWINDOW/3 )
+            thirdave = (sum / (PRICES_DAYWINDOW/3));
+        else if ( i == PRICES_DAYWINDOW/4 )
+            fourthave = (sum / (PRICES_DAYWINDOW/4));
+    }
+    memcpy(buf,&buf[PRICES_DAYWINDOW],PRICES_DAYWINDOW*sizeof(*buf));
+    price = sum / PRICES_DAYWINDOW;
+    return(price);
+    if ( halfave == price )
+        return(price);
+    else if ( halfave > price ) // rising prices
+        sort64(buf,PRICES_DAYWINDOW);
+    else revsort64(buf,PRICES_DAYWINDOW);
+    decayprice = buf[0];
+    for (i=0; i<PRICES_DAYWINDOW; i++)
+    {
+        decayprice = ((decayprice * 97) + (buf[i] * 3)) / 100;
+        //fprintf(stderr,"%.4f ",(double)buf[i]/COIN);
+    }
+    fprintf(stderr,"%ssort half %.8f %.8f %.8f %.8f %.8f %.8f -> %.8f\n",halfave<price?"rev":"",(double)price/COIN,(double)halfave/COIN,(double)thirdave/COIN,(double)fourthave/COIN,(double)decayprice/COIN,(double)buf[PRICES_DAYWINDOW-1]/COIN,(double)(price*7 + halfave*5 + thirdave*3 + fourthave*2 + decayprice + buf[PRICES_DAYWINDOW-1])/(19*COIN));
+    return((price*7 + halfave*5 + thirdave*3 + fourthave*2 + decayprice + buf[PRICES_DAYWINDOW-1]) / 19);
+}
+
+int32_t safecoin_pricesinit()
+{
+    static int32_t didinit;
+    int32_t i,num=0,createflag = 0;
+    if ( didinit != 0 )
+        return(-1);
+    didinit = 1;
+    boost::filesystem::path pricefname,pricesdir = GetDataDir() / "prices";
+    fprintf(stderr,"pricesinit (%s)\n",pricesdir.string().c_str());
+    if (!boost::filesystem::exists(pricesdir))
+        boost::filesystem::create_directories(pricesdir), createflag = 1;
+    for (i=0; i<SAFECOIN_MAXPRICES; i++)
+    {
+        if ( safecoin_pricename(PRICES[i].symbol,i) == 0 )
+            break;
+        //fprintf(stderr,"%s.%d ",PRICES[i].symbol,i);
+        if ( i == 0 )
+            strcpy(PRICES[i].symbol,"rawprices");
+        pricefname = pricesdir / PRICES[i].symbol;
+        if ( createflag != 0 )
+            PRICES[i].fp = fopen(pricefname.string().c_str(),"wb+");
+        else if ( (PRICES[i].fp= fopen(pricefname.string().c_str(),"rb+")) == 0 )
+            PRICES[i].fp = fopen(pricefname.string().c_str(),"wb+");
+        if ( PRICES[i].fp != 0 )
+        {
+            num++;
+            if ( createflag != 0 )
+            {
+                fseek(PRICES[i].fp,(2*PRICES_DAYWINDOW+PRICES_SMOOTHWIDTH) * sizeof(int64_t) * PRICES_MAXDATAPOINTS,SEEK_SET);
+                fputc(0,PRICES[i].fp);
+                fflush(PRICES[i].fp);
+            }
+        } else fprintf(stderr,"error opening %s createflag.%d\n",pricefname.string().c_str(), createflag);
+    }
+    if ( i > 0 && PRICES[0].fp != 0 && createflag != 0 )
+    {
+        fseek(PRICES[0].fp,(2*PRICES_DAYWINDOW+PRICES_SMOOTHWIDTH) * sizeof(uint32_t) * i,SEEK_SET);
+        fputc(0,PRICES[0].fp);
+        fflush(PRICES[0].fp);
+    }
+    fprintf(stderr,"pricesinit done i.%d num.%d numprices.%d\n",i,num,(int32_t)(safecoin_cbopretsize(ASSETCHAINS_CBOPRET)/sizeof(uint32_t)));
+    if ( i != num || i != safecoin_cbopretsize(ASSETCHAINS_CBOPRET)/sizeof(uint32_t) )
+    {
+        fprintf(stderr,"fatal error opening prices files, start shutdown\n");
+        StartShutdown();
+    }
+    return(0);
+}
+
+pthread_mutex_t pricemutex;
+
+// PRICES file layouts
+// [0] rawprice32 / timestamp
+// [1] correlated
+// [2] 24hr ave
+// [3] to [7] reserved
+
+void safecoin_pricesupdate(int32_t height,CBlock *pblock)
+{
+    static int numprices; static uint32_t *ptr32; static int64_t *ptr64,*tmpbuf;
+    int32_t ind,offset,width; int64_t correlated,smoothed; uint64_t seed,rngval; uint32_t rawprices[SAFECOIN_MAXPRICES],buf[PRICES_MAXDATAPOINTS*2];
+    width = PRICES_DAYWINDOW;//(2*PRICES_DAYWINDOW + PRICES_SMOOTHWIDTH);
+    if ( numprices == 0 )
+    {
+        pthread_mutex_init(&pricemutex,0);
+        numprices = (int32_t)(safecoin_cbopretsize(ASSETCHAINS_CBOPRET) / sizeof(uint32_t));
+        ptr32 = (uint32_t *)calloc(sizeof(uint32_t),numprices * width);
+        ptr64 = (int64_t *)calloc(sizeof(int64_t),PRICES_DAYWINDOW*PRICES_MAXDATAPOINTS);
+        tmpbuf = (int64_t *)calloc(sizeof(int64_t),2*PRICES_DAYWINDOW);
+        fprintf(stderr,"prices update: numprices.%d %p %p\n",numprices,ptr32,ptr64);
+    }
+    if ( _safecoin_heightpricebits(&seed,rawprices,pblock) == numprices )
+    {
+        //for (ind=0; ind<numprices; ind++)
+        //    fprintf(stderr,"%u ",rawprices[ind]);
+        //fprintf(stderr,"numprices.%d\n",numprices);
+        if ( PRICES[0].fp != 0 )
+        {
+            pthread_mutex_lock(&pricemutex);
+            fseek(PRICES[0].fp,height * numprices * sizeof(uint32_t),SEEK_SET);
+            if ( fwrite(rawprices,sizeof(uint32_t),numprices,PRICES[0].fp) != numprices )
+                fprintf(stderr,"error writing rawprices for ht.%d\n",height);
+            else fflush(PRICES[0].fp);
+            if ( height > PRICES_DAYWINDOW )
+            {
+                fseek(PRICES[0].fp,(height-width+1) * numprices * sizeof(uint32_t),SEEK_SET);
+                if ( fread(ptr32,sizeof(uint32_t),width*numprices,PRICES[0].fp) == width*numprices )
+                {
+                    rngval = seed;
+                    for (ind=1; ind<numprices; ind++)
+                    {
+                        if ( PRICES[ind].fp == 0 )
+                        {
+                            fprintf(stderr,"PRICES[%d].fp is null\n",ind);
+                            continue;
+                        }
+                        offset = (width-1)*numprices + ind;
+                        rngval = (rngval*11109 + 13849);
+                        if ( (correlated= safecoin_pricecorrelated(rngval,ind,&ptr32[offset],-numprices,0,PRICES_SMOOTHWIDTH)) > 0 )
+                        {
+                            fseek(PRICES[ind].fp,height * sizeof(int64_t) * PRICES_MAXDATAPOINTS,SEEK_SET);
+                            memset(buf,0,sizeof(buf));
+                            buf[0] = rawprices[ind];
+                            buf[1] = rawprices[0]; // timestamp
+                            memcpy(&buf[2],&correlated,sizeof(correlated));
+                            if ( fwrite(buf,1,sizeof(buf),PRICES[ind].fp) != sizeof(buf) )
+                                fprintf(stderr,"error fwrite buf for ht.%d ind.%d\n",height,ind);
+                            else if ( height > PRICES_DAYWINDOW*2 )
+                            {
+                                fseek(PRICES[ind].fp,(height-PRICES_DAYWINDOW+1) * PRICES_MAXDATAPOINTS * sizeof(int64_t),SEEK_SET);
+                                if ( fread(ptr64,sizeof(int64_t),PRICES_DAYWINDOW*PRICES_MAXDATAPOINTS,PRICES[ind].fp) == PRICES_DAYWINDOW*PRICES_MAXDATAPOINTS )
+                                {
+                                    if ( (smoothed= safecoin_priceave(tmpbuf,&ptr64[(PRICES_DAYWINDOW-1)*PRICES_MAXDATAPOINTS+1],-PRICES_MAXDATAPOINTS)) > 0 )
+                                    {
+                                        fseek(PRICES[ind].fp,(height * PRICES_MAXDATAPOINTS + 2) * sizeof(int64_t),SEEK_SET);
+                                        if ( fwrite(&smoothed,1,sizeof(smoothed),PRICES[ind].fp) != sizeof(smoothed) )
+                                            fprintf(stderr,"error fwrite smoothed for ht.%d ind.%d\n",height,ind);
+                                        else fflush(PRICES[ind].fp);
+                                    } else fprintf(stderr,"error price_smoothed ht.%d ind.%d\n",height,ind);
+                                } else fprintf(stderr,"error fread ptr64 for ht.%d ind.%d\n",height,ind);
+                            }
+                        } else fprintf(stderr,"error safecoin_pricecorrelated for ht.%d ind.%d\n",height,ind);
+                    }
+                    fprintf(stderr,"height.%d\n",height);
+                } else fprintf(stderr,"error reading rawprices for ht.%d\n",height);
+            } else fprintf(stderr,"height.%d <= width.%d\n",height,width);
+            pthread_mutex_unlock(&pricemutex);
+        } else fprintf(stderr,"null PRICES[0].fp\n");
+    } else fprintf(stderr,"numprices mismatch, height.%d\n",height);
+}
+
+int32_t safecoin_priceget(int64_t *buf64,int32_t ind,int32_t height,int32_t numblocks)
+{
+    FILE *fp; int32_t retval = PRICES_MAXDATAPOINTS;
+    pthread_mutex_lock(&pricemutex);
+    if ( ind < SAFECOIN_MAXPRICES && (fp= PRICES[ind].fp) != 0 )
+    {
+        fseek(fp,height * PRICES_MAXDATAPOINTS * sizeof(int64_t),SEEK_SET);
+        if ( fread(buf64,sizeof(int64_t),numblocks*PRICES_MAXDATAPOINTS,fp) != numblocks*PRICES_MAXDATAPOINTS )
+            retval = -1;
+    }
+    pthread_mutex_unlock(&pricemutex);
+    return(retval);
+}

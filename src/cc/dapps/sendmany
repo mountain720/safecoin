@@ -1,3 +1,3 @@
 export addr="RXgCPfi6wccRr3Eai3X9duTTkAirhcQLNo"
-./safecoin-cli -ac_name=SAFEICE sendmany ""  "{\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023}"
+./safecoin-cli -ac_name=KMDICE sendmany ""  "{\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023,\"$addr\":0.023}"
 

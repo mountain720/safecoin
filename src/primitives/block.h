@@ -3,6 +3,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #ifndef BITCOIN_PRIMITIVES_BLOCK_H
 #define BITCOIN_PRIMITIVES_BLOCK_H
 
@@ -91,13 +106,49 @@ public:
     uint256 GetVerusEntropyHash(int32_t nHeight) const;
 
     uint256 GetVerusV2Hash() const;
+    static void SetVerusHashV2();
 
     int64_t GetBlockTime() const
     {
         return (int64_t)nTime;
     }
 
+    uint32_t GetVerusPOSTarget() const
+    {
+        uint32_t nBits = 0;
 
+        for (const unsigned char *p = nNonce.begin() + 3; p >= nNonce.begin(); p--)
+        {
+            nBits <<= 8;
+            nBits += *p;
+        }
+        return nBits;
+    }
+
+    bool IsVerusPOSBlock() const
+    {
+        if ( ASSETCHAINS_LWMAPOS != 0 )
+            return nNonce.IsPOSNonce();
+        else return(0);
+    }
+
+    void SetVerusPOSTarget(uint32_t nBits)
+    {
+        CVerusHashWriter hashWriter = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
+
+        arith_uint256 arNonce = UintToArith256(nNonce);
+
+        // printf("before svpt: %s\n", ArithToUint256(arNonce).GetHex().c_str());
+
+        arNonce = (arNonce & CPOSNonce::entropyMask) | nBits;
+
+        // printf("after clear: %s\n", ArithToUint256(arNonce).GetHex().c_str());
+
+        hashWriter << ArithToUint256(arNonce);
+        nNonce = CPOSNonce(ArithToUint256(UintToArith256(hashWriter.GetHash()) << 128 | arNonce));
+
+        // printf(" after svpt: %s\n", nNonce.GetHex().c_str());
+    }
 };
 
 // this class is used to address the type mismatch that existed between nodes, where block headers

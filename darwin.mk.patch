@@ -1,5 +1,5 @@
 *** depends/builders/darwin.mk	2017-01-03 10:53:52.440371182 +0000
---- ../../safecoin-jl777/depends/builders/darwin.mk	2017-01-03 09:48:21.646034937 +0000
+--- ../../komodo-jl777/depends/builders/darwin.mk	2017-01-03 09:48:21.646034937 +0000
 ***************
 *** 1,5 ****
 ! build_darwin_CC = gcc-6

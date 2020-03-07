@@ -1,5 +1,5 @@
 *** Makefile.am	2017-01-03 10:53:52.436371005 +0000
---- ../../safecoin-jl777/Makefile.am	2017-01-03 09:49:08.848505929 +0000
+--- ../../komodo-jl777/Makefile.am	2017-01-03 09:49:08.848505929 +0000
 ***************
 *** 39,58 ****
     $(top_srcdir)/contrib/macdeploy/detached-sig-apply.sh \

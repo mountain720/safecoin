@@ -6,10 +6,11 @@
 #include "util.h"
 #include "base58.h"
 #include "wallet/crypter.h"
+#include <boost/foreach.hpp>
 
 #include "safecoin_defs.h"
 char ASSETCHAINS_SYMBOL[SAFECOIN_ASSETCHAIN_MAXLEN];
-int64_t MAX_MONEY = 36200000 * 100000000LL;
+int64_t MAX_MONEY = 200000000 * 100000000LL;
 uint64_t ASSETCHAINS_SUPPLY;
 uint16_t BITCOIND_RPCPORT = 8771;
 uint16_t ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT;
@@ -17,11 +18,13 @@ uint32_t ASSETCHAIN_INIT,ASSETCHAINS_CC;
 uint32_t ASSETCHAINS_MAGIC = 2387029918;
 uint32_t ASSETCHAINS_EQUIHASH = 0;
 uint32_t ASSETCHAINS_VERUSHASH = 1;
+uint32_t ASSETCHAINS_VERUSHASHV1_1 = 2;
 uint32_t ASSETCHAINS_ALGO = 0;
 int32_t ASSETCHAINS_LWMAPOS = 0;
 int32_t VERUS_BLOCK_POSUNITS = 1000;
 int32_t ASSETCHAINS_OVERWINTER = 227520;
 int32_t ASSETCHAINS_SAPLING = 227520;
+int32_t SAFECOIN_TESTNODE = 0;
 
 unsigned int MAX_BLOCK_SIGOPS = 20000;
 
@@ -112,7 +115,7 @@ bool WalletUtilityDB::DecryptSecret(const std::vector<unsigned char>& vchCiphert
     std::vector<unsigned char> chIV(WALLET_CRYPTO_KEY_SIZE);
     memcpy(&chIV[0], &nIV, WALLET_CRYPTO_KEY_SIZE);
 
-    for (const CKeyingMaterial &vMKey : vMKeys)
+    BOOST_FOREACH(const CKeyingMaterial vMKey, vMKeys)
     {
         if(!cKeyCrypter.SetKey(vMKey, chIV))
             continue;
@@ -128,7 +131,7 @@ bool WalletUtilityDB::Unlock()
     CCrypter crypter;
     CKeyingMaterial vMasterKey;
 
-    for (const MasterKeyMap::value_type& pMasterKey : mapMasterKeys)
+    BOOST_FOREACH(const MasterKeyMap::value_type& pMasterKey, mapMasterKeys)
     {
         if(!crypter.SetKeyFromPassphrase(mPass, pMasterKey.second.vchSalt, pMasterKey.second.nDeriveIterations, pMasterKey.second.nDerivationMethod))
             return false;

@@ -1,39 +1,39 @@
+
+[![twitter](https://img.shields.io/twitter/follow/safecoins?style=social)](https://twitter.com/safecoins)
+[![discord](https://img.shields.io/discord/412898016371015680)](https://discord.gg/rKK7huf)
+
 ---
 ![Safecoin Logo](https://raw.githubusercontent.com/Fair-Exchange/safecoinwiki/master/Logos/SafeCoin/SafeCoin-Logo-with-text.png "Safecoin Logo")
 
 
-## Safecoin v2.0.3
-==============
+## Safecoin
 
-This is the official Safecoin sourcecode repository based on https://github.com/fair-exchange/safecoin. 
+This is the official Safecoin sourcecode repository based on https://github.com/Fair-Exchange/safecoin. 
 
 ## Development Resources
 
 - Safecoin Website: [https://safecoin.org](https://safecoin.org/)
 - Safecoin Blockexplorer: [https://explorer.safecoin.org](https://explorer.safecoin.org/)
-- Safecoin Discord: [https://discord.gg/vQgYGJz](https://discord.gg/vQgYGJz)
-- Forum: [https://forum.safecoin.org](https://forum.safecoin.org/)
+- Safecoin Discord: [https://discord.gg/rKK7huf](https://discord.gg/rKK7huf)
+- Forum: [https://bitcointalk.org/index.php?topic=2838370.0](https://bitcointalk.org/index.php?topic=2838370.0/)
 - Mail: [safe@safecoin.org](mailto:safe@safecoin.org)
-- Knowledgebase & How-to: [https://github.com/Fair-Exchange/safecoinwiki/wiki](https://github.com/Fair-Exchange/safecoinwiki/wiki)
-- Blog: [https://safecoin.org/blog](https://safecoin.org/blog)
-- Whitepaper: [Safecoin Whitepaper](https://safecoin.org/assets/SafeWhitePaper.pdf)
+- Blog: [https://safecoin.org/news](https://safecoin.org/news/)
+- Whitepaper: [Safecoin Whitepaper](https://safecoin.org/whitepaper)
 
 ## List of Safecoin Platform Technologies
 
-- Delayed Proof of Work (dPoW) - Additional security layer and Safecoins own consensus algorithm.
+- SafeNodes - Delayed Proof of Work (dPoW) - Additional security layer and Safecoins own consensus algorithm.
 - zk-SNARKs - Safecoin Platform's privacy technology for shielded transactions
-- Tokens/Assets Technology - create "colored coins" on the Safecoin Platform and use them as a layer for securites
-- Reward API - Safecoin CC technology for securities
-- CC - Crypto Conditions to realize "smart contract" logic on top of the Safecoin Platform
-- Jumblr - Decentralized tumbler for SAFE and other cryptocurrencies
+- Tokens/Assets Technology - create "colored coins" on the Safecoin Platform and use them - in progress
+- CC - Crypto Conditions to realize "smart contract" logic on top of the Safecoin Platform  - in progress
 - Assetchains - Create your own Blockchain that inherits all Safecoin Platform functionalities and blockchain interoperability
 - Pegged Assets - Chains that maintain a peg to fiat currencies  (SafeCash in progress)
 - Peerchains - Scalability solution where sibling chains form a network of blockchains
 
 ## Tech Specification
-- Max Supply: 36.2 million SAFE.
-- Block Time: 1M 2s
-- Block Reward: See schedule
+- Max Supply: 36.2 million SAFE
+- Block Time: 60 seconds
+- Block Reward: 4 SAFE
 - Mining Algorithm: Equihash 192_7
 
 ## About this Project
@@ -44,30 +44,10 @@ Same Zcash is based on Bitcoin's code, with difference Zcash intends to offer a 
 
 ### Dependencies
 
-**1. Ubuntu**
 ```shell
 #The following packages are needed:
-sudo apt-get install \
-	build-essential pkg-config libc6-dev m4 \
-	g++-multilib autoconf libtool ncurses-dev \
-	unzip git python python-zmq zlib1g-dev wget \
-	libcurl4-gnutls-dev bsdmainutils automake curl bc dc jq
+sudo apt-get install build-essential pkg-config libc6-dev m4 g++-multilib autoconf libtool ncurses-dev unzip git python python-zmq zlib1g-dev wget libcurl4-gnutls-dev bsdmainutils automake curl libsodium-dev
 ```
-
-**2. Windows**
-```shell
-sudo apt-get install \
-	build-essential pkg-config libc6-dev m4 g++-multilib \
-	autoconf libtool ncurses-dev unzip git python \
-	zlib1g-dev wget bsdmainutils automake mingw-w64
-
-sudo update-alternatives --install /usr/bin/x86_64-w64-mingw32-gcc x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix 100
-sudo update-alternatives --install /usr/bin/x86_64-w64-mingw32-g++ x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix 100
-```
-
-Secure Setup
------------------
-https://github.com/fair-exchange/safecoin/blob/master/SECURE_SETUP.md
 
 ### Build Safecoin
 
@@ -78,38 +58,53 @@ Safecoin builds for all operating systems out of the same codebase. Follow the O
 
 #### Linux
 ```shell
-git clone https://github.com/fair-exchange/safecoin --branch master --single-branch
+git clone https://github.com/Fair-Exchange/safecoin --branch master --single-branch
 cd safecoin
 ./zcutil/fetch-params.sh
-# -j8 = using 8 threads for the compilation - replace 8 with number of threads you want to use
-./zcutil/build.sh -j8
+./zcutil/build.sh -j$(expr $(nproc) - 1)
 #This can take some time.
 ```
 
+
 #### OSX
-Ensure you have [brew](https://brew.sh) and the command line tools installed (comes automatically with XCode) and run:
+Ensure you have [brew](https://brew.sh) and Command Line Tools installed.
 ```shell
-brew update && brew install gcc@6
-git clone https://github.com/fair-exchange/safecoin --branch master --single-branch
+# Install brew
+/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+# Install Xcode, opens a pop-up window to install CLT without installing the entire Xcode package
+xcode-select --install 
+# Update brew and install dependencies
+brew update
+brew upgrade
+brew tap discoteq/discoteq; brew install flock
+brew install autoconf autogen automake
+brew update && brew install gcc@8
+brew install binutils
+brew install protobuf
+brew install coreutils
+brew install wget
+# Clone the Safecoin repo
+git clone https://github.com/Fair-Exchange/safecoin --branch master --single-branch
+# Change master branch to other branch you wish to compile
 cd safecoin
 ./zcutil/fetch-params.sh
-# -j8 = using 8 threads for the compilation - replace 8 with number of threads you want to use
-./zcutil/build-mac.sh -j8
-#This can take some time.
+./zcutil/build-mac.sh -j$(expr $(sysctl -n hw.ncpu) - 1)
+# This can take some time.
 ```
 
 #### Windows
 Use a debian cross-compilation setup with mingw for windows and run:
 ```shell
-git clone https://github.com/fair-exchange/safecoin --branch master --single-branch
+sudo apt-get install build-essential pkg-config libc6-dev m4 g++-multilib autoconf libtool ncurses-dev unzip git python python-zmq zlib1g-dev wget libcurl4-gnutls-dev bsdmainutils automake curl cmake mingw-w64 libsodium-dev libevent-dev
+curl https://sh.rustup.rs -sSf | sh
+source $HOME/.cargo/env
+rustup target add x86_64-pc-windows-gnu
+git clone https://github.com/Fair-Exchange/safecoin --branch master --single-branch
 cd safecoin
 ./zcutil/fetch-params.sh
-# -j8 = using 8 threads for the compilation - replace 8 with number of threads you want to use
-./zcutil/build-win.sh --disable-mining -j8
+./zcutil/build-win.sh -j$(expr $(nproc) - 1)
 #This can take some time.
 ```
-The "disable-mining" binaries are compiled with **--disable-mining** in an attempt to reduce Antivirus false positives, use them if you're packaging GUI wallets.
-
 **safecoin is experimental and a work-in-progress.** Use at your own risk.
 
 To reset the Safecoin blockchain change into the *~/.safecoin* data directory and delete the corresponding files by running `rm -rf blocks chainstate debug.log safecoinstate db.log`
@@ -134,6 +129,7 @@ addnode=explorer.safecoin.org
 addnode=45.63.13.60
 addnode=176.107.179.32
 addnode=node.safc.cc
+
 ```
 ### Create your own Blockchain based on Safecoin
 

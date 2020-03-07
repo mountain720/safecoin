@@ -3,6 +3,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #ifndef BITCOIN_PRIMITIVES_TRANSACTION_H
 #define BITCOIN_PRIMITIVES_TRANSACTION_H
 
@@ -31,6 +46,7 @@
 #include "zcash/Proof.hpp"
 
 extern uint32_t ASSETCHAINS_MAGIC;
+extern std::string ASSETCHAINS_SELFIMPORT;
 
 // Overwinter transaction version
 static const int32_t OVERWINTER_TX_VERSION = 3;
@@ -696,6 +712,11 @@ public:
         return (vin.size() == 1 && vin[0].prevout.n == 10e8);
     }
 
+    bool IsPegsImport() const
+    {
+        return (ASSETCHAINS_SELFIMPORT=="PEGSCC" && vin[0].prevout.n == 10e8);
+    }
+
     friend bool operator==(const CTransaction& a, const CTransaction& b)
     {
         return a.hash == b.hash;
@@ -704,6 +725,42 @@ public:
     friend bool operator!=(const CTransaction& a, const CTransaction& b)
     {
         return a.hash != b.hash;
+    }
+
+    // verus hash will be the same for a given txid, output number, block height, and blockhash of 100 blocks past
+    static uint256 _GetVerusPOSHash(CPOSNonce *pNonce, const uint256 &txid, int32_t voutNum, int32_t height, const uint256 &pastHash, int64_t value)
+    {
+        pNonce->SetPOSEntropy(pastHash, txid, voutNum);
+        CVerusHashWriter hashWriter  = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
+
+        hashWriter << ASSETCHAINS_MAGIC;
+
+        // we only use the new style of POS hash after changeover and 100 blocks of enforced proper nonce updating
+        if (CPOSNonce::NewPOSActive(height))
+        {
+            hashWriter << *pNonce;
+            hashWriter << height;
+            return ArithToUint256(UintToArith256(hashWriter.GetHash()) / value);
+        }
+        else
+        {
+            hashWriter << pastHash;
+            hashWriter << height;
+            hashWriter << txid;
+            hashWriter << voutNum;
+            return ArithToUint256(UintToArith256(hashWriter.GetHash()) / value);
+        }
+    }
+
+    // Nonce is modified to include the transaction information
+    uint256 GetVerusPOSHash(CPOSNonce *pNonce, int32_t voutNum, int32_t height, const uint256 &pastHash) const
+    {
+        uint256 txid = GetHash();
+
+        if (voutNum >= vout.size())
+            return uint256S("ff0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f");
+
+        return _GetVerusPOSHash(pNonce, txid, voutNum, height, pastHash, (uint64_t)vout[voutNum].nValue);
     }
 
     std::string ToString() const;

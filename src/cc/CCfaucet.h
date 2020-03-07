@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -25,8 +25,8 @@
 bool FaucetValidate(struct CCcontract_info *cp,Eval* eval,const CTransaction &tx, uint32_t nIn);
 
 // CCcustom
-std::string FaucetFund(uint64_t txfee,int64_t funds);
-std::string FaucetGet(uint64_t txfee);
+UniValue FaucetFund(const CPubKey& mypk,uint64_t txfee,int64_t funds);
+UniValue FaucetGet(const CPubKey& mypk,uint64_t txfee);
 UniValue FaucetInfo();
 
 #endif

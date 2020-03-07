@@ -3,6 +3,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #ifndef BITCOIN_CHAIN_H
 #define BITCOIN_CHAIN_H
 
@@ -16,9 +31,17 @@ class CChainPower;
 
 #include <vector>
 
+#include <boost/foreach.hpp>
+
 static const int SPROUT_VALUE_VERSION = 1001400;
 static const int SAPLING_VALUE_VERSION = 1010100;
 extern int32_t ASSETCHAINS_LWMAPOS;
+extern char ASSETCHAINS_SYMBOL[65];
+extern uint64_t ASSETCHAINS_NOTARY_PAY[];
+extern int32_t ASSETCHAINS_STAKED;
+extern const uint32_t nStakedDecemberHardforkTimestamp; //December 2019 hardfork
+extern const int32_t nDecemberHardforkHeight;   //December 2019 hardfork
+extern int8_t is_STAKED(const char *chain_name);
 
 struct CDiskBlockPos
 {
@@ -85,6 +108,9 @@ enum BlockStatus: uint32_t {
     //! Scripts & signatures ok. Implies all parents are also at least SCRIPTS.
     BLOCK_VALID_SCRIPTS      =    5,
 
+    // flag to check if contextual check block has passed in Accept block, if it has not check at connect block. 
+    BLOCK_VALID_CONTEXT      =    6,
+    
     //! All validity bits.
     BLOCK_VALID_MASK         =   BLOCK_VALID_HEADER | BLOCK_VALID_TREE | BLOCK_VALID_TRANSACTIONS |
                                  BLOCK_VALID_CHAIN | BLOCK_VALID_SCRIPTS,
@@ -98,6 +124,7 @@ enum BlockStatus: uint32_t {
     BLOCK_FAILED_MASK        =   BLOCK_FAILED_VALID | BLOCK_FAILED_CHILD,
 
     BLOCK_ACTIVATES_UPGRADE  =   128, //! block activates a network upgrade
+    BLOCK_IN_TMPFILE         =   256 
 };
 
 //! Short-hand for the highest consensus validity we implement.
@@ -217,7 +244,7 @@ public:
     CBlockIndex* pskip;
 
     //! height of the entry in the chain. The genesis block has height 0
-    int64_t newcoins,zfunds,sproutfunds; int8_t segid; // jl777 fields
+    int64_t newcoins,zfunds,sproutfunds,nNotaryPay; int8_t segid; // jl777 fields
     //! Which # file this block is stored in (blk?????.dat)
     int nFile;
 
@@ -288,6 +315,7 @@ public:
         phashBlock = NULL;
         newcoins = zfunds = 0;
         segid = -2;
+        nNotaryPay = 0;
         pprev = NULL;
         pskip = NULL;
         nFile = 0;
@@ -333,7 +361,7 @@ public:
         nSolution      = block.nSolution;
     }
 
-    int32_t SetHeight(int32_t height)
+    void SetHeight(int32_t height)
     {
         this->chainPower.nHeight = height;
     }
@@ -440,7 +468,17 @@ public:
     CBlockIndex* GetAncestor(int height);
     const CBlockIndex* GetAncestor(int height) const;
 
+    int32_t GetVerusPOSTarget() const
+    {
+        return GetBlockHeader().GetVerusPOSTarget();
+    }
 
+    bool IsVerusPOSBlock() const
+    {
+        if ( ASSETCHAINS_LWMAPOS != 0 )
+            return GetBlockHeader().IsVerusPOSBlock();
+        else return(0);
+    }
 };
 
 /** Used to marshal pointers into hashes for db storage. */
@@ -512,6 +550,22 @@ public:
         if ((s.GetType() & SER_DISK) && (nVersion >= SAPLING_VALUE_VERSION)) {
             READWRITE(nSaplingValue);
         }
+        
+        // leave the existing LABS exemption here for segid and notary pay, but also add a timestamp activated segid for non LABS PoS64 chains.
+        if ( (s.GetType() & SER_DISK) && is_STAKED(ASSETCHAINS_SYMBOL) != 0 && ASSETCHAINS_NOTARY_PAY[0] != 0 )
+        {
+            READWRITE(nNotaryPay);
+        }
+        if ( (s.GetType() & SER_DISK) && ASSETCHAINS_STAKED != 0 && (nTime > nStakedDecemberHardforkTimestamp || is_STAKED(ASSETCHAINS_SYMBOL) != 0) ) //December 2019 hardfork
+        {
+            READWRITE(segid);
+        }
+        
+        /*if ( (s.GetType() & SER_DISK) && (is_STAKED(ASSETCHAINS_SYMBOL) != 0) && ASSETCHAINS_NOTARY_PAY[0] != 0 )
+        {
+            READWRITE(nNotaryPay);
+            READWRITE(segid);
+        }*/
     }
 
     uint256 GetBlockHash() const

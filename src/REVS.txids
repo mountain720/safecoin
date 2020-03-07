@@ -1,4 +1,4 @@
-root@static:~/safecoin/src# ./REVS.snapshot
+root@static:~/komodo/src# ./REVS.snapshot
 error: {"code":-4,"message":"Transaction amount too small"}
 error: {"code":-4,"message":"Transaction amount too small"}
 error: {"code":-4,"message":"Transaction amount too small"}

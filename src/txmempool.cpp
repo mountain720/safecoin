@@ -3,6 +3,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #include "txmempool.h"
 
 #include "clientversion.h"
@@ -14,6 +29,7 @@
 #include "timedata.h"
 #include "util.h"
 #include "utilmoneystr.h"
+#include "validationinterface.h"
 #include "version.h"
 #define _COINBASE_MATURITY 100
 
@@ -104,12 +120,17 @@ bool CTxMemPool::addUnchecked(const uint256& hash, const CTxMemPoolEntry &entry,
     LOCK(cs);
     mapTx.insert(entry);
     const CTransaction& tx = mapTx.find(hash)->GetTx();
+    mapRecentlyAddedTx[tx.GetHash()] = &tx;
+    nRecentlyAddedSequence += 1;
     if (!tx.IsCoinImport()) {
         for (unsigned int i = 0; i < tx.vin.size(); i++)
+        {
+            if (tx.IsPegsImport() && i==0) continue;
             mapNextTx[tx.vin[i].prevout] = CInPoint(&tx, i);
     }
-    for (const JSDescription &joinsplit : tx.vjoinsplit) {
-        for (const uint256 &nf : joinsplit.nullifiers) {
+    }
+    BOOST_FOREACH(const JSDescription &joinsplit, tx.vjoinsplit) {
+        BOOST_FOREACH(const uint256 &nf, joinsplit.nullifiers) {
             mapSproutNullifiers[nf] = &tx;
         }
     }
@@ -132,6 +153,7 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
 
     uint256 txhash = tx.GetHash();
     for (unsigned int j = 0; j < tx.vin.size(); j++) {
+        if (tx.IsPegsImport() && j==0) continue; 
         const CTxIn input = tx.vin[j];
         const CTxOut &prevout = view.GetOutputFor(input);
 
@@ -145,7 +167,7 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
             if (vDest.which())
             {
                 uint160 hashBytes;
-                if (CBitcoinAddress(vDest).GetIndexKey(hashBytes, keyType))
+                if (CBitcoinAddress(vDest).GetIndexKey(hashBytes, keyType, prevout.scriptPubKey.IsPayToCryptoCondition()))
                 {
                     vSols.push_back(vector<unsigned char>(hashBytes.begin(), hashBytes.end()));
                 }
@@ -177,7 +199,7 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
             if (vDest.which())
             {
                 uint160 hashBytes;
-                if (CBitcoinAddress(vDest).GetIndexKey(hashBytes, keyType))
+                if (CBitcoinAddress(vDest).GetIndexKey(hashBytes, keyType, out.scriptPubKey.IsPayToCryptoCondition()))
                 {
                     vSols.push_back(vector<unsigned char>(hashBytes.begin(), hashBytes.end()));
                 }
@@ -237,6 +259,7 @@ void CTxMemPool::addSpentIndex(const CTxMemPoolEntry &entry, const CCoinsViewCac
 
     uint256 txhash = tx.GetHash();
     for (unsigned int j = 0; j < tx.vin.size(); j++) {
+        if (tx.IsPegsImport() && j==0) continue; 
         const CTxIn input = tx.vin[j];
         const CTxOut &prevout = view.GetOutputFor(input);
 
@@ -345,10 +368,11 @@ void CTxMemPool::remove(const CTransaction &origTx, std::list<CTransaction>& rem
                     txToRemove.push_back(it->second.ptx->GetHash());
                 }
             }
-            for (const CTxIn& txin : tx.vin)
+            mapRecentlyAddedTx.erase(hash);
+            BOOST_FOREACH(const CTxIn& txin, tx.vin)
                 mapNextTx.erase(txin.prevout);
-            for (const JSDescription& joinsplit : tx.vjoinsplit) {
-                for (const uint256& nf : joinsplit.nullifiers) {
+            BOOST_FOREACH(const JSDescription& joinsplit, tx.vjoinsplit) {
+                BOOST_FOREACH(const uint256& nf, joinsplit.nullifiers) {
                     mapSproutNullifiers.erase(nf);
                 }
             }
@@ -384,7 +408,7 @@ void CTxMemPool::removeForReorg(const CCoinsViewCache *pcoins, unsigned int nMem
         if (!CheckFinalTx(tx, flags)) {
             transactionsToRemove.push_back(tx);
         } else if (it->GetSpendsCoinbase()) {
-            for (const CTxIn& txin : tx.vin) {
+            BOOST_FOREACH(const CTxIn& txin, tx.vin) {
                 indexed_transaction_set::const_iterator it2 = mapTx.find(txin.prevout.hash);
                 if (it2 != mapTx.end())
                     continue;
@@ -399,7 +423,7 @@ void CTxMemPool::removeForReorg(const CCoinsViewCache *pcoins, unsigned int nMem
             }
         }
     }
-    for (const CTransaction& tx : transactionsToRemove) {
+    BOOST_FOREACH(const CTransaction& tx, transactionsToRemove) {
         list<CTransaction> removed;
         remove(tx, removed, true);
     }
@@ -419,7 +443,7 @@ void CTxMemPool::removeWithAnchor(const uint256 &invalidRoot, ShieldedType type)
         const CTransaction& tx = it->GetTx();
         switch (type) {
             case SPROUT:
-                for (const JSDescription& joinsplit : tx.vjoinsplit) {
+                BOOST_FOREACH(const JSDescription& joinsplit, tx.vjoinsplit) {
                     if (joinsplit.anchor == invalidRoot) {
                         transactionsToRemove.push_back(tx);
                         break;
@@ -427,7 +451,7 @@ void CTxMemPool::removeWithAnchor(const uint256 &invalidRoot, ShieldedType type)
                 }
             break;
             case SAPLING:
-                for (const SpendDescription& spendDescription : tx.vShieldedSpend) {
+                BOOST_FOREACH(const SpendDescription& spendDescription, tx.vShieldedSpend) {
                     if (spendDescription.anchor == invalidRoot) {
                         transactionsToRemove.push_back(tx);
                         break;
@@ -440,7 +464,7 @@ void CTxMemPool::removeWithAnchor(const uint256 &invalidRoot, ShieldedType type)
         }
     }
 
-    for (const CTransaction& tx : transactionsToRemove) {
+    BOOST_FOREACH(const CTransaction& tx, transactionsToRemove) {
         list<CTransaction> removed;
         remove(tx, removed, true);
     }
@@ -451,7 +475,7 @@ void CTxMemPool::removeConflicts(const CTransaction &tx, std::list<CTransaction>
     // Remove transactions which depend on inputs of tx, recursively
     list<CTransaction> result;
     LOCK(cs);
-    for (const CTxIn &txin : tx.vin) {
+    BOOST_FOREACH(const CTxIn &txin, tx.vin) {
         std::map<COutPoint, CInPoint>::iterator it = mapNextTx.find(txin.prevout);
         if (it != mapNextTx.end()) {
             const CTransaction &txConflict = *it->second.ptx;
@@ -462,8 +486,8 @@ void CTxMemPool::removeConflicts(const CTransaction &tx, std::list<CTransaction>
         }
     }
 
-    for (const JSDescription &joinsplit : tx.vjoinsplit) {
-        for (const uint256 &nf : joinsplit.nullifiers) {
+    BOOST_FOREACH(const JSDescription &joinsplit, tx.vjoinsplit) {
+        BOOST_FOREACH(const uint256 &nf, joinsplit.nullifiers) {
             std::map<uint256, const CTransaction*>::iterator it = mapSproutNullifiers.find(nf);
             if (it != mapSproutNullifiers.end()) {
                 const CTransaction &txConflict = *it->second;
@@ -497,7 +521,7 @@ void CTxMemPool::removeExpired(unsigned int nBlockHeight)
     {
         const CTransaction& tx = it->GetTx();
         tipindex = chainActive.LastTip();
-	if (IsExpiredTx(tx, nBlockHeight))
+        if (IsExpiredTx(tx, nBlockHeight) || (ASSETCHAINS_SYMBOL[0] == 0 && tipindex != 0 && safecoin_validate_interest(tx,tipindex->GetHeight()+1,tipindex->GetMedianTimePast() + 777,0)) < 0)
         {
             transactionsToRemove.push_back(tx);
         }
@@ -517,7 +541,7 @@ void CTxMemPool::removeForBlock(const std::vector<CTransaction>& vtx, unsigned i
 {
     LOCK(cs);
     std::vector<CTxMemPoolEntry> entries;
-    for (const CTransaction& tx : vtx)
+    BOOST_FOREACH(const CTransaction& tx, vtx)
     {
         uint256 hash = tx.GetHash();
 
@@ -525,7 +549,7 @@ void CTxMemPool::removeForBlock(const std::vector<CTransaction>& vtx, unsigned i
         if (i != mapTx.end())
             entries.push_back(*i);
     }
-    for (const CTransaction& tx : vtx)
+    BOOST_FOREACH(const CTransaction& tx, vtx)
     {
         std::list<CTransaction> dummy;
         remove(tx, dummy, false);
@@ -592,7 +616,7 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins) const
         innerUsage += it->DynamicMemoryUsage();
         const CTransaction& tx = it->GetTx();
         bool fDependsWait = false;
-        for (const CTxIn &txin : tx.vin) {
+        BOOST_FOREACH(const CTxIn &txin, tx.vin) {
             // Check that every mempool transaction's inputs refer to available coins, or other mempool tx's.
             indexed_transaction_set::const_iterator it2 = mapTx.find(txin.prevout.hash);
             if (it2 != mapTx.end()) {
@@ -613,8 +637,8 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins) const
 
         boost::unordered_map<uint256, SproutMerkleTree, CCoinsKeyHasher> intermediates;
 
-        for (const JSDescription &joinsplit : tx.vjoinsplit) {
-            for (const uint256 &nf : joinsplit.nullifiers) {
+        BOOST_FOREACH(const JSDescription &joinsplit, tx.vjoinsplit) {
+            BOOST_FOREACH(const uint256 &nf, joinsplit.nullifiers) {
                 assert(!pcoins->GetNullifier(nf, SPROUT));
             }
 
@@ -626,7 +650,7 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins) const
                 assert(pcoins->GetSproutAnchorAt(joinsplit.anchor, tree));
             }
 
-            for (const uint256& commitment : joinsplit.commitments)
+            BOOST_FOREACH(const uint256& commitment, joinsplit.commitments)
             {
                 tree.append(commitment);
             }
@@ -816,6 +840,49 @@ bool CTxMemPool::nullifierExists(const uint256& nullifier, ShieldedType type) co
         default:
             throw runtime_error("Unknown nullifier type");
     }
+}
+
+void CTxMemPool::NotifyRecentlyAdded()
+{
+    uint64_t recentlyAddedSequence;
+    std::vector<CTransaction> txs;
+    {
+        LOCK(cs);
+        recentlyAddedSequence = nRecentlyAddedSequence;
+        for (const auto& kv : mapRecentlyAddedTx) {
+            txs.push_back(*(kv.second));
+        }
+        mapRecentlyAddedTx.clear();
+    }
+
+    // A race condition can occur here between these SyncWithWallets calls, and
+    // the ones triggered by block logic (in ConnectTip and DisconnectTip). It
+    // is harmless because calling SyncWithWallets(_, NULL) does not alter the
+    // wallet transaction's block information.
+    for (auto tx : txs) {
+        try {
+            SyncWithWallets(tx, NULL);
+        } catch (const boost::thread_interrupted&) {
+            throw;
+        } catch (const std::exception& e) {
+            PrintExceptionContinue(&e, "CTxMemPool::NotifyRecentlyAdded()");
+        } catch (...) {
+            PrintExceptionContinue(NULL, "CTxMemPool::NotifyRecentlyAdded()");
+        }
+    }
+
+    // Update the notified sequence number. We only need this in regtest mode,
+    // and should not lock on cs after calling SyncWithWallets otherwise.
+    if (Params().NetworkIDString() == "regtest") {
+        LOCK(cs);
+        nNotifiedSequence = recentlyAddedSequence;
+    }
+}
+
+bool CTxMemPool::IsFullyNotified() {
+    assert(Params().NetworkIDString() == "regtest");
+    LOCK(cs);
+    return nRecentlyAddedSequence == nNotifiedSequence;
 }
 
 CCoinsViewMemPool::CCoinsViewMemPool(CCoinsView *baseIn, CTxMemPool &mempoolIn) : CCoinsViewBacked(baseIn), mempool(mempoolIn) { }
