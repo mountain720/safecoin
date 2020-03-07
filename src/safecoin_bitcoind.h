@@ -2619,6 +2619,11 @@ int32_t safecoin_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,
 
 int32_t safecoin_acpublic(uint32_t tiptime)
 {
+    
+    // MIODRAG: re-enable sapling
+    
+    return 1;
+    
     int32_t acpublic = ASSETCHAINS_PUBLIC; CBlockIndex *pindex;
     if ( acpublic == 0 )
     {

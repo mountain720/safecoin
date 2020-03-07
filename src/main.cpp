@@ -1570,11 +1570,17 @@ bool CheckTransactionWithoutProofVerification(uint32_t tiptime,const CTransactio
         return state.DoS(100, error("CheckTransaction(): tx.valueBalance has no sources or sinks"),
                             REJECT_INVALID, "bad-txns-valuebalance-nonzero");
     }
+    
+    
+// MIODRAG: re-enable sapling
+/*    
     if ( acpublic != 0 && (tx.vShieldedSpend.empty() == 0 || tx.vShieldedOutput.empty() == 0) )
     {
         return state.DoS(100, error("CheckTransaction(): this is a public chain, no sapling allowed"),
                          REJECT_INVALID, "bad-txns-acpublic-chain");
     }
+*/ 
+
     if ( ASSETCHAINS_PRIVATE != 0 && invalid_private_taddr != 0 && tx.vShieldedSpend.empty() == 0 )
     {
         return state.DoS(100, error("CheckTransaction(): this is a private chain, no sapling -> taddr"),
@@ -1599,11 +1605,14 @@ bool CheckTransactionWithoutProofVerification(uint32_t tiptime,const CTransactio
     // Ensure that joinsplit values are well-formed
     BOOST_FOREACH(const JSDescription& joinsplit, tx.vjoinsplit)
     {
+        // MIODRAG: re-enable sapling
+/*
         if ( acpublic != 0 )
         {
             return state.DoS(100, error("CheckTransaction(): this is a public chain, no privacy allowed"),
                              REJECT_INVALID, "bad-txns-acpublic-chain");
         }
+*/        
         if ( tiptime >= SAFECOIN_SAPLING_DEADLINE )
         {
             return state.DoS(100, error("CheckTransaction(): no more sprout after deadline"),
