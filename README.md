@@ -22,10 +22,9 @@ This is the official Safecoin sourcecode repository based on https://github.com/
 
 ## List of Safecoin Platform Technologies
 
-- Delayed Proof of Work (dPoW) - Additional security layer and Safecoins own consensus algorithm.
+- SafeNodes - Delayed Proof of Work (dPoW) - Additional security layer and Safecoins own consensus algorithm.
 - zk-SNARKs - Safecoin Platform's privacy technology for shielded transactions
-- Tokens/Assets Technology - create "colored coins" on the Safecoin Platform and use them as a layer for securites
-- Reward API - Safecoin CC technology for securities
+- Tokens/Assets Technology - create "colored coins" on the Safecoin Platform and use them - in progress
 - CC - Crypto Conditions to realize "smart contract" logic on top of the Safecoin Platform  - in progress
 - Assetchains - Create your own Blockchain that inherits all Safecoin Platform functionalities and blockchain interoperability
 - Pegged Assets - Chains that maintain a peg to fiat currencies  (SafeCash in progress)
