@@ -8,13 +8,13 @@
 
 ## Safecoin
 
-This is the official Komodo sourcecode repository based on https://github.com/jl777/komodo. 
+This is the official Komodo sourcecode repository based on https://github.com/Fair-Exchange/safecoin. 
 
 ## Development Resources
 
-- Komodo Website: [https://komodoplatform.com](https://komodoplatform.com/)
-- Komodo Blockexplorer: [https://kmdexplorer.io](https://kmdexplorer.io/)
-- Komodo Discord: [https://komodoplatform.com/discord](https://komodoplatform.com/discord)
+- Safecoin Website: [https://safecoin.org](https://safecoin.org/)
+- Komodo Blockexplorer: [https://explorer.safecoin.org](https://explorer.safecoin.org/)
+- Komodo Discord: [https://discord.gg/rKK7huf](https://discord.gg/rKK7huf)
 - Forum: [https://forum.komodoplatform.com](https://forum.komodoplatform.com/)
 - Mail: [info@komodoplatform.com](mailto:info@komodoplatform.com)
 - Support: [https://support.komodoplatform.com/support/home](https://support.komodoplatform.com/support/home)
