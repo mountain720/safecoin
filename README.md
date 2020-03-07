@@ -1,5 +1,5 @@
 
-[![twitter](https://img.shields.io/twitter/follow/komodoplatform?style=social)](https://twitter.com/safecoins)
+[![twitter](https://img.shields.io/twitter/follow/safecoins?style=social)](https://twitter.com/safecoins)
 [![discord](https://img.shields.io/discord/412898016371015680)](https://discord.gg/rKK7huf)
 
 ---
