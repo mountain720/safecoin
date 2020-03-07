@@ -54,13 +54,13 @@ sudo apt-get install build-essential pkg-config libc6-dev m4 g++-multilib autoco
 
 This software is based on zcash and considered experimental and is continously undergoing heavy development.
 
-The dev branch is considered the bleeding edge codebase while the master-branch is considered tested (unit tests, runtime tests, functionality). At no point of time do the Komodo Platform developers take any responsbility for any damage out of the usage of this software. 
-Komodo builds for all operating systems out of the same codebase. Follow the OS specific instructions from below.
+The dev branch is considered the bleeding edge codebase while the master-branch is considered tested (unit tests, runtime tests, functionality). At no point of time do the Safecoin Platform developers take any responsbility for any damage out of the usage of this software. 
+Safecoin builds for all operating systems out of the same codebase. Follow the OS specific instructions from below.
 
 #### Linux
 ```shell
 git clone https://github.com/Fair-Exchange/safecoin --branch master --single-branch
-cd komodo
+cd safecoin
 ./zcutil/fetch-params.sh
 ./zcutil/build.sh -j$(expr $(nproc) - 1)
 #This can take some time.
