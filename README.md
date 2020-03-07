@@ -18,7 +18,7 @@ This is the official Komodo sourcecode repository based on https://github.com/Fa
 - Forum: [https://bitcointalk.org/index.php?topic=2838370.0](https://bitcointalk.org/index.php?topic=2838370.0/)
 - Mail: [safe@safecoin.org](mailto:safe@safecoin.org)
 - Blog: [https://safecoin.org/news](https://safecoin.org/news/)
-- Whitepaper: [Komodo Whitepaper](https://safecoin.org/whitepaper)
+- Whitepaper: [Safecoin Whitepaper](https://safecoin.org/whitepaper)
 
 ## List of Safecoin Platform Technologies
 
