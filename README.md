@@ -11,7 +11,7 @@
 [![discord](https://img.shields.io/discord/412898016371015680)](https://discord.gg/tvp96Gf)
 
 ---
-![Komodo Logo](https://i.imgur.com/E8LtkAa.png "Komodo Logo")
+![Safecoin Logo](https://raw.githubusercontent.com/Fair-Exchange/safecoinwiki/master/Logos/SafeCoin/SafeCoin-Logo-with-text.png "Safecoin Logo")
 
 
 ## Komodo
