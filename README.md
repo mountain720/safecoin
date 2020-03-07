@@ -8,7 +8,7 @@
 
 ## Safecoin
 
-This is the official Komodo sourcecode repository based on https://github.com/Fair-Exchange/safecoin. 
+This is the official Safecoin sourcecode repository based on https://github.com/Fair-Exchange/safecoin. 
 
 ## Development Resources
 
