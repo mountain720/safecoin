@@ -13,40 +13,33 @@ This is the official Komodo sourcecode repository based on https://github.com/Fa
 ## Development Resources
 
 - Safecoin Website: [https://safecoin.org](https://safecoin.org/)
-- Komodo Blockexplorer: [https://explorer.safecoin.org](https://explorer.safecoin.org/)
-- Komodo Discord: [https://discord.gg/rKK7huf](https://discord.gg/rKK7huf)
-- Forum: [https://forum.komodoplatform.com](https://forum.komodoplatform.com/)
-- Mail: [info@komodoplatform.com](mailto:info@komodoplatform.com)
-- Support: [https://support.komodoplatform.com/support/home](https://support.komodoplatform.com/support/home)
-- Knowledgebase & How-to: [https://support.komodoplatform.com/en/support/solutions](https://support.komodoplatform.com/en/support/solutions)
-- API references & Dev Documentation: [https://developers.komodoplatform.com](https://developers.komodoplatform.com/)
-- Blog: [https://blog.komodoplatform.com](https://blog.komodoplatform.com/)
-- Whitepaper: [Komodo Whitepaper](https://komodoplatform.com/whitepaper)
-- Komodo Platform public material: [Komodo Platform public material](https://docs.google.com/document/d/1AbhWrtagu4vYdkl-vsWz-HSNyNvK-W-ZasHCqe7CZy0)
+- Safecoin Blockexplorer: [https://explorer.safecoin.org](https://explorer.safecoin.org/)
+- Safecoin Discord: [https://discord.gg/rKK7huf](https://discord.gg/rKK7huf)
+- Forum: [https://bitcointalk.org/index.php?topic=2838370.0](https://bitcointalk.org/index.php?topic=2838370.0/)
+- Mail: [safe@safecoin.org](mailto:safe@safecoin.org)
+- Blog: [https://safecoin.org/news](https://safecoin.org/news/)
+- Whitepaper: [Komodo Whitepaper](https://safecoin.org/whitepaper)
 
-## List of Komodo Platform Technologies
+## List of Safecoin Platform Technologies
 
-- Delayed Proof of Work (dPoW) - Additional security layer and Komodos own consensus algorithm  
-- zk-SNARKs - Komodo Platform's privacy technology for shielded transactions  
-- Tokens/Assets Technology - create "colored coins" on the Komodo Platform and use them as a layer for securites  
-- Reward API - Komodo CC technology for securities  
-- CC - Crypto Conditions to realize "smart contract" logic on top of the Komodo Platform  
-- Jumblr - Decentralized tumbler for KMD and other cryptocurrencies  
-- Assetchains - Create your own Blockchain that inherits all Komodo Platform functionalities and blockchain interoperability  
-- Pegged Assets - Chains that maintain a peg to fiat currencies  
-- Peerchains - Scalability solution where sibling chains form a network of blockchains  
-- More in depth covered [here](https://docs.google.com/document/d/1AbhWrtagu4vYdkl-vsWz-HSNyNvK-W-ZasHCqe7CZy0)  
-- Also note you receive 5% Active User Reward on your balance.  
-[See this article for more details](https://support.komodoplatform.com/en/support/solutions/articles/29000024515-how-to-claim-the-kmd-active-user-reward-in-agama)
+- Delayed Proof of Work (dPoW) - Additional security layer and Safecoins own consensus algorithm.
+- zk-SNARKs - Safecoin Platform's privacy technology for shielded transactions
+- Tokens/Assets Technology - create "colored coins" on the Safecoin Platform and use them as a layer for securites
+- Reward API - Safecoin CC technology for securities
+- CC - Crypto Conditions to realize "smart contract" logic on top of the Safecoin Platform  - in progress
+- Assetchains - Create your own Blockchain that inherits all Safecoin Platform functionalities and blockchain interoperability
+- Pegged Assets - Chains that maintain a peg to fiat currencies  (SafeCash in progress)
+- Peerchains - Scalability solution where sibling chains form a network of blockchains
 
 ## Tech Specification
-- Max Supply: 200 million KMD
+- Max Supply: 36.2 million SAFE
 - Block Time: 60 seconds
-- Block Reward: 3 KMD
-- Mining Algorithm: Equihash
+- Block Reward: 4 SAFE
+- Mining Algorithm: Equihash 192_7
 
 ## About this Project
-Komodo is based on Zcash and has been extended by our innovative consensus algorithm called dPoW which utilizes Bitcoin's hashrate to store Komodo blockchain information into the Bitcoin blockchain. Other new and native Komodo features are the privacy technology called JUMBLR, our assetchain capabilities (one click plug and play blockchain solutions) and a set of financial decentralization and interoperability technologies. More details are available under https://komodoplatform.com/ and https://blog.komodoplatform.com.
+Safecoin is a fork of the Komodo and Zcash projects, although we have incorporated significant changes including TLS 1.3 Encryption from Horizen and Equihash 192_7, in collaboration with BTCZ.  Safecoin was launched as a pure Proof of Work coin, and has never had any ICO or Sale of any kind.   We are an Open Source, Peer to Peer project and we support and contribute to likewise initiatives.
+Same Zcash is based on Bitcoin's code, with difference Zcash intends to offer a far higher standard of privacy through a sophisticated zero-knowledge proving scheme that preserves confidentiality of transaction metadata. Technical details are available in our [Protocol Specification](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf).
 
 ## Getting started
 
@@ -57,7 +50,7 @@ Komodo is based on Zcash and has been extended by our innovative consensus algor
 sudo apt-get install build-essential pkg-config libc6-dev m4 g++-multilib autoconf libtool ncurses-dev unzip git python python-zmq zlib1g-dev wget libcurl4-gnutls-dev bsdmainutils automake curl libsodium-dev
 ```
 
-### Build Komodo
+### Build Safecoin
 
 This software is based on zcash and considered experimental and is continously undergoing heavy development.
 
@@ -66,7 +59,7 @@ Komodo builds for all operating systems out of the same codebase. Follow the OS 
 
 #### Linux
 ```shell
-git clone https://github.com/komodoplatform/komodo --branch master --single-branch
+git clone https://github.com/Fair-Exchange/safecoin --branch master --single-branch
 cd komodo
 ./zcutil/fetch-params.sh
 ./zcutil/build.sh -j$(expr $(nproc) - 1)
@@ -91,10 +84,10 @@ brew install binutils
 brew install protobuf
 brew install coreutils
 brew install wget
-# Clone the Komodo repo
-git clone https://github.com/komodoplatform/komodo --branch master --single-branch
+# Clone the Safecoin repo
+git clone https://github.com/Fair-Exchange/safecoin --branch master --single-branch
 # Change master branch to other branch you wish to compile
-cd komodo
+cd safecoin
 ./zcutil/fetch-params.sh
 ./zcutil/build-mac.sh -j$(expr $(sysctl -n hw.ncpu) - 1)
 # This can take some time.
@@ -107,57 +100,54 @@ sudo apt-get install build-essential pkg-config libc6-dev m4 g++-multilib autoco
 curl https://sh.rustup.rs -sSf | sh
 source $HOME/.cargo/env
 rustup target add x86_64-pc-windows-gnu
-git clone https://github.com/jl777/komodo --branch master --single-branch
-cd komodo
+git clone https://github.com/Fair-Exchange/safecoin --branch master --single-branch
+cd safecoin
 ./zcutil/fetch-params.sh
 ./zcutil/build-win.sh -j$(expr $(nproc) - 1)
 #This can take some time.
 ```
-**komodo is experimental and a work-in-progress.** Use at your own risk.
+**safecoin is experimental and a work-in-progress.** Use at your own risk.
 
-To reset the Komodo blockchain change into the *~/.komodo* data directory and delete the corresponding files by running `rm -rf blocks chainstate debug.log komodostate db.log`
+To reset the Safecoin blockchain change into the *~/.safecoin* data directory and delete the corresponding files by running `rm -rf blocks chainstate debug.log safecoinstate db.log`
 
-#### Create komodo.conf
+#### Create safecoin.conf
 
-Create a komodo.conf file:
+Create a safecoin.conf file:
 
 ```
-mkdir ~/.komodo
-cd ~/.komodo
-touch komodo.conf
+mkdir ~/.safecoin
+cd ~/.safecoin
+touch safecoin.conf
 
-#Add the following lines to the komodo.conf file:
+#Add the following lines to the safecoin.conf file:
 rpcuser=yourrpcusername
 rpcpassword=yoursecurerpcpassword
 rpcbind=127.0.0.1
 txindex=1
-addnode=77.75.121.138
-addnode=95.213.238.100
-addnode=94.130.148.142
-addnode=103.6.12.105
-addnode=139.99.209.214
-addnode=185.130.212.13
-addnode=5.9.142.219
-addnode=200.25.4.38
-addnode=139.99.136.148
+addnode=dnsseed.ipv6admin.com
+addnode=dnsseed.fair.exchange
+addnode=explorer.safecoin.org
+addnode=45.63.13.60
+addnode=176.107.179.32
+addnode=node.safc.cc
 
 ```
-### Create your own Blockchain based on Komodo
+### Create your own Blockchain based on Safecoin
 
-Komodo allows anyone to create a runtime fork which represents an independent Blockchain. Below are the detailed instructions:
-Setup two independent servers with at least 1 server having a static IP and build komodod on those servers.  
+Safecoin allows anyone to create a runtime fork which represents an independent Blockchain. Below are the detailed instructions:
+Setup two independent servers with at least 1 server having a static IP and build safecoind on those servers.  
 
 #### On server 1 (with static IP) run:
 ```shell
-./komodod -ac_name=name_of_your_chain -ac_supply=100000 -bind=ip_of_server_1 &
+./safecoind -ac_name=name_of_your_chain -ac_supply=100000 -bind=ip_of_server_1 &
 ```
 
 #### On server 2 run:
 ```shell
-./komodod -ac_name=name_of_your_chain -ac_supply=100000 -addnode=ip_of_server_1 -gen &
+./safecoind -ac_name=name_of_your_chain -ac_supply=100000 -addnode=ip_of_server_1 -gen &
 ```
 
-**Komodo is based on Zcash which is unfinished and highly experimental.** Use at your own risk.
+**Safecoin is based on Zcash which is unfinished and highly experimental.** Use at your own risk.
 
 License
 -------
@@ -165,23 +155,23 @@ For license information see the file [COPYING](COPYING).
 
 **NOTE TO EXCHANGES:**
 https://bitcointalk.org/index.php?topic=1605144.msg17732151#msg17732151
-There is a small chance that an outbound transaction will give an error due to mismatched values in wallet calculations. There is a -exchange option that you can run komodod with, but make sure to have the entire transaction history under the same -exchange mode. Otherwise you will get wallet conflicts.
+There is a small chance that an outbound transaction will give an error due to mismatched values in wallet calculations. There is a -exchange option that you can run safecoind with, but make sure to have the entire transaction history under the same -exchange mode. Otherwise you will get wallet conflicts.
 
 **To change modes:**
 
-a) backup all privkeys (launch komodod with `-exportdir=<path>` and `dumpwallet`)  
-b) start a totally new sync including `wallet.dat`, launch with same `exportdir`  
-c) stop it before it gets too far and import all the privkeys from a) using `komodo-cli importwallet filename`  
-d) resume sync till it gets to chaintip  
+a) backup all privkeys (launch safecoind with `-exportdir=<path>` and `dumpwallet`)
+b) start a totally new sync including `wallet.dat`, launch with same `exportdir`
+c) stop it before it gets too far and import all the privkeys from a) using `safecoin-cli importwallet filename`
+d) resume sync till it gets to chaintip
 
 For example:
 ```shell
-./komodod -exportdir=/tmp &
-./komodo-cli dumpwallet example
-./komodo-cli stop
-mv ~/.komodo ~/.komodo.old && mkdir ~/.komodo && cp ~/.komodo.old/komodo.conf ~/.komodo.old/peers.dat ~/.komodo
-./komodod -exchange -exportdir=/tmp &
-./komodo-cli importwallet /tmp/example
+./safecoind -exportdir=/tmp &
+./safecoin-cli dumpwallet example
+./safecoin-cli stop
+mv ~/.safecoin ~/.safecoin.old && mkdir ~/.safecoin && cp ~/.safecoin.old/safecoin.conf ~/.safecoin.old/peers.dat ~/.safecoin
+./safecoind -exchange -exportdir=/tmp &
+./safecoin-cli importwallet /tmp/example
 ```
 ---
 
