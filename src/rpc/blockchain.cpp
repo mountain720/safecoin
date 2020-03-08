@@ -1083,7 +1083,7 @@ UniValue safeids(const UniValue& params, bool fHelp, const CPubKey& mypk)
     
     int32_t height;
     if (params.size() >= 1)
-        height = params[0].get_int();
+		height = atoi(params[0].get_str().c_str());
 	else
 		height = chainActive.Height();
 		
