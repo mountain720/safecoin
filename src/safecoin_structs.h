@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -29,7 +29,7 @@
 
 #define GENESIS_NBITS 0x1f00ffff
 #define SAFECOIN_MINRATIFY ((height < 90000) ? 7 : 11)
-#define SAFECOIN_NOTARIES_HARDCODED 1 // DONT CHANGE
+#define SAFECOIN_NOTARIES_HARDCODED 180000 // DONT CHANGE
 #define SAFECOIN_MAXBLOCKS 250000 // DONT CHANGE
 
 #define SAFECOIN_EVENT_RATIFY 'P'
@@ -78,7 +78,7 @@ struct pax_transaction
 {
     UT_hash_handle hh;
     uint256 txid;
-    uint64_t safecoinshis,fiatoshis,validated;
+    uint64_t safetoshis,fiatoshis,validated;
     int32_t marked,height,otherheight,approved,didstats,ready;
     uint16_t vout;
     char symbol[SAFECOIN_ASSETCHAIN_MAXLEN],source[SAFECOIN_ASSETCHAIN_MAXLEN],coinaddr[64]; uint8_t rmd160[20],type,buf[35];

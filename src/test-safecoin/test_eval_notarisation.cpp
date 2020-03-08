@@ -56,7 +56,8 @@ namespace TestEvalNotarisation {
             }
     };
 
-    static auto noop = [&](CMutableTransaction &mtx){};
+    //static auto noop = [&](CMutableTransaction &mtx){};
+    static auto noop = [](CMutableTransaction &mtx){};
 
 
     template<typename Modifier>
@@ -82,7 +83,7 @@ namespace TestEvalNotarisation {
         }
 
 
-    // https://safe.explorer.ipv6admin.com/tx/5b8055d37cff745a404d1ae45e21ffdba62da7b28ed6533c67468d7379b20bae
+    // https://kmd.explorer.supernet.org/tx/5b8055d37cff745a404d1ae45e21ffdba62da7b28ed6533c67468d7379b20bae
     // inputs have been dropped
     static auto rawNotaryTx = "01000000000290460100000000002321020e46e79a2a8d12b9b5d12c7a91adb4e454edfae43c0a0cb805427d2ac7613fd9ac0000000000000000506a4c4dae8e0f3e6e5de498a072f5967f3c418c4faba5d56ac8ce17f472d029ef3000008f2e0100424f545300050ba773f0bc31da5839fc7cb9bd7b87f3b765ca608e5cf66785a466659b28880500000000000000";
     CTransaction notaryTx;

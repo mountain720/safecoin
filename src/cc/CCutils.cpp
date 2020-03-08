@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -16,8 +16,10 @@
 /*
  CCutils has low level functions that are universally useful for all contracts.
  */
+
 #include "CCinclude.h"
 #include "safecoin_structs.h"
+#include "key_io.h"
 
 #ifdef TESTMODE           
     #define MIN_NON_NOTARIZED_CONFIRMS 2
@@ -58,20 +60,75 @@ CC *MakeCCcond1(uint8_t evalcode,CPubKey pk)
     return CCNewThreshold(2, {condCC, Sig});
 }
 
-CTxOut MakeCC1vout(uint8_t evalcode,CAmount nValue,CPubKey pk)
+int32_t has_opret(const CTransaction &tx, uint8_t evalcode)
+{
+    int i = 0;
+    for ( auto vout : tx.vout )
+    {
+        //fprintf(stderr, "[txid.%s] 1.%i 2.%i 3.%i 4.%i\n",tx.GetHash().GetHex().c_str(),  vout.scriptPubKey[0], vout.scriptPubKey[1], vout.scriptPubKey[2], vout.scriptPubKey[3]);
+        if ( vout.scriptPubKey.size() > 3 && vout.scriptPubKey[0] == OP_RETURN && vout.scriptPubKey[2] == evalcode )
+            return i;
+        i++;
+    }
+    return 0;
+}
+
+bool getCCopret(const CScript &scriptPubKey, CScript &opret)
+{
+    std::vector<std::vector<unsigned char>> vParams = std::vector<std::vector<unsigned char>>();
+    CScript dummy; bool ret = false;
+    if ( scriptPubKey.IsPayToCryptoCondition(&dummy, vParams) != 0 )
+    {
+        ret = true;
+        if ( vParams.size() == 1)
+        {
+            opret = CScript(vParams[0].begin()+6, vParams[0].end());
+            //fprintf(stderr, "vparams.%s\n", HexStr(vParams[0].begin(), vParams[0].end()).c_str());
+        }
+    }
+    return ret;
+}
+
+bool makeCCopret(CScript &opret, std::vector<std::vector<unsigned char>> &vData)
+{
+    if ( opret.empty() )
+        return false;
+    vData.push_back(std::vector<unsigned char>(opret.begin(), opret.end()));
+    return true;
+}
+
+CTxOut MakeCC1vout(uint8_t evalcode,CAmount nValue, CPubKey pk, std::vector<std::vector<unsigned char>>* vData)
 {
     CTxOut vout;
     CC *payoutCond = MakeCCcond1(evalcode,pk);
     vout = CTxOut(nValue,CCPubKey(payoutCond));
+    if ( vData )
+    {
+        //std::vector<std::vector<unsigned char>> vtmpData = std::vector<std::vector<unsigned char>>(vData->begin(), vData->end());
+        std::vector<CPubKey> vPubKeys = std::vector<CPubKey>();
+        //vPubKeys.push_back(pk);
+        COptCCParams ccp = COptCCParams(COptCCParams::VERSION, evalcode, 1, 1, vPubKeys, ( * vData));
+        vout.scriptPubKey << ccp.AsVector() << OP_DROP;
+    }
     cc_free(payoutCond);
     return(vout);
 }
 
-CTxOut MakeCC1of2vout(uint8_t evalcode,CAmount nValue,CPubKey pk1,CPubKey pk2)
+CTxOut MakeCC1of2vout(uint8_t evalcode,CAmount nValue,CPubKey pk1,CPubKey pk2, std::vector<std::vector<unsigned char>>* vData)
 {
     CTxOut vout;
     CC *payoutCond = MakeCCcond1of2(evalcode,pk1,pk2);
     vout = CTxOut(nValue,CCPubKey(payoutCond));
+    if ( vData )
+    {
+        //std::vector<std::vector<unsigned char>> vtmpData = std::vector<std::vector<unsigned char>>(vData->begin(), vData->end());
+        std::vector<CPubKey> vPubKeys = std::vector<CPubKey>();
+         // skip pubkeys. These need to maybe be optional and we need some way to get them out that is easy!
+        //vPubKeys.push_back(pk1);
+        //vPubKeys.push_back(pk2);
+        COptCCParams ccp = COptCCParams(COptCCParams::VERSION, evalcode, 1, 2, vPubKeys, ( * vData));
+        vout.scriptPubKey << ccp.AsVector() << OP_DROP;
+    }
     cc_free(payoutCond);
     return(vout);
 }
@@ -95,93 +152,33 @@ bool IsCCInput(CScript const& scriptSig)
     return true;
 }
 
-int32_t unstringbits(char *buf,uint64_t bits)
+bool CheckTxFee(const CTransaction &tx, uint64_t txfee, uint32_t height, uint64_t blocktime, int64_t &actualtxfee)
 {
-    int32_t i;
-    for (i=0; i<8; i++,bits>>=8)
-        if ( (buf[i]= (char)(bits & 0xff)) == 0 )
-            break;
-    buf[i] = 0;
-    return(i);
-}
-
-uint64_t stringbits(char *str)
-{
-    uint64_t bits = 0;
-    if ( str == 0 )
-        return(0);
-    int32_t i,n = (int32_t)strlen(str);
-    if ( n > 8 )
-        n = 8;
-    for (i=n-1; i>=0; i--)
-        bits = (bits << 8) | (str[i] & 0xff);
-    //printf("(%s) -> %llx %llu\n",str,(long long)bits,(long long)bits);
-    return(bits);
-}
-
-uint256 revuint256(uint256 txid)
-{
-    uint256 revtxid; int32_t i;
-    for (i=31; i>=0; i--)
-        ((uint8_t *)&revtxid)[31-i] = ((uint8_t *)&txid)[i];
-    return(revtxid);
-}
-
-char *uint256_str(char *dest,uint256 txid)
-{
-    int32_t i,j=0;
-    for (i=31; i>=0; i--)
-        sprintf(&dest[j++ * 2],"%02x",((uint8_t *)&txid)[i]);
-    dest[64] = 0;
-    return(dest);
-}
-
-char *pubkey33_str(char *dest,uint8_t *pubkey33)
-{
-    int32_t i;
-    if ( pubkey33 != 0 )
+    LOCK(mempool.cs);
+    CCoinsView dummy;
+    CCoinsViewCache view(&dummy);
+    int64_t interest; uint64_t valuein;
+    CCoinsViewMemPool viewMemPool(pcoinsTip, mempool);
+    view.SetBackend(viewMemPool);
+    valuein = view.GetValueIn(height,&interest,tx,blocktime);
+    actualtxfee = valuein-tx.GetValueOut();
+    if ( actualtxfee > txfee )
     {
-        for (i=0; i<33; i++)
-            sprintf(&dest[i * 2],"%02x",pubkey33[i]);
-    } else dest[0] = 0;
-    return(dest);
-}
-
-uint256 Parseuint256(char *hexstr)
-{
-    uint256 txid; int32_t i; std::vector<unsigned char> txidbytes(ParseHex(hexstr));
-    memset(&txid,0,sizeof(txid));
-    if ( strlen(hexstr) == 64 )
-    {
-        for (i=31; i>=0; i--)
-            ((uint8_t *)&txid)[31-i] = ((uint8_t *)txidbytes.data())[i];
+        //fprintf(stderr, "actualtxfee.%li vs txfee.%li\n", actualtxfee, txfee);
+        return false;
     }
-    return(txid);
+    return true;
 }
 
-CPubKey buf2pk(uint8_t *buf33)
+uint32_t GetLatestTimestamp(int32_t height)
 {
-    CPubKey pk; int32_t i; uint8_t *dest;
-    dest = (uint8_t *)pk.begin();
-    for (i=0; i<33; i++)
-        dest[i] = buf33[i];
-    return(pk);
-}
-
-CPubKey pubkey2pk(std::vector<uint8_t> pubkey)
-{
-    CPubKey pk; int32_t i,n; uint8_t *dest,*pubkey33;
-    n = pubkey.size();
-    dest = (uint8_t *)pk.begin();
-    pubkey33 = (uint8_t *)pubkey.data();
-    for (i=0; i<n; i++)
-        dest[i] = pubkey33[i];
-    return(pk);
-}
+    if ( SAFECOIN_NSPV_SUPERLITE ) return ((uint32_t)NSPV_blocktime(height));
+    return(safecoin_heightstamp(height));
+} // :P
 
 void CCaddr2set(struct CCcontract_info *cp,uint8_t evalcode,CPubKey pk,uint8_t *priv,char *coinaddr)
 {
-    cp->evalcode2 = evalcode;
+    cp->unspendableEvalcode2 = evalcode;
     cp->unspendablepk2 = pk;
     memcpy(cp->unspendablepriv2,priv,32);
     strcpy(cp->unspendableaddr2,coinaddr);
@@ -189,18 +186,50 @@ void CCaddr2set(struct CCcontract_info *cp,uint8_t evalcode,CPubKey pk,uint8_t *
 
 void CCaddr3set(struct CCcontract_info *cp,uint8_t evalcode,CPubKey pk,uint8_t *priv,char *coinaddr)
 {
-    cp->evalcode3 = evalcode;
+    cp->unspendableEvalcode3 = evalcode;
     cp->unspendablepk3 = pk;
     memcpy(cp->unspendablepriv3,priv,32);
     strcpy(cp->unspendableaddr3,coinaddr);
 }
 
+void CCaddr1of2set(struct CCcontract_info *cp, CPubKey pk1, CPubKey pk2, uint8_t *priv, char *coinaddr)
+{
+	cp->coins1of2pk[0] = pk1;
+	cp->coins1of2pk[1] = pk2;
+    memcpy(cp->coins1of2priv,priv,32);
+    strcpy(cp->coins1of2addr,coinaddr);
+}
+
+void CCaddrTokens1of2set(struct CCcontract_info *cp, CPubKey pk1, CPubKey pk2, uint8_t *priv, char *tokenaddr)
+{
+	cp->tokens1of2pk[0] = pk1;
+	cp->tokens1of2pk[1] = pk2;
+    memcpy(cp->tokens1of2priv,priv,32);
+	strcpy(cp->tokens1of2addr, tokenaddr);
+}
+
 bool Getscriptaddress(char *destaddr,const CScript &scriptPubKey)
+{
+    CTxDestination address; txnouttype whichType;
+    destaddr[0] = 0;
+    if ( scriptPubKey.begin() != 0 )
+    {
+        if ( ExtractDestination(scriptPubKey,address) != 0 )
+        {
+            strcpy(destaddr,(char *)CBitcoinAddress(address).ToString().c_str());
+            return(true);
+        }
+    }
+    //fprintf(stderr,"ExtractDestination failed\n");
+    return(false);
+}
+
+bool GetCustomscriptaddress(char *destaddr,const CScript &scriptPubKey,uint8_t taddr,uint8_t prefix, uint8_t prefix2)
 {
     CTxDestination address; txnouttype whichType;
     if ( ExtractDestination(scriptPubKey,address) != 0 )
     {
-        strcpy(destaddr,(char *)CBitcoinAddress(address).ToString().c_str());
+        strcpy(destaddr,(char *)CCustomBitcoinAddress(address,taddr,prefix,prefix2).ToString().c_str());
         return(true);
     }
     //fprintf(stderr,"ExtractDestination failed\n");
@@ -267,6 +296,16 @@ CPubKey CCtxidaddr(char *txidaddr,uint256 txid)
     return(pk);
 }
 
+CPubKey CCCustomtxidaddr(char *txidaddr,uint256 txid,uint8_t taddr,uint8_t prefix,uint8_t prefix2)
+{
+    uint8_t buf33[33]; CPubKey pk;
+    buf33[0] = 0x02;
+    endiancpy(&buf33[1],(uint8_t *)&txid,32);
+    pk = buf2pk(buf33);
+    GetCustomscriptaddress(txidaddr,CScript() << ParseHex(HexStr(pk)) << OP_CHECKSIG,taddr,prefix,prefix2);
+    return(pk);
+}
+
 bool _GetCCaddress(char *destaddr,uint8_t evalcode,CPubKey pk)
 {
     CC *payoutCond;
@@ -287,6 +326,28 @@ bool GetCCaddress(struct CCcontract_info *cp,char *destaddr,CPubKey pk)
     return(_GetCCaddress(destaddr,cp->evalcode,pk));
 }
 
+bool _GetTokensCCaddress(char *destaddr, uint8_t evalcode, uint8_t evalcode2, CPubKey pk)
+{
+	CC *payoutCond;
+	destaddr[0] = 0;
+	if ((payoutCond = MakeTokensCCcond1(evalcode, evalcode2, pk)) != 0)
+	{
+		Getscriptaddress(destaddr, CCPubKey(payoutCond));
+		cc_free(payoutCond);
+	}
+	return(destaddr[0] != 0);
+}
+
+// get scriptPubKey adddress for three/dual eval token cc vout
+bool GetTokensCCaddress(struct CCcontract_info *cp, char *destaddr, CPubKey pk)
+{
+	destaddr[0] = 0;
+	if (pk.size() == 0)
+		pk = GetUnspendable(cp, 0);
+	return(_GetTokensCCaddress(destaddr, cp->evalcode, cp->additionalTokensEvalcode2, pk));
+}
+
+
 bool GetCCaddress1of2(struct CCcontract_info *cp,char *destaddr,CPubKey pk,CPubKey pk2)
 {
     CC *payoutCond;
@@ -299,17 +360,29 @@ bool GetCCaddress1of2(struct CCcontract_info *cp,char *destaddr,CPubKey pk,CPubK
     return(destaddr[0] != 0);
 }
 
-bool ConstrainVout(CTxOut vout,int32_t CCflag,char *cmpaddr,int64_t nValue)
+bool GetTokensCCaddress1of2(struct CCcontract_info *cp, char *destaddr, CPubKey pk, CPubKey pk2)
+{
+	CC *payoutCond;
+	destaddr[0] = 0;
+	if ((payoutCond = MakeTokensCCcond1of2(cp->evalcode, cp->additionalTokensEvalcode2, pk, pk2)) != 0)  //  if additionalTokensEvalcode2 not set then it is dual-eval cc else three-eval cc
+	{
+		Getscriptaddress(destaddr, CCPubKey(payoutCond));
+		cc_free(payoutCond);
+	}
+	return(destaddr[0] != 0);
+}
+
+bool ConstrainVout(CTxOut vout, int32_t CCflag, char *cmpaddr, int64_t nValue)
 {
     char destaddr[64];
     if ( vout.scriptPubKey.IsPayToCryptoCondition() != CCflag )
     {
-        fprintf(stderr,"constrain vout error isCC %d vs %d CCflag\n",vout.scriptPubKey.IsPayToCryptoCondition(),CCflag);
+        fprintf(stderr,"constrain vout error isCC %d vs %d CCflag\n", vout.scriptPubKey.IsPayToCryptoCondition(), CCflag);
         return(false);
     }
-    else if ( cmpaddr != 0 && (Getscriptaddress(destaddr,vout.scriptPubKey) == 0 || strcmp(destaddr,cmpaddr) != 0) )
+    else if ( cmpaddr != 0 && (Getscriptaddress(destaddr, vout.scriptPubKey) == 0 || strcmp(destaddr, cmpaddr) != 0) )
     {
-        fprintf(stderr,"constrain vout error addr %s vs %s\n",cmpaddr!=0?cmpaddr:"",destaddr!=0?destaddr:"");
+        fprintf(stderr,"constrain vout error: check addr %s vs script addr %s\n", cmpaddr!=0?cmpaddr:"", destaddr!=0?destaddr:"");
         return(false);
     }
     else if ( nValue != 0 && nValue != vout.nValue ) //(nValue == 0 && vout.nValue < 10000) || (
@@ -345,6 +418,20 @@ bool PreventCC(Eval* eval,const CTransaction &tx,int32_t preventCCvins,int32_t n
     return(true);
 }
 
+bool priv2addr(char *coinaddr,uint8_t *buf33,uint8_t priv32[32])
+{
+    CKey priv; CPubKey pk; int32_t i; uint8_t *src;
+    priv.SetKey32(priv32);
+    pk = priv.GetPubKey();
+    if ( buf33 != 0 )
+    {
+        src = (uint8_t *)pk.begin();
+        for (i=0; i<33; i++)
+            buf33[i] = src[i];
+    }
+    return(Getscriptaddress(coinaddr, CScript() << ParseHex(HexStr(pk)) << OP_CHECKSIG));
+}
+
 std::vector<uint8_t> Mypubkey()
 {
     extern uint8_t NOTARY_PUBKEY33[33];
@@ -357,9 +444,28 @@ std::vector<uint8_t> Mypubkey()
     return(pubkey);
 }
 
+extern char NSPV_wifstr[],NSPV_pubkeystr[];
+extern uint32_t NSPV_logintime;
+#define NSPV_AUTOLOGOUT 777
+
 bool Myprivkey(uint8_t myprivkey[])
 {
-    char coinaddr[64]; std::string strAddress; char *dest; int32_t i,n; CBitcoinAddress address; CKeyID keyID; CKey vchSecret;
+    char coinaddr[64],checkaddr[64]; std::string strAddress; char *dest; int32_t i,n; CBitcoinAddress address; CKeyID keyID; CKey vchSecret; uint8_t buf33[33];
+    if ( SAFECOIN_NSPV_SUPERLITE )
+    {
+        if ( NSPV_logintime == 0 || time(NULL) > NSPV_logintime+NSPV_AUTOLOGOUT )
+        {
+            fprintf(stderr,"need to be logged in to get myprivkey\n");
+            return false;
+        }
+        vchSecret = DecodeSecret(NSPV_wifstr);
+        memcpy(myprivkey,vchSecret.begin(),32);
+        //for (i=0; i<32; i++)
+        //    fprintf(stderr,"%02x",myprivkey[i]);
+        //fprintf(stderr," myprivkey %s\n",NSPV_wifstr);
+        memset((uint8_t *)vchSecret.begin(),0,32);
+        return true;
+    }
     if ( Getscriptaddress(coinaddr,CScript() << Mypubkey() << OP_CHECKSIG) != 0 )
     {
         n = (int32_t)strlen(coinaddr);
@@ -374,13 +480,20 @@ bool Myprivkey(uint8_t myprivkey[])
             if ( pwalletMain->GetKey(keyID,vchSecret) != 0 )
             {
                 memcpy(myprivkey,vchSecret.begin(),32);
+                memset((uint8_t *)vchSecret.begin(),0,32);
                 if ( 0 )
                 {
                     for (i=0; i<32; i++)
                         fprintf(stderr,"0x%02x, ",myprivkey[i]);
                     fprintf(stderr," found privkey for %s!\n",dest);
                 }
-                return(true);
+                if ( priv2addr(checkaddr,buf33,myprivkey) != 0 )
+                {
+                    if ( buf2pk(buf33) == Mypubkey() && strcmp(checkaddr,coinaddr) == 0 )
+                        return(true);
+                    else printf("mismatched privkey -> addr %s vs %s\n",checkaddr,coinaddr);
+                }
+                return(false);
             }
 #endif
         }
@@ -396,39 +509,10 @@ CPubKey GetUnspendable(struct CCcontract_info *cp,uint8_t *unspendablepriv)
     return(pubkey2pk(ParseHex(cp->CChexstr)));
 }
 
-bool ProcessCC(struct CCcontract_info *cp,Eval* eval, std::vector<uint8_t> paramsNull,const CTransaction &ctx, unsigned int nIn)
+void CCclearvars(struct CCcontract_info *cp)
 {
-    CTransaction createTx; uint256 assetid,assetid2,hashBlock; uint8_t funcid; int32_t height,i,n,from_mempool = 0; int64_t amount; std::vector<uint8_t> origpubkey;
-    height = SAFECOIN_CONNECTING;
-    if ( SAFECOIN_CONNECTING < 0 ) // always comes back with > 0 for final confirmation
-        return(true);
-    if ( ASSETCHAINS_CC == 0 || (height & ~(1<<30)) < SAFECOIN_CCACTIVATE )
-        return eval->Invalid("CC are disabled or not active yet");
-    if ( (SAFECOIN_CONNECTING & (1<<30)) != 0 )
-    {
-        from_mempool = 1;
-        height &= ((1<<30) - 1);
-    }
-    //fprintf(stderr,"SAFECOIN_CONNECTING.%d mempool.%d vs CCactive.%d\n",height,from_mempool,SAFECOIN_CCACTIVATE);
-    // there is a chance CC tx is valid in mempool, but invalid when in block, so we cant filter duplicate requests. if any of the vins are spent, for example
-    //txid = ctx.GetHash();
-    //if ( txid == cp->prevtxid )
-    //    return(true);
-    //fprintf(stderr,"process CC %02x\n",cp->evalcode);
-    cp->evalcode2 = cp->evalcode3 = 0;
+    cp->unspendableEvalcode2 = cp->unspendableEvalcode3 = 0;
     cp->unspendableaddr2[0] = cp->unspendableaddr3[0] = 0;
-    if ( paramsNull.size() != 0 ) // Don't expect params
-        return eval->Invalid("Cannot have params");
-    //else if ( ctx.vout.size() == 0 )      // spend can go to z-addresses
-    //    return eval->Invalid("no-vouts");
-    else if ( (*cp->validate)(cp,eval,ctx,nIn) != 0 )
-    {
-        //fprintf(stderr,"done CC %02x\n",cp->evalcode);
-        //cp->prevtxid = txid;
-        return(true);
-    }
-    //fprintf(stderr,"invalid CC %02x\n",cp->evalcode);
-    return(false);
 }
 
 int64_t CCduration(int32_t &numblocks,uint256 txid)
@@ -462,36 +546,188 @@ int64_t CCduration(int32_t &numblocks,uint256 txid)
     return(duration);
 }
 
+uint256 CCOraclesReverseScan(char const *logcategory,uint256 &txid,int32_t height,uint256 reforacletxid,uint256 batontxid)
+{
+    CTransaction tx; uint256 hash,mhash,bhash,hashBlock,oracletxid; int32_t len,len2,numvouts;
+    int64_t val,merkleht; CPubKey pk; std::vector<uint8_t>data; char str[65],str2[65];
+    
+    txid = zeroid;
+    LogPrint(logcategory,"start reverse scan %s\n",uint256_str(str,batontxid));
+    while ( myGetTransaction(batontxid,tx,hashBlock) != 0 && (numvouts= tx.vout.size()) > 0 )
+    {
+        LogPrint(logcategory,"check %s\n",uint256_str(str,batontxid));
+        if ( DecodeOraclesData(tx.vout[numvouts-1].scriptPubKey,oracletxid,bhash,pk,data) == 'D' && oracletxid == reforacletxid )
+        {
+            LogPrint(logcategory,"decoded %s\n",uint256_str(str,batontxid));
+            if ( oracle_format(&hash,&merkleht,0,'I',(uint8_t *)data.data(),0,(int32_t)data.size()) == sizeof(int32_t) && merkleht == height )
+            {
+                len = oracle_format(&hash,&val,0,'h',(uint8_t *)data.data(),sizeof(int32_t),(int32_t)data.size());
+                len2 = oracle_format(&mhash,&val,0,'h',(uint8_t *)data.data(),(int32_t)(sizeof(int32_t)+sizeof(uint256)),(int32_t)data.size());
+
+                LogPrint(logcategory,"found merkleht.%d len.%d len2.%d %s %s\n",(int32_t)merkleht,len,len2,uint256_str(str,hash),uint256_str(str2,mhash));
+                if ( len == sizeof(hash)+sizeof(int32_t) && len2 == 2*sizeof(mhash)+sizeof(int32_t) && mhash != zeroid )
+                {
+                    txid = batontxid;
+                    LogPrint(logcategory,"set txid\n");
+                    return(mhash);
+                }
+                else
+                {
+                    LogPrint(logcategory,"missing hash\n");
+                    return(zeroid);
+                }
+            }
+            else LogPrint(logcategory,"height.%d vs search ht.%d\n",(int32_t)merkleht,(int32_t)height);
+            batontxid = bhash;
+            LogPrint(logcategory,"new hash %s\n",uint256_str(str,batontxid));
+        } else break;
+    }
+    LogPrint(logcategory,"end of loop\n");
+    return(zeroid);
+}
+
+int32_t NSPV_coinaddr_inmempool(char const *logcategory,char *coinaddr,uint8_t CCflag);
+
+int32_t myIs_coinaddr_inmempoolvout(char const *logcategory,char *coinaddr)
+{
+    int32_t i,n; char destaddr[64];
+    if ( SAFECOIN_NSPV_SUPERLITE )
+        return(NSPV_coinaddr_inmempool(logcategory,coinaddr,1));
+    BOOST_FOREACH(const CTxMemPoolEntry &e,mempool.mapTx)
+    {
+        const CTransaction &tx = e.GetTx();
+        if ( (n= tx.vout.size()) > 0 )
+        {
+            const uint256 &txid = tx.GetHash();
+            for (i=0; i<n; i++)
+            {
+                Getscriptaddress(destaddr,tx.vout[i].scriptPubKey);
+                if ( strcmp(destaddr,coinaddr) == 0 )
+                {
+                    LogPrint(logcategory,"found (%s) vout in mempool\n",coinaddr);
+                    return(1);
+                }
+            }
+        }
+    }
+    return(0);
+}
+
+extern struct NSPV_mempoolresp NSPV_mempoolresult;
+extern bool NSPV_evalcode_inmempool(uint8_t evalcode,uint8_t funcid);
+
+int32_t myGet_mempool_txs(std::vector<CTransaction> &txs,uint8_t evalcode,uint8_t funcid)
+{
+    int i=0;
+
+    if ( SAFECOIN_NSPV_SUPERLITE )
+    {
+        CTransaction tx; uint256 hashBlock;
+
+        NSPV_evalcode_inmempool(evalcode,funcid);
+        for (int i=0;i<NSPV_mempoolresult.numtxids;i++)
+        {
+            if (myGetTransaction(NSPV_mempoolresult.txids[i],tx,hashBlock)!=0) txs.push_back(tx);
+        }
+        return (NSPV_mempoolresult.numtxids);
+    }
+    BOOST_FOREACH(const CTxMemPoolEntry &e,mempool.mapTx)
+    {
+        txs.push_back(e.GetTx());
+        i++;
+    }
+    return(i);
+}
+
+int32_t CCCointxidExists(char const *logcategory,uint256 cointxid)
+{
+    char txidaddr[64]; std::string coin; int32_t numvouts; uint256 hashBlock;
+    std::vector<std::pair<CAddressIndexKey, CAmount> > addressIndex;
+    CCtxidaddr(txidaddr,cointxid);
+    SetCCtxids(addressIndex,txidaddr,true);
+    for (std::vector<std::pair<CAddressIndexKey, CAmount> >::const_iterator it=addressIndex.begin(); it!=addressIndex.end(); it++)
+    {
+        return(-1);
+    }
+    return(myIs_coinaddr_inmempoolvout(logcategory,txidaddr));
+}
+
+/* Get the block merkle root for a proof
+ * IN: proofData
+ * OUT: merkle root
+ * OUT: transaction IDS
+ */
+uint256 BitcoinGetProofMerkleRoot(const std::vector<uint8_t> &proofData, std::vector<uint256> &txids)
+{
+    CMerkleBlock merkleBlock;
+    if (!E_UNMARSHAL(proofData, ss >> merkleBlock))
+        return uint256();
+    return merkleBlock.txn.ExtractMatches(txids);
+}
+
+extern struct NSPV_inforesp NSPV_inforesult;
+int32_t safecoin_get_current_height()
+{
+    if ( SAFECOIN_NSPV_SUPERLITE )
+    {
+        return (NSPV_inforesult.height);
+    }
+    else return chainActive.LastTip()->GetHeight();
+}
+
 bool safecoin_txnotarizedconfirmed(uint256 txid)
 {
     char str[65];
-    uint32_t confirms,notarized=0,txheight;
+    int32_t confirms,notarized=0,txheight=0,currentheight=0;;
     CTransaction tx;
     uint256 hashBlock;
     CBlockIndex *pindex;    
     char symbol[SAFECOIN_ASSETCHAIN_MAXLEN],dest[SAFECOIN_ASSETCHAIN_MAXLEN]; struct safecoin_state *sp;
 
-    if ( myGetTransaction(txid,tx,hashBlock) == 0 )
+    if ( SAFECOIN_NSPV_SUPERLITE )
     {
-        fprintf(stderr,"safecoin_txnotarizedconfirmed cant find txid %s\n",txid.ToString().c_str());
-        return(0);
+        if ( NSPV_myGetTransaction(txid,tx,hashBlock,txheight,currentheight) == 0 )
+        {
+            fprintf(stderr,"safecoin_txnotarizedconfirmed cant find txid %s\n",txid.ToString().c_str());
+            return(0);
+        }
+        else if (txheight<=0)
+        {
+            fprintf(stderr,"safecoin_txnotarizedconfirmed no txheight.%d for txid %s\n",txheight,txid.ToString().c_str());
+            return(0);
+        }
+        else if (txheight>currentheight)
+        {
+            fprintf(stderr,"safecoin_txnotarizedconfirmed backwards heights for txid %s hts.(%d %d)\n",txid.ToString().c_str(),txheight,currentheight);
+            return(0);
+        }
+        confirms=1 + currentheight - txheight;
     }
-    else if ( hashBlock == zeroid )
+    else
     {
-        fprintf(stderr,"safecoin_txnotarizedconfirmed no hashBlock for txid %s\n",txid.ToString().c_str());
-        return(0);
+        if ( myGetTransaction(txid,tx,hashBlock) == 0 )
+        {
+            fprintf(stderr,"safecoin_txnotarizedconfirmed cant find txid %s\n",txid.ToString().c_str());
+            return(0);
+        }
+        else if ( hashBlock == zeroid )
+        {
+            fprintf(stderr,"safecoin_txnotarizedconfirmed no hashBlock for txid %s\n",txid.ToString().c_str());
+            return(0);
+        }
+        else if ( (pindex= safecoin_blockindex(hashBlock)) == 0 || (txheight= pindex->GetHeight()) <= 0 )
+        {
+            fprintf(stderr,"safecoin_txnotarizedconfirmed no txheight.%d %p for txid %s\n",txheight,pindex,txid.ToString().c_str());
+            return(0);
+        }
+        else if ( (pindex= chainActive.LastTip()) == 0 || pindex->GetHeight() < txheight )
+        {
+            fprintf(stderr,"safecoin_txnotarizedconfirmed backwards heights for txid %s hts.(%d %d)\n",txid.ToString().c_str(),txheight,(int32_t)pindex->GetHeight());
+            return(0);
+        }    
+        confirms=1 + pindex->GetHeight() - txheight;
     }
-    else if ( (pindex= mapBlockIndex[hashBlock]) == 0 || (txheight= pindex->GetHeight()) <= 0 )
-    {
-        fprintf(stderr,"safecoin_txnotarizedconfirmed no txheight.%d %p for txid %s\n",txheight,pindex,txid.ToString().c_str());
-        return(0);
-    }
-    else if ( (pindex= chainActive.LastTip()) == 0 || pindex->GetHeight() < txheight )
-    {
-        fprintf(stderr,"safecoin_txnotarizedconfirmed backwards heights for txid %s hts.(%d %d)\n",txid.ToString().c_str(),txheight,(int32_t)pindex->GetHeight());
-        return(0);
-    }    
-    confirms=1 + pindex->GetHeight() - txheight;        
+
     if ((sp= safecoin_stateptr(symbol,dest)) != 0 && (notarized=sp->NOTARIZED_HEIGHT) > 0 && txheight > sp->NOTARIZED_HEIGHT)  notarized=0;            
 #ifdef TESTMODE           
     notarized=0;
@@ -501,4 +737,164 @@ bool safecoin_txnotarizedconfirmed(uint256 txid)
     else if (notarized==0 && confirms >= MIN_NON_NOTARIZED_CONFIRMS)
         return (true);
     return (false);
+}
+
+CPubKey check_signing_pubkey(CScript scriptSig)
+{
+	bool found = false;
+	CPubKey pubkey;
+	
+    auto findEval = [](CC *cond, struct CCVisitor _) {
+        bool r = false;
+
+        if (cc_typeId(cond) == CC_Secp256k1) {
+            *(CPubKey*)_.context=buf2pk(cond->publicKey);
+            r = true;
+        }
+        // false for a match, true for continue
+        return r ? 0 : 1;
+    };
+
+    CC *cond = GetCryptoCondition(scriptSig);
+
+    if (cond) {
+        CCVisitor visitor = { findEval, (uint8_t*)"", 0, &pubkey };
+        bool out = !cc_visit(cond, visitor);
+        cc_free(cond);
+
+        if (pubkey.IsValid()) {
+            return pubkey;
+        }
+    }
+	return CPubKey();
+}
+
+
+// returns total of normal inputs signed with this pubkey
+int64_t TotalPubkeyNormalInputs(const CTransaction &tx, const CPubKey &pubkey)
+{
+    int64_t total = 0;
+    for (auto vin : tx.vin) {
+        CTransaction vintx;
+        uint256 hashBlock;
+        if (!IsCCInput(vin.scriptSig) && myGetTransaction(vin.prevout.hash, vintx, hashBlock)) {
+            typedef std::vector<unsigned char> valtype;
+            std::vector<valtype> vSolutions;
+            txnouttype whichType;
+
+            if (Solver(vintx.vout[vin.prevout.n].scriptPubKey, whichType, vSolutions)) {
+                switch (whichType) {
+                case TX_PUBKEY:
+                    if (pubkey == CPubKey(vSolutions[0]))   // is my input?
+                        total += vintx.vout[vin.prevout.n].nValue;
+                    break;
+                case TX_PUBKEYHASH:
+                    if (pubkey.GetID() == CKeyID(uint160(vSolutions[0])))    // is my input?
+                        total += vintx.vout[vin.prevout.n].nValue;
+                    break;
+                }
+            }
+        }
+    }
+    return total;
+}
+
+// returns total of CC inputs signed with this pubkey
+int64_t TotalPubkeyCCInputs(const CTransaction &tx, const CPubKey &pubkey)
+{
+    int64_t total = 0;
+    for (auto vin : tx.vin) {
+        if (IsCCInput(vin.scriptSig)) {
+            CPubKey vinPubkey = check_signing_pubkey(vin.scriptSig);
+            if (vinPubkey.IsValid()) {
+                if (vinPubkey == pubkey) {
+                    CTransaction vintx;
+                    uint256 hashBlock;
+                    if (myGetTransaction(vin.prevout.hash, vintx, hashBlock)) {
+                        total += vintx.vout[vin.prevout.n].nValue;
+                    }
+                }
+            }
+        }
+    }
+    return total;
+}
+
+bool ProcessCC(struct CCcontract_info *cp,Eval* eval, std::vector<uint8_t> paramsNull,const CTransaction &ctx, unsigned int nIn)
+{
+    CTransaction createTx; uint256 assetid,assetid2,hashBlock; uint8_t funcid; int32_t height,i,n,from_mempool = 0; int64_t amount; std::vector<uint8_t> origpubkey;
+    height = SAFECOIN_CONNECTING;
+    if ( SAFECOIN_CONNECTING < 0 ) // always comes back with > 0 for final confirmation
+        return(true);
+    if ( ASSETCHAINS_CC == 0 || (height & ~(1<<30)) < SAFECOIN_CCACTIVATE )
+        return eval->Invalid("CC are disabled or not active yet");
+    if ( (SAFECOIN_CONNECTING & (1<<30)) != 0 )
+    {
+        from_mempool = 1;
+        height &= ((1<<30) - 1);
+    }
+    if (cp->validate == NULL)
+        return eval->Invalid("validation not supported for eval code");
+
+    //fprintf(stderr,"SAFECOIN_CONNECTING.%d mempool.%d vs CCactive.%d\n",height,from_mempool,SAFECOIN_CCACTIVATE);
+    // there is a chance CC tx is valid in mempool, but invalid when in block, so we cant filter duplicate requests. if any of the vins are spent, for example
+    //txid = ctx.GetHash();
+    //if ( txid == cp->prevtxid )
+    //    return(true);
+    //fprintf(stderr,"process CC %02x\n",cp->evalcode);
+    CCclearvars(cp);
+    if ( paramsNull.size() != 0 ) // Don't expect params
+        return eval->Invalid("Cannot have params");
+    //else if ( ctx.vout.size() == 0 )      // spend can go to z-addresses
+    //    return eval->Invalid("no-vouts");
+    else if ( (*cp->validate)(cp,eval,ctx,nIn) != 0 )
+    {
+        //fprintf(stderr,"done CC %02x\n",cp->evalcode);
+        //cp->prevtxid = txid;
+        return(true);
+    }
+    //fprintf(stderr,"invalid CC %02x\n",cp->evalcode);
+    return(false);
+}
+
+extern struct CCcontract_info CCinfos[0x100];
+extern std::string MYCCLIBNAME;
+bool CClib_validate(struct CCcontract_info *cp,int32_t height,Eval *eval,const CTransaction tx,unsigned int nIn);
+
+bool CClib_Dispatch(const CC *cond,Eval *eval,std::vector<uint8_t> paramsNull,const CTransaction &txTo,unsigned int nIn)
+{
+    uint8_t evalcode; int32_t height,from_mempool; struct CCcontract_info *cp;
+    if ( ASSETCHAINS_CCLIB != MYCCLIBNAME )
+    {
+        fprintf(stderr,"-ac_cclib=%s vs myname %s\n",ASSETCHAINS_CCLIB.c_str(),MYCCLIBNAME.c_str());
+        return eval->Invalid("-ac_cclib name mismatches myname");
+    }
+    height = SAFECOIN_CONNECTING;
+    if ( SAFECOIN_CONNECTING < 0 ) // always comes back with > 0 for final confirmation
+        return(true);
+    if ( ASSETCHAINS_CC == 0 || (height & ~(1<<30)) < SAFECOIN_CCACTIVATE )
+        return eval->Invalid("CC are disabled or not active yet");
+    if ( (SAFECOIN_CONNECTING & (1<<30)) != 0 )
+    {
+        from_mempool = 1;
+        height &= ((1<<30) - 1);
+    }
+    evalcode = cond->code[0];
+    if ( evalcode >= EVAL_FIRSTUSER && evalcode <= EVAL_LASTUSER )
+    {
+        cp = &CCinfos[(int32_t)evalcode];
+        if ( cp->didinit == 0 )
+        {
+            if ( CClib_initcp(cp,evalcode) == 0 )
+                cp->didinit = 1;
+            else return eval->Invalid("unsupported CClib evalcode");
+        }
+        CCclearvars(cp);
+        if ( paramsNull.size() != 0 ) // Don't expect params
+            return eval->Invalid("Cannot have params");
+        else if ( CClib_validate(cp,height,eval,txTo,nIn) != 0 )
+            return(true);
+        return(false); //eval->Invalid("error in CClib_validate");
+    }
+    return eval->Invalid("cclib CC must have evalcode between 16 and 127");
 }

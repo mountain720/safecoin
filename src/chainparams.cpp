@@ -3,6 +3,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #include "key_io.h"
 #include "main.h"
 #include "crypto/equihash.h"
@@ -76,12 +91,8 @@ static CBlock CreateGenesisBlock(uint32_t nTime, const uint256& nNonce, const st
  */
 void *chainparams_commandline(void *ptr);
 #include "safecoin_defs.h"
-
-extern char ASSETCHAINS_SYMBOL[SAFECOIN_ASSETCHAIN_MAXLEN];
-extern uint16_t ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT;
-extern uint32_t ASSETCHAIN_INIT, ASSETCHAINS_MAGIC;
-extern int32_t VERUS_BLOCK_POSUNITS, ASSETCHAINS_LWMAPOS, ASSETCHAINS_SAPLING, ASSETCHAINS_OVERWINTER;
-extern uint64_t ASSETCHAINS_SUPPLY, ASSETCHAINS_ALGO, ASSETCHAINS_EQUIHASH, ASSETCHAINS_VERUSHASH;
+int32_t ASSETCHAINS_BLOCKTIME = 60;
+uint64_t ASSETCHAINS_NK[2];
 
 const arith_uint256 maxUint = UintToArith256(uint256S("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
 
@@ -209,11 +220,6 @@ public:
         fRequireStandard = true;
         fMineBlocksOnDemand = false;
         fTestnetToBeDeprecatedFieldRPC = false;
-
-        if ( pthread_create((pthread_t *)malloc(sizeof(pthread_t)),NULL,chainparams_commandline,(void *)&consensus) != 0 )
-        {
-
-        }
     }
 };
 
@@ -224,143 +230,23 @@ void CChainParams::SetCheckpointData(CChainParams::CCheckpointData checkpointDat
     CChainParams::checkpointData = checkpointData;
 }
 
-int32_t MAX_BLOCK_SIZE(int32_t height)
-{
-    //fprintf(stderr,"MAX_BLOCK_SIZE %d vs. %d\n",height,mainParams.consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight);
-    if ( height <= 0 || (mainParams.consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight > 0 && height >= mainParams.consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight) )
-        return(4096 * 1024);
-    else return(2000000);
-}
+/*
+ To change the max block size, all that needs to be updated is the #define _MAX_BLOCK_SIZE in utils.h
 
-void safecoin_setactivation(int32_t height)
-{
-    mainParams.consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = height;
-    mainParams.consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = height;
-    ASSETCHAINS_SAPLING = height;
-    fprintf(stderr,"SET SAPLING ACTIVATION height.%d\n",height);
-}
+ However, doing that without any other changes will allow forking non-updated nodes by creating a larger block. So, make sure to height activate the new blocksize properly.
 
-void *chainparams_commandline(void *ptr)
-{
-    CChainParams::CCheckpointData checkpointData;
-    while ( ASSETCHAINS_P2PPORT == 0 )
-    {
-        #ifdef _WIN32
-        boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
-        #else
-        sleep(1);
-        #endif
-    }
-    //fprintf(stderr,">>>>>>>> port.%u\n",ASSETCHAINS_P2PPORT);
-    if ( ASSETCHAINS_SYMBOL[0] != 0 )
-    {
-        mainParams.SetDefaultPort(ASSETCHAINS_P2PPORT);
-        if ( ASSETCHAINS_RPCPORT == 0 )
-            ASSETCHAINS_RPCPORT = ASSETCHAINS_P2PPORT + 1;
-        mainParams.pchMessageStart[0] = ASSETCHAINS_MAGIC & 0xff;
-        mainParams.pchMessageStart[1] = (ASSETCHAINS_MAGIC >> 8) & 0xff;
-        mainParams.pchMessageStart[2] = (ASSETCHAINS_MAGIC >> 16) & 0xff;
-        mainParams.pchMessageStart[3] = (ASSETCHAINS_MAGIC >> 24) & 0xff;
-        fprintf(stderr,">>>>>>>>>> %s: p2p.%u rpc.%u magic.%08x %u %u coins\n",ASSETCHAINS_SYMBOL,ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT,ASSETCHAINS_MAGIC,ASSETCHAINS_MAGIC,(uint32_t)ASSETCHAINS_SUPPLY);
+ Assuming it is 8MB, then:
+ #define _OLD_MAX_BLOCK_SIZE (4096 * 1024)
+ #define _MAX_BLOCK_SIZE (2 * 4096 * 1024)
 
-        if (ASSETCHAINS_ALGO != ASSETCHAINS_EQUIHASH)
-        {
-            // this is only good for 60 second blocks with an averaging window of 45. for other parameters, use:
-            // nLwmaAjustedWeight = (N+1)/2 * (0.9989^(500/nPowAveragingWindow)) * nPowTargetSpacing 
-            mainParams.consensus.nLwmaAjustedWeight = 1350;
-            mainParams.consensus.nPowAveragingWindow = 45;
-            mainParams.consensus.powAlternate = uint256S("00000f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f");
-        }
-
-        if (ASSETCHAINS_LWMAPOS != 0)
-        {
-            mainParams.consensus.posLimit = uint256S("000000000f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f");
-            mainParams.consensus.nPOSAveragingWindow = 45;
-            // spacing is 1000 units per block to get better resolution, POS is 50% hard coded for now, we can vary it later
-            // when we get reliable integer math on nLwmaPOSAjustedWeight
-            mainParams.consensus.nPOSTargetSpacing = VERUS_BLOCK_POSUNITS * 2;
-            // nLwmaPOSAjustedWeight = (N+1)/2 * (0.9989^(500/nPOSAveragingWindow)) * nPOSTargetSpacing
-            // this needs to be recalculated if VERUS_BLOCK_POSUNITS is changed
-            mainParams.consensus.nLwmaPOSAjustedWeight = 46531;
-        }
-
-        // only require coinbase protection on Verus from the Safecoin family of coins
-        if (strcmp(ASSETCHAINS_SYMBOL,"VRSC") == 0)
-        {
-            mainParams.consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 227520;
-            mainParams.consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = 227520;
-            mainParams.consensus.fCoinbaseMustBeProtected = true;
-            checkpointData = //(Checkpoints::CCheckpointData)
-                {
-                    boost::assign::map_list_of
-                    (0, mainParams.consensus.hashGenesisBlock),
-                //(2500, uint256S("0x0e6a3d5a46eba97c4e7618d66a39f115729e1176433c98481124c2bf733aa54e"))
-                //(15000, uint256S("0x00f0bd236790e903321a2d22f85bd6bf8a505f6ef4eddb20458a65d37e14d142")),
-                //(100000, uint256S("0x0f02eb1f3a4b89df9909fec81a4bd7d023e32e24e1f5262d9fc2cc36a715be6f")),
-                (int64_t)1481120910,     // * UNIX timestamp of last checkpoint block
-                (int64_t)110415,         // * total number of transactions between genesis and last checkpoint
-                                //   (the tx=... number in the SetBestChain debug.log lines)
-                (double)2777            // * estimated number of transactions per day after checkpoint
-                                            //   total number of tx / (checkpoint block height / (24 * 24))
-                };
-
-            mainParams.consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000001a8f4f23f8b2d1f7e");
-        }
-        else
-        {
-            if (strcmp(ASSETCHAINS_SYMBOL,"VRSCTEST") == 0 || strcmp(ASSETCHAINS_SYMBOL,"VERUSTEST") == 0)
+ change the body of if:
             {
-                mainParams.consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000001f7e");
-            }
-            mainParams.consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = ASSETCHAINS_SAPLING;
-            mainParams.consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = ASSETCHAINS_OVERWINTER;
-            checkpointData = //(Checkpoints::CCheckpointData)
-                {
-                    boost::assign::map_list_of
-                    (0, mainParams.consensus.hashGenesisBlock),
-                    (int64_t)1481120910,
-                    (int64_t)110415,
-                    (double)2777            // * estimated number of transactions per day after checkpoint
-                                            //   total number of tx / (checkpoint block height / (24 * 24))
-                };
-        }
-    }
-    else
-    {
-            checkpointData = //(Checkpoints::CCheckpointData)
-            {
-                boost::assign::map_list_of
-                (0, mainParams.consensus.hashGenesisBlock)
-				(10000, uint256S("0x0000003fac4b19715f7c926678efa76580ec6677f00f986e6d62df24c2c33c40"))
-				(20000, uint256S("0x000001abf017b27b1ed2830915b07840a03ff692130e92ea618abf7dd199bffd"))
-				(30000, uint256S("0x0000020087dd554bee50fd4f2bdd267f1e05b8a8825eb6b147de9f5d708c0087"))
-				(40000, uint256S("0x00000071520e510befabaee27357de84f7d624b019096693845a392b28fdc017"))
-				(50000, uint256S("0x000001130278ac0759ba6edf6c046db74b5b5be14536779d9a78e67b97f7f55c"))
-				(60000, uint256S("0x00000072465c9f88a415a4543be84365b036415032cebe35d7cfd247335799cd"))
-				(70000, uint256S("0x00000031541bd6ea69b38450121d993cfb41663ab167fcfce47f598073dd534e"))
-				(75000, uint256S("0x00000012f1f0aa4ac984d46739767d503e87087f2ad022eea22e67f2e21a6805"))
-				(80000, uint256S("0x000000010f731dad693d6e60f32f504db5ffdb2e2e9793ece5f2a22dbe53ee0d"))
-				(84748, uint256S("0x00000042f72109bb83060ed5c34505740fcfa5676ccfb724c38b048456ae838a"))
-				(102864, uint256S("0x00000025561af0c339a1df438fee5ccfa7c49bfcfdcb4d070b0d96cb429bedb5"))
-				(170242, uint256S("0x00000011069f756ed14d4967b9862331ebb2f41a2928291066981258adc672d5"))	//switch to equihash 144,5
-				(360000, uint256S("0x00000260ec5c16afbc1d4e70f9616e60bbc3222ad3604c0d2acdf716da7f8b9c"))
-				(420000, uint256S("0x000002f4a612958896c215e9541a3036fd0401377c03e00d5a5e9fb3dbd379a4"))       //add TLS
-				(469630, uint256S("0x000001712c534cca9aca4fac0cf565557ddd8a60ae60b1b8a66f16a0072d608a"))
-				(512429, uint256S("0x000004710d95421263db721829985e2a43c903718444443c1824b954df523fc1"))
-				(775000, uint256S("0x000006368451c8cba607886ee56b0da1559db1e2da7e011f6d297ee44015d7ef")),
-				(int64_t)1565658850,		// * UNIX timestamp of last checkpoint block
-				(int64_t)1276889,		// * total number of transactions between genesis and last checkpoint
-								//   (the tx=... number in the SetBestChain debug.log lines)
-				(double)2372			// * estimated number of transactions per day after checkpoint
-								//   total number of tx / (checkpoint block height / (24 * 60))
-		};
+    if ( height < saplinght+1000000 ) // activates 8MB blocks 1 million blocks after saplinght
+        return(_OLD_MAX_BLOCK_SIZE);
+    else return(_MAX_BLOCK_SIZE);
     }
 
-    mainParams.SetCheckpointData(checkpointData);
-
-    ASSETCHAIN_INIT = 1;
-    return(0);
-}
+*/
 
 /**
  * Testnet (v3)
@@ -388,7 +274,7 @@ public:
         nMinerThreads = 0;
         consensus.nPowMaxAdjustDown = 32; // 32% adjustment down
         consensus.nPowMaxAdjustUp = 16; // 16% adjustment up
-        consensus.nPowTargetSpacing = 2.5 * 60;
+        consensus.nPowTargetSpacing = 1 * 60;
         consensus.nPowAllowMinDifficultyBlocksAfterHeight = 299187;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nProtocolVersion = 170002;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nActivationHeight =
@@ -396,10 +282,10 @@ public:
         consensus.vUpgrades[Consensus::UPGRADE_TESTDUMMY].nProtocolVersion = 170002;
         consensus.vUpgrades[Consensus::UPGRADE_TESTDUMMY].nActivationHeight =
             Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT;
-        consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nProtocolVersion = 170003;
-        consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = 207500;
-        consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nProtocolVersion = 170007;
-        consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 280000;
+        consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nProtocolVersion = 170020;
+        consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = 20;
+        consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nProtocolVersion = 170021;
+        consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 30;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000001d0c4d9cd");
@@ -415,10 +301,10 @@ public:
         eh_epoch_1 = eh200_9;
         eh_epoch_2 = eh144_5;
         eh_epoch_3 = eh192_7;
-        eh_epoch_1_endblock = 10;
-        eh_epoch_2_startblock = 30;
-        eh_epoch_2_endblock = 40;
-        eh_epoch_3_startblock = 50;
+        eh_epoch_1_endblock = 1;
+        eh_epoch_2_startblock = 1;
+        eh_epoch_2_endblock = 1;
+        eh_epoch_3_startblock = 1;
 
 
          const char* pszTimestamp = "CNN 2018/02/07 Internet rights advocate John Perry Barlow dies";
@@ -675,7 +561,6 @@ void UpdateNetworkUpgradeParameters(Consensus::UpgradeIndex idx, int nActivation
     regTestParams.UpdateNetworkUpgradeParameters(idx, nActivationHeight);
 }
 
-
 int validEHparameterList(EHparameters *ehparams, unsigned long blockheight, const CChainParams& params){
     //if in overlap period, there will be two valid solutions, else 1.
     //The upcoming version of EH is preferred so will always be first element
@@ -700,4 +585,161 @@ int validEHparameterList(EHparameters *ehparams, unsigned long blockheight, cons
     ehparams[0]=params.eh_epoch_3_params();
     ehparams[1]=params.eh_epoch_2_params();
     return 2; 
+}
+
+int32_t MAX_BLOCK_SIZE(int32_t height)
+{
+    int32_t saplinght = pCurrentParams->consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight;
+    //fprintf(stderr,"MAX_BLOCK_SIZE %d vs. %d\n",height,mainParams.consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight);
+    if ( height <= 0 || (saplinght > 0 && height >= saplinght) )
+    {
+        return(_MAX_BLOCK_SIZE);
+    }
+    else return(2000000);
+}
+
+void safecoin_setactivation(int32_t height)
+{
+    pCurrentParams->consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = height;
+    pCurrentParams->consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = height;
+    ASSETCHAINS_SAPLING = height;
+    fprintf(stderr,"SET SAPLING ACTIVATION height.%d\n",height);
+    }
+
+void *chainparams_commandline()
+{
+    fprintf(stderr,"chainparams_commandline called\n");
+    CChainParams::CCheckpointData checkpointData;
+    //fprintf(stderr,">>>>>>>> port.%u\n",ASSETCHAINS_P2PPORT);
+    if ( ASSETCHAINS_SYMBOL[0] != 0 )
+    {
+        if ( ASSETCHAINS_BLOCKTIME != 60 )
+        {
+            pCurrentParams->consensus.nMaxFutureBlockTime = 7 * ASSETCHAINS_BLOCKTIME; // 7 blocks
+            pCurrentParams->consensus.nPowTargetSpacing = ASSETCHAINS_BLOCKTIME;
+    }
+        pCurrentParams->SetDefaultPort(ASSETCHAINS_P2PPORT);
+        if ( ASSETCHAINS_NK[0] != 0 && ASSETCHAINS_NK[1] != 0 )
+        {
+            //BOOST_STATIC_ASSERT(equihash_parameters_acceptable(ASSETCHAINS_NK[0], ASSETCHAINS_NK[1]));
+            pCurrentParams->SetNValue(ASSETCHAINS_NK[0]);
+            pCurrentParams->SetKValue(ASSETCHAINS_NK[1]);
+    }
+        if ( SAFECOIN_TESTNODE != 0 )
+            pCurrentParams->SetMiningRequiresPeers(false);
+        if ( ASSETCHAINS_RPCPORT == 0 )
+            ASSETCHAINS_RPCPORT = ASSETCHAINS_P2PPORT + 1;
+        pCurrentParams->pchMessageStart[0] = ASSETCHAINS_MAGIC & 0xff;
+        pCurrentParams->pchMessageStart[1] = (ASSETCHAINS_MAGIC >> 8) & 0xff;
+        pCurrentParams->pchMessageStart[2] = (ASSETCHAINS_MAGIC >> 16) & 0xff;
+        pCurrentParams->pchMessageStart[3] = (ASSETCHAINS_MAGIC >> 24) & 0xff;
+        fprintf(stderr,">>>>>>>>>> %s: p2p.%u rpc.%u magic.%08x %u %u coins\n",ASSETCHAINS_SYMBOL,ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT,ASSETCHAINS_MAGIC,ASSETCHAINS_MAGIC,(uint32_t)ASSETCHAINS_SUPPLY);
+        if (ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH)
+        {
+            // this is only good for 60 second blocks with an averaging window of 45. for other parameters, use:
+            // nLwmaAjustedWeight = (N+1)/2 * (0.9989^(500/nPowAveragingWindow)) * nPowTargetSpacing
+            pCurrentParams->consensus.nLwmaAjustedWeight = 1350;
+            pCurrentParams->consensus.nPowAveragingWindow = 45;
+            pCurrentParams->consensus.powAlternate = uint256S("00000f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f");
+    }
+        else if (ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASHV1_1)
+        {
+            // this is only good for 60 second blocks with an averaging window of 45. for other parameters, use:
+            // nLwmaAjustedWeight = (N+1)/2 * (0.9989^(500/nPowAveragingWindow)) * nPowTargetSpacing
+            pCurrentParams->consensus.nLwmaAjustedWeight = 1350;
+            pCurrentParams->consensus.nPowAveragingWindow = 45;
+            pCurrentParams->consensus.powAlternate = uint256S("0000000f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f");
+        }
+
+        if (ASSETCHAINS_LWMAPOS != 0)
+        {
+            pCurrentParams->consensus.posLimit = uint256S("000000000f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f");
+            pCurrentParams->consensus.nPOSAveragingWindow = 45;
+            // spacing is 1000 units per block to get better resolution, POS is 50% hard coded for now, we can vary it later
+            // when we get reliable integer math on nLwmaPOSAjustedWeight
+            pCurrentParams->consensus.nPOSTargetSpacing = VERUS_BLOCK_POSUNITS * 2;
+            // nLwmaPOSAjustedWeight = (N+1)/2 * (0.9989^(500/nPOSAveragingWindow)) * nPOSTargetSpacing
+            // this needs to be recalculated if VERUS_BLOCK_POSUNITS is changed
+            pCurrentParams->consensus.nLwmaPOSAjustedWeight = 46531;
+        }
+
+        // only require coinbase protection on Verus from the Komodo family of coins
+        if (strcmp(ASSETCHAINS_SYMBOL,"VRSC") == 0)
+        {
+            pCurrentParams->consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 227520;
+            pCurrentParams->consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = 227520;
+            pCurrentParams->consensus.fCoinbaseMustBeProtected = true;
+            checkpointData = //(Checkpoints::CCheckpointData)
+                    {
+                            boost::assign::map_list_of
+                                    (0, pCurrentParams->consensus.hashGenesisBlock)
+                                    (10000, uint256S("0xac2cd7d37177140ea4991cf630c0b9c7f94d707b84fb0351bf3a44856d2ae5dc"))
+                                    (20000, uint256S("0xb0e8cb9f77aaa7ff5bd90d6c08d06f4c4bf03e00c2b8a35a042e760845590c8a"))
+                                    (30000, uint256S("0xf2112ca577338ad7104bf905fa6a63d36b17a86f914c97b73cd31d43fcd7557c"))
+                                    (40000, uint256S("0x00000000008f83378dab727864b763ce91a4ea5f75d55939c0c1390cfb8c38f1"))
+                                    (49170, uint256S("0x2add646c0089871ec2379f02f7cd60b3af6efd9c152a6f16fc10925458c270cc")),
+                            (int64_t)1529910234,    // * UNIX timestamp of last checkpoint block
+                            (int64_t)63661,         // * total number of transactions between genesis and last checkpoint
+                            //   (the tx=... number in the SetBestChain debug.log lines)
+                            (double)2777            // * estimated number of transactions per day after checkpoint
+                            //   total number of tx / (checkpoint block height / (24 * 24))
+                    };
+
+            pCurrentParams->consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000001a8f4f23f8b2d1f7e");
+        }
+        else
+        {
+            if (strcmp(ASSETCHAINS_SYMBOL,"VRSCTEST") == 0 || strcmp(ASSETCHAINS_SYMBOL,"VERUSTEST") == 0)
+            {
+                pCurrentParams->consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000001f7e");
+            }
+            pCurrentParams->consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = ASSETCHAINS_SAPLING;
+            pCurrentParams->consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = ASSETCHAINS_OVERWINTER;
+            checkpointData = //(Checkpoints::CCheckpointData)
+                    {
+                            boost::assign::map_list_of
+                                    (0, pCurrentParams->consensus.hashGenesisBlock),
+                            (int64_t)1231006505,
+                            (int64_t)1,
+                            (double)2777            // * estimated number of transactions per day after checkpoint
+                            //   total number of tx / (checkpoint block height / (24 * 24))
+                    };
+        }
+    }
+    else
+    {
+        checkpointData = //(Checkpoints::CCheckpointData)
+            {
+                boost::assign::map_list_of
+
+                (0, mainParams.consensus.hashGenesisBlock)
+				(10000, uint256S("0x0000003fac4b19715f7c926678efa76580ec6677f00f986e6d62df24c2c33c40"))
+				(20000, uint256S("0x000001abf017b27b1ed2830915b07840a03ff692130e92ea618abf7dd199bffd"))
+				(30000, uint256S("0x0000020087dd554bee50fd4f2bdd267f1e05b8a8825eb6b147de9f5d708c0087"))
+				(40000, uint256S("0x00000071520e510befabaee27357de84f7d624b019096693845a392b28fdc017"))
+				(50000, uint256S("0x000001130278ac0759ba6edf6c046db74b5b5be14536779d9a78e67b97f7f55c"))
+				(60000, uint256S("0x00000072465c9f88a415a4543be84365b036415032cebe35d7cfd247335799cd"))
+				(70000, uint256S("0x00000031541bd6ea69b38450121d993cfb41663ab167fcfce47f598073dd534e"))
+				(75000, uint256S("0x00000012f1f0aa4ac984d46739767d503e87087f2ad022eea22e67f2e21a6805"))
+				(80000, uint256S("0x000000010f731dad693d6e60f32f504db5ffdb2e2e9793ece5f2a22dbe53ee0d"))
+				(84748, uint256S("0x00000042f72109bb83060ed5c34505740fcfa5676ccfb724c38b048456ae838a"))
+				(102864, uint256S("0x00000025561af0c339a1df438fee5ccfa7c49bfcfdcb4d070b0d96cb429bedb5"))
+				(170242, uint256S("0x00000011069f756ed14d4967b9862331ebb2f41a2928291066981258adc672d5"))	//switch to equihash 144,5
+				(360000, uint256S("0x00000260ec5c16afbc1d4e70f9616e60bbc3222ad3604c0d2acdf716da7f8b9c"))
+				(420000, uint256S("0x000002f4a612958896c215e9541a3036fd0401377c03e00d5a5e9fb3dbd379a4"))       //add TLS
+				(469630, uint256S("0x000001712c534cca9aca4fac0cf565557ddd8a60ae60b1b8a66f16a0072d608a"))
+				(512429, uint256S("0x000004710d95421263db721829985e2a43c903718444443c1824b954df523fc1"))
+				(775000, uint256S("0x000006368451c8cba607886ee56b0da1559db1e2da7e011f6d297ee44015d7ef")),
+				(int64_t)1565658850,		// * UNIX timestamp of last checkpoint block
+				(int64_t)1276889,		// * total number of transactions between genesis and last checkpoint
+								//   (the tx=... number in the SetBestChain debug.log lines)
+				(double)2372			// * estimated number of transactions per day after checkpoint
+								//   total number of tx / (checkpoint block height / (24 * 60))
+		};
+    }
+
+    pCurrentParams->SetCheckpointData(checkpointData);
+
+    ASSETCHAIN_INIT = 1;
+    return(0);
 }

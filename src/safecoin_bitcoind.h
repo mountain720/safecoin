@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -21,15 +21,22 @@
 #include "consensus/params.h"
 #include "safecoin_defs.h"
 #include "script/standard.h"
-#include "safecoin_kv.h"
-
+#include "cc/CCinclude.h"
 
 int32_t safecoin_notaries(uint8_t pubkeys[64][33],int32_t height,uint32_t timestamp);
 std::vector<std::string> vs_safecoin_notaries(int32_t height, uint32_t timestamp);
 int32_t safecoin_electednotary(int32_t *numnotariesp,uint8_t *pubkey33,int32_t height,uint32_t timestamp);
+int32_t safecoin_voutupdate(bool fJustCheck,int32_t *isratificationp,int32_t notaryid,uint8_t *scriptbuf,int32_t scriptlen,int32_t height,uint256 txhash,int32_t i,int32_t j,uint64_t *voutmaskp,int32_t *specialtxp,int32_t *notarizedheightp,uint64_t value,int32_t notarized,uint64_t signedmask,uint32_t timestamp);
 unsigned int lwmaGetNextPOSRequired(const CBlockIndex* pindexLast, const Consensus::Params& params);
+bool EnsureWalletIsAvailable(bool avoidException);
+extern bool fRequestShutdown;
+extern CScript SAFECOIN_EARLYTXID_SCRIPTPUB;
 
-//#define issue_curl(cmdstr) bitcoind_RPC(0,(char *)"curl",(char *)"http://127.0.0.1:8776",0,0,(char *)(cmdstr))
+int32_t MarmaraSignature(uint8_t *utxosig,CMutableTransaction &txNew);
+uint8_t DecodeMaramaraCoinbaseOpRet(const CScript scriptPubKey,CPubKey &pk,int32_t &height,int32_t &unlockht);
+uint32_t safecoin_heightstamp(int32_t height);
+
+//#define issue_curl(cmdstr) bitcoind_RPC(0,(char *)"curl",(char *)"http://127.0.0.1:7776",0,0,(char *)(cmdstr))
 
 struct MemoryStruct { char *memory; size_t size; };
 struct return_string { char *ptr; size_t len; };
@@ -53,10 +60,30 @@ void init_string(struct return_string *s)
     if ( s->ptr == NULL )
     {
         fprintf(stderr,"init_string malloc() failed\n");
-        exit(-1);
+        StartShutdown();
     }
     s->ptr[0] = '\0';
 }
+
+int tx_height( const uint256 &hash ){
+    int nHeight = 0;
+    CTransaction tx;
+    uint256 hashBlock;
+    if (!GetTransaction(hash, tx, hashBlock, true)) {
+        fprintf(stderr,"tx hash %s does not exist!\n", hash.ToString().c_str() );
+    }
+
+    BlockMap::const_iterator it = mapBlockIndex.find(hashBlock);
+    if (it != mapBlockIndex.end()) {
+        nHeight = it->second->GetHeight();
+        //fprintf(stderr,"blockHash %s height %d\n",hashBlock.ToString().c_str(), nHeight);
+    } else {
+        // Unconfirmed xtns
+        //fprintf(stderr,"block hash %s does not exist!\n", hashBlock.ToString().c_str() );
+    }
+    return nHeight;
+}
+
 
 /************************************************************************
  *
@@ -71,7 +98,7 @@ size_t accumulatebytes(void *ptr,size_t size,size_t nmemb,struct return_string *
     if ( s->ptr == NULL )
     {
         fprintf(stderr, "accumulate realloc() failed\n");
-        exit(-1);
+        StartShutdown();
     }
     memcpy(s->ptr+s->len,ptr,size*nmemb);
     s->ptr[new_len] = '\0';
@@ -178,10 +205,16 @@ try_again:
     curl_easy_setopt(curl_handle,CURLOPT_WRITEDATA,		&s); 			// we pass our 's' struct to the callback
     curl_easy_setopt(curl_handle,CURLOPT_NOSIGNAL,		1L);   			// supposed to fix "Alarm clock" and long jump crash
     curl_easy_setopt(curl_handle,CURLOPT_NOPROGRESS,	1L);			// no progress callback
+    //curl_easy_setopt(curl_handle, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+    //curl_easy_setopt(curl_handle, CURLOPT_SSLVERSION, 2);
+
     if ( strncmp(url,"https",5) == 0 )
     {
-        curl_easy_setopt(curl_handle,CURLOPT_SSL_VERIFYPEER,0);
-        curl_easy_setopt(curl_handle,CURLOPT_SSL_VERIFYHOST,0);
+        
+        /* printf("[ Decker ] SSL: %s\n", curl_version()); */
+        curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 0L);
+        //curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 1L); // this is useful for debug, but seems crash on libcurl/7.64.1 OpenSSL/1.1.1b zlib/1.2.8 librtmp/2.3
     }
     if ( userpass != 0 )
         curl_easy_setopt(curl_handle,CURLOPT_USERPWD,	userpass);
@@ -224,13 +257,13 @@ try_again:
         numretries++;
         if ( specialcase != 0 )
         {
-            printf("<<<<<<<<<<< bitcoind_RPC.(%s): BTCD.%s timeout params.(%s) s.ptr.(%s) err.%d\n",url,command,params,s.ptr,res);
+            fprintf(stderr,"<<<<<<<<<<< bitcoind_RPC.(%s): BTCD.%s timeout params.(%s) s.ptr.(%s) err.%d\n",url,command,params,s.ptr,res);
             free(s.ptr);
             return(0);
         }
         else if ( numretries >= 1 )
         {
-            //printf("Maximum number of retries exceeded!\n");
+            fprintf(stderr,"Maximum number of retries exceeded!\n");
             free(s.ptr);
             return(0);
         }
@@ -345,7 +378,7 @@ char *safecoin_issuemethod(char *userpass,char *method,char *params,uint16_t por
     {
         sprintf(url,(char *)"http://127.0.0.1:%u",port);
         sprintf(postdata,"{\"method\":\"%s\",\"params\":%s}",method,params);
-        //printf("[%s] (%s) postdata.(%s) params.(%s) USERPASS.(%s)\n",ASSETCHAINS_SYMBOL,url,postdata,params,SAFEUSERPASS);
+ //printf("[%s] (%s) postdata.(%s) params.(%s) USERPASS.(%s)\n",ASSETCHAINS_SYMBOL,url,postdata,params,SAFEUSERPASS);
         retstr2 = bitcoind_RPC(&retstr,(char *)"debug",url,userpass,method,params);
         //retstr = curl_post(&cHandle,url,USERPASS,postdata,0,0,0,0);
     }
@@ -420,6 +453,18 @@ int32_t safecoin_verifynotarizedscript(int32_t height,uint8_t *script,int32_t le
         printf("%02x",((uint8_t *)&hash)[i]);
     printf(" opreturn from [%s] ht.%d MISMATCHED\n",ASSETCHAINS_SYMBOL,height);
     return(-1);
+}
+
+void safecoin_reconsiderblock(uint256 blockhash)
+{
+    char params[256],*jsonstr,*hexstr;
+    sprintf(params,"[\"%s\"]",blockhash.ToString().c_str());
+    if ( (jsonstr= safecoin_issuemethod(ASSETCHAINS_USERPASS,(char *)"reconsiderblock",params,ASSETCHAINS_RPCPORT)) != 0 )
+    {
+        //fprintf(stderr,"safecoin_reconsiderblock.(%s) (%s %u) -> (%s)\n",params,ASSETCHAINS_USERPASS,ASSETCHAINS_RPCPORT,jsonstr);
+        free(jsonstr);
+    }
+    //fprintf(stderr,"safecoin_reconsiderblock.(%s) (%s %u) -> NULL\n",params,ASSETCHAINS_USERPASS,ASSETCHAINS_RPCPORT);
 }
 
 int32_t safecoin_verifynotarization(char *symbol,char *dest,int32_t height,int32_t NOTARIZED_HEIGHT,uint256 NOTARIZED_HASH,uint256 NOTARIZED_DESTTXID)
@@ -500,6 +545,18 @@ int32_t safecoin_verifynotarization(char *symbol,char *dest,int32_t height,int32
     return(retval);
 }
 
+CScript safecoin_makeopret(CBlock *pblock, bool fNew)
+{
+    std::vector<uint256> vLeaves;
+    vLeaves.push_back(pblock->hashPrevBlock); 
+    for (int32_t i = 0; i < pblock->vtx.size()-(fNew ? 0 : 1); i++)
+        vLeaves.push_back(pblock->vtx[i].GetHash());
+    uint256 merkleroot = GetMerkleRoot(vLeaves);
+    CScript opret;
+    opret << OP_RETURN << E_MARSHAL(ss << merkleroot);
+    return(opret);
+}
+
 /*uint256 safecoin_getblockhash(int32_t height)
  {
  uint256 hash; char params[128],*hexstr,*jsonstr; cJSON *result; int32_t i; uint8_t revbuf[32];
@@ -558,9 +615,9 @@ uint64_t safecoin_seed(int32_t height)
     return(seed);
 }
 
-uint32_t safecoin_txtime(uint64_t *valuep,uint256 hash, int32_t n, char *destaddr)
+uint32_t safecoin_txtime(CScript &opret,uint64_t *valuep,uint256 hash, int32_t n, char *destaddr)
 {
-    CTxDestination address; CTransaction tx; uint256 hashBlock;
+    CTxDestination address; CTransaction tx; uint256 hashBlock; int32_t numvouts;
     *valuep = 0;
     if (!GetTransaction(hash, tx,
 #ifndef SAFECOIN_ZCASH
@@ -571,10 +628,12 @@ uint32_t safecoin_txtime(uint64_t *valuep,uint256 hash, int32_t n, char *destadd
         //fprintf(stderr,"ERROR: %s/v%d locktime.%u\n",hash.ToString().c_str(),n,(uint32_t)tx.nLockTime);
         return(0);
     }
+    numvouts = tx.vout.size();
     //fprintf(stderr,"%s/v%d locktime.%u\n",hash.ToString().c_str(),n,(uint32_t)tx.nLockTime);
-    if ( n < tx.vout.size() )
+    if ( n < numvouts )
     {
         *valuep = tx.vout[n].nValue;
+        opret = tx.vout[numvouts-1].scriptPubKey;
         if (ExtractDestination(tx.vout[n].scriptPubKey, address))
             strcpy(destaddr,CBitcoinAddress(address).ToString().c_str());
     }
@@ -613,26 +672,119 @@ uint32_t safecoin_txtime2(uint64_t *valuep,uint256 hash,int32_t n,char *destaddr
     return(txtime);
 }
 
-int32_t safecoin_isPoS(CBlock *pblock)
+CScript EncodeStakingOpRet(uint256 merkleroot)
 {
-    int32_t n,vout; uint32_t txtime; uint64_t value; char voutaddr[64],destaddr[64]; CTxDestination voutaddress; uint256 txid;
+    CScript opret; uint8_t evalcode = 77;
+    opret << OP_RETURN << E_MARSHAL(ss << evalcode << merkleroot);
+    return(opret);
+}
+
+uint8_t DecodeStakingOpRet(CScript scriptPubKey, uint256 &merkleroot)
+    {
+    std::vector<uint8_t> vopret; uint8_t evalcode;
+    GetOpReturnData(scriptPubKey, vopret);
+    if ( vopret.size() > 2 && E_UNMARSHAL(vopret,ss >> evalcode; ss >> merkleroot) != 0 && evalcode == 77 )
+        {
+        //fprintf(stderr, "evalcode.%i merkleroot.%s\n",evalcode, merkleroot.GetHex().c_str() );
+        return(1);
+    }
+    return(0);
+}
+
+int32_t safecoin_newStakerActive(int32_t height, uint32_t timestamp)
+            {
+    if ( timestamp > nStakedDecemberHardforkTimestamp || safecoin_heightstamp(height) > nStakedDecemberHardforkTimestamp ) //December 2019 hardfork
+                return(1);
+    else return(0);
+            }
+
+int32_t safecoin_hasOpRet(int32_t height, uint32_t timestamp)
+{    
+    return((ASSETCHAINS_MARMARA!=0 || safecoin_newStakerActive(height, timestamp) == 1));
+        }
+
+bool safecoin_checkopret(CBlock *pblock, CScript &merkleroot)
+{
+    merkleroot = pblock->vtx.back().vout.back().scriptPubKey;
+    return(merkleroot.IsOpReturn() && merkleroot == safecoin_makeopret(pblock, false));
+    }
+
+bool safecoin_hardfork_active(uint32_t time)
+{
+    return ( (ASSETCHAINS_SYMBOL[0] == 0 && chainActive.Height() > nDecemberHardforkHeight) || (ASSETCHAINS_SYMBOL[0] != 0 && time > nStakedDecemberHardforkTimestamp) ); //December 2019 hardfork
+}
+
+bool MarmaraPoScheck(char *destaddr,CScript opret,CTransaction staketx);
+
+uint256 safecoin_calcmerkleroot(CBlock *pblock, uint256 prevBlockHash, int32_t nHeight, bool fNew, CScript scriptPubKey)
+    {
+    std::vector<uint256> vLeaves;
+    // rereate coinbase tx
+    CMutableTransaction txNew = CreateNewContextualCMutableTransaction(Params().GetConsensus(), nHeight);
+    txNew.vin.resize(1);
+    txNew.vin[0].prevout.SetNull();
+    txNew.vin[0].scriptSig = fNew ? (CScript() << nHeight << CScriptNum(1)) + COINBASE_FLAGS : pblock->vtx[0].vin[0].scriptSig;
+    txNew.vout.resize(1);
+    txNew.vout[0].scriptPubKey = scriptPubKey;
+    txNew.vout[0].nValue = 0;
+    txNew.nExpiryHeight = 0;
+    txNew.nLockTime = 0; 
+    //fprintf(stderr, "validation: coinbasetx.%s\n", EncodeHexTx(txNew).c_str());
+    //fprintf(stderr, "txnew.%s\n", txNew.GetHash().ToString().c_str());
+    vLeaves.push_back(txNew.GetHash()); 
+    vLeaves.push_back(prevBlockHash); 
+    for (int32_t i = 1; i < pblock->vtx.size()-(fNew ? 0 : 1); i++) 
+        vLeaves.push_back(pblock->vtx[i].GetHash());
+    return GetMerkleRoot(vLeaves);
+}
+
+int32_t safecoin_isPoS(CBlock *pblock, int32_t height,CTxDestination *addressout)
+{
+    int32_t n,vout,numvouts,ret; uint32_t txtime; uint64_t value; char voutaddr[64],destaddr[64]; CTxDestination voutaddress; uint256 txid, merkleroot; CScript opret;
     if ( ASSETCHAINS_STAKED != 0 )
     {
-        if ( (n= pblock->vtx.size()) > 1 && pblock->vtx[n-1].vin.size() == 1 && pblock->vtx[n-1].vout.size() == 1 )
+        n = pblock->vtx.size();
+        //fprintf(stderr,"ht.%d check for PoS numtx.%d numvins.%d numvouts.%d\n",height,n,(int32_t)pblock->vtx[n-1].vin.size(),(int32_t)pblock->vtx[n-1].vout.size());
+        if ( n > 1 && pblock->vtx[n-1].vin.size() == 1 && pblock->vtx[n-1].vout.size() == 1+safecoin_hasOpRet(height,pblock->nTime) )
         {
             txid = pblock->vtx[n-1].vin[0].prevout.hash;
             vout = pblock->vtx[n-1].vin[0].prevout.n;
-            txtime = safecoin_txtime(&value,txid,vout,destaddr);
+            txtime = safecoin_txtime(opret,&value,txid,vout,destaddr);
             if ( ExtractDestination(pblock->vtx[n-1].vout[0].scriptPubKey,voutaddress) )
             {
+                if ( addressout != 0 ) *addressout = voutaddress;
                 strcpy(voutaddr,CBitcoinAddress(voutaddress).ToString().c_str());
-                if ( strcmp(destaddr,voutaddr) == 0 && pblock->vtx[n-1].vout[0].nValue == value )
+                //fprintf(stderr,"voutaddr.%s vs destaddr.%s\n",voutaddr,destaddr);
+                if ( safecoin_newStakerActive(height, pblock->nTime) != 0 ) 
                 {
-                    //fprintf(stderr,"is PoS block!\n");
-                    return(1);
+                    if ( DecodeStakingOpRet(pblock->vtx[n-1].vout[1].scriptPubKey, merkleroot) != 0 && safecoin_calcmerkleroot(pblock, pblock->hashPrevBlock, height, false, pblock->vtx[0].vout[0].scriptPubKey) == merkleroot )
+                    {
+                        return(1);
+                    }
+                }
+                else 
+                {
+                if ( pblock->vtx[n-1].vout[0].nValue == value && strcmp(destaddr,voutaddr) == 0 )
+                {
+                    if ( ASSETCHAINS_MARMARA == 0 )
+                        return(1);
+                    else
+                    {
+                        if ( pblock->vtx[n-1].vout[0].scriptPubKey.IsPayToCryptoCondition() != 0 && (numvouts= pblock->vtx[n-1].vout.size()) == 2 )
+                        {
+//fprintf(stderr,"validate proper %s %s signature and unlockht preservation\n",voutaddr,destaddr);
+                            return(MarmaraPoScheck(destaddr,opret,pblock->vtx[n-1]));
+                        }
+                        else
+                        {
+                            fprintf(stderr,"reject ht.%d PoS block\n",height);
+                            return(strcmp(ASSETCHAINS_SYMBOL,"MTST2") == 0); // allow until MTST3
+                        }
+                    }
                 }
             }
         }
+    }
     }
     return(0);
 }
@@ -732,87 +884,6 @@ int32_t safecoin_block2pubkey33(uint8_t *pubkey33,CBlock *block)
     }
     return(0);
 }
-
-int32_t safecoin_block2safeid33(uint8_t *safeid33, CBlock *block)
-{
-
-	int32_t n;
-	if ( SAFECOIN_LOADINGBLOCKS == 0 ) memset(safeid33,0xff,33);
-	else memset(safeid33,0,33);
-	if ( block->vtx[0].IsCoinBase() )
-	{
-		if (block->vtx[0].vin[0].scriptSig.size() < 37) return 0;
-		else 
-		{
-
-			std::string script_sig_str = HexStr(block->vtx[0].vin[0].scriptSig.begin(), block->vtx[0].vin[0].scriptSig.end());
-			std::string safeid_str = script_sig_str.substr(script_sig_str.length() - 66, 66);
-			vector<unsigned char> tmp_safeid = ParseHex(safeid_str);
-			CPubKey test_pubkey(tmp_safeid);
-			if (test_pubkey.IsValid())
-			{
-			  				memcpy(safeid33, tmp_safeid.data(), 33);
-				LogPrintf("SAFEID: found valid safeid pubkey %s in block with hash %s\n", safeid_str.c_str(), block->GetHash().GetHex().c_str());			
-				return true;
-			}
-			// LogPrintf("SAFEID: found INVALID safeid pubkey %s in block with hash %s (probably pool signature)\n", safeid_str.c_str(), block->GetHash().GetHex().c_str()); 
-		}
-	}
-	return(0);
-}
-
-
-std::string safecoin_pubkey_from_block(CBlock *block)
-{
-	if (block->vtx[0].IsCoinBase())
-	{
-		if (block->vtx[0].vout.size() > 0)
-		{
-			txnouttype whichType;
-			vector<vector<unsigned char>> vch = vector<vector<unsigned char>>();
-			if (Solver(block->vtx[0].vout[0].scriptPubKey, whichType, vch) && whichType == TX_PUBKEY)
-			{
-				CPubKey pubKey(vch[0]);
-				if (pubKey.IsValid())
-				{
-					return HexStr(vch[0].begin(), vch[0].end());
-				}
-			}
-		}
-	}
-    return "invalid";
-}
-
-
-std::string safecoin_safeid_from_block(CBlock *block)
-{
-
-  int32_t flags = 1, keylen;
-  uint8_t value[IGUANA_MAXSCRIPTSIZE*8];
-  uint8_t pubkey33[33];
-  uint256 pubs;
-  int32_t height = safecoin_block2height(block), valuesize;
-  std::string keystr;
-  std::string defaultpub = "0333b9796526ef8de88712a649d618689a1de1ed1adf9fb5ec415f31e560b1f9a3";
-  std::string padding = "0";
-  keystr = defaultpub + padding + std::to_string(height) + "1";
-  keylen=keystr.length();
-  uint8_t key[keylen];
-  int32_t heightp;
-  memcpy(key,keystr.c_str(),keylen);
-valuesize=safecoin_kvsearch((uint256 *)&pubs,height,(uint32_t *)&flags,(int32_t *)&heightp,(uint8_t *)&value,key,keylen);
-
- 
-  if(valuesize > 0){
-    std::string val; char *valuestr;
-    val.resize(valuesize);
-    valuestr = (char *)val.data();
-    memcpy(valuestr,value,valuesize);
-	return val; //safeid_str;
-    }
-  return "";
-}
-
 
 int32_t safecoin_blockload(CBlock& block,CBlockIndex *pindex)
 {
@@ -941,6 +1012,7 @@ void safecoin_index2pubkey33(uint8_t *pubkey33,CBlockIndex *pindex,int32_t heigh
 
 int32_t safecoin_eligiblenotary(uint8_t pubkeys[66][33],int32_t *mids,uint32_t blocktimes[66],int32_t *nonzpkeysp,int32_t height)
 {
+    // after the season HF block ALL new notaries instantly become elegible. 
     int32_t i,j,n,duplicate; CBlock block; CBlockIndex *pindex; uint8_t notarypubs33[64][33];
     memset(mids,-1,sizeof(*mids)*66);
     n = safecoin_notaries(notarypubs33,height,0);
@@ -999,131 +1071,6 @@ int32_t safecoin_minerids(uint8_t *minerids,int32_t height,int32_t width)
     }
     return(nonz);
 }
-
-int32_t safecoin_safeids(uint8_t *safeids, int32_t height, int32_t width)
-{
-  int32_t i, j, nonz, numnotaries, flags;
-  uint8_t ln;
-    CBlock block;
-    CBlockIndex *pindex;
-    uint8_t notarypubs33[64][33], pubkey33[33];
-    uint256 pubs;
-    numnotaries = safecoin_notaries(notarypubs33, height, 0);
-    for (i = nonz = 0; i < width; i++)
-    {
-        if ( height-i <= 0 )
-            continue;
-        if ( (pindex= safecoin_chainactive(height-width+i+1)) != 0 )
-        {
-            if ( safecoin_blockload(block,pindex) == 0 )
-            {
-	      safecoin_block2safeid33(pubkey33, &block);
-
-		
-                for (j=0; j<numnotaries; j++)
-                {
-                    if ( memcmp(notarypubs33[j],pubkey33,33) == 0 )
-                    {
-                        safeids[nonz++] = j;
-                        break;
-                    }
-                }
-                if ( j == numnotaries )
-                    safeids[nonz++] = j;
-            } else fprintf(stderr,"couldnt load block.%d\n",height);
-        }
-    }
-    return(nonz);
-}
-
-// replacement for safecoin_safeids()
-std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint32_t>>>> vt_safecoin_safeids(int32_t height, int32_t width)
-{
-    int32_t i, j, nonz;
-    CBlock block;
-    CBlockIndex *pindex;
-    uint8_t pubkey33[33];
-    std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint32_t>>>> vt;
-    std::vector<std::string> vs_pubkeys;
-    std::vector<uint32_t> vu_pubkey_blocks_count;
-    std::vector<std::vector<pair<std::string, uint32_t>>> vvp_pubkey_safeids;
-        
-    for (i = nonz = 0; i < width; i++)
-    {
-        if (height-i <= 0)
-            continue;
-        if ((pindex = safecoin_chainactive(height - width + i + 1)) != 0)
-        {
-            if (safecoin_blockload(block, pindex) == 0)
-            {
-                // extract pubkey and safeid from block
-                std::string s_pubkey = safecoin_pubkey_from_block(&block);
-                std::string s_safeid = safecoin_safeid_from_block(&block);
-                std::vector<std::string>::iterator it;
-                
-                if (s_pubkey != "invalid")
-                {
-					// check if extracted pubkey is already in the result list
-					it = std::find(vs_pubkeys.begin(), vs_pubkeys.end(), s_pubkey);
-					if (it != vs_pubkeys.end())
-					{
-						// found !
-						// get the element index
-						uint32_t index = std::distance(vs_pubkeys.begin(), it);
-						
-						// increase the block count
-						vu_pubkey_blocks_count.at(index) = vu_pubkey_blocks_count.at(index) + 1;
-						
-						// get this pubkey safeids
-						std::vector<pair<std::string, uint32_t>> vp_safeids = vvp_pubkey_safeids.at(index);
-						
-						// check if extracted safeid is already in the current pubkey safeids list
-						auto p = find_if(vp_safeids.begin(), vp_safeids.end(), [&s_safeid](const pair<string, uint32_t>& r){return r.first == s_safeid;});
-
-						if (p != vp_safeids.end())
-						{
-							// found safeid entry within current pubkey 
-							
-							// get the element index
-							uint32_t p_index = std::distance(vp_safeids.begin(), p);
-							
-							// // increase the safeid block count 
-							(vvp_pubkey_safeids.at(index)).at(p_index).second = vp_safeids.at(p_index).second + 1;
-						}
-						else
-						{
-							// not found, add safeid and block count of 1 to the current pubkey	
-							(vvp_pubkey_safeids.at(index)).push_back(std::make_pair(s_safeid, 1));
-						}
-					}
-					else
-					{
-						// not found
-						// insert both pubkey and safeid, block counts of 1
-						vs_pubkeys.push_back(s_pubkey);
-						vu_pubkey_blocks_count.push_back(1);
-						std::vector<pair<std::string, uint32_t>> vp_init_safeid;
-						vp_init_safeid.push_back(std::make_pair(s_safeid, 1));
-						vvp_pubkey_safeids.push_back(vp_init_safeid);
-					}
-				}
-            }
-            else fprintf(stderr,"couldnt load block.%d\n",height);
-        }
-    }
-    
-    // join pubkeys and safeids in result tuple
-    for (unsigned k = 0; k < vs_pubkeys.size(); k++)
-    {
-		std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint32_t>>> tup;
-		std::get<0>(tup) = vs_pubkeys.at(k);
-		std::get<1>(tup) = vu_pubkey_blocks_count.at(k);
-		std::get<2>(tup) = vvp_pubkey_safeids.at(k);
-		vt.push_back(tup);
-	}
-    return vt;
-}
-
 
 // replacement for safecoin_safeids() - new one using kvsearch
 std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint32_t>>>> vt_safecoin_safeids_new(int32_t height, int32_t width)
@@ -1249,7 +1196,7 @@ int32_t safecoin_is_special(uint8_t pubkeys[66][33],int32_t mids[66],uint32_t bl
             {
                 if ( mids[i] == notaryid )
                 {
-                    if ( height > 108800 )
+                    if ( height > 792000 )
                     {
                         for (j=0; j<66; j++)
                             fprintf(stderr,"%d ",mids[j]);
@@ -1308,6 +1255,36 @@ int32_t safecoin_MoM(int32_t *notarized_heightp,uint256 *MoMp,uint256 *safetxidp
         *safetxidp = safetxid;
     }
     return(depth);
+}
+
+CBlockIndex *safecoin_blockindex(uint256 hash)
+{
+    BlockMap::const_iterator it; CBlockIndex *pindex = 0;
+    if ( (it = mapBlockIndex.find(hash)) != mapBlockIndex.end() )
+        pindex = it->second;
+    return(pindex);
+}
+
+int32_t safecoin_blockheight(uint256 hash)
+{
+    BlockMap::const_iterator it; CBlockIndex *pindex = 0;
+    if ( (it = mapBlockIndex.find(hash)) != mapBlockIndex.end() )
+    {
+        if ( (pindex= it->second) != 0 )
+            return(pindex->GetHeight());
+    }
+    return(0);
+}
+
+uint32_t safecoin_blocktime(uint256 hash)
+{
+    BlockMap::const_iterator it; CBlockIndex *pindex = 0;
+    if ( (it = mapBlockIndex.find(hash)) != mapBlockIndex.end() )
+    {
+        if ( (pindex= it->second) != 0 )
+            return(pindex->nTime);
+    }
+    return(0);
 }
 
 int32_t safecoin_checkpoint(int32_t *notarized_heightp,int32_t nHeight,uint256 hash)
@@ -1376,8 +1353,7 @@ uint64_t safecoin_accrued_interest(int32_t *txheightp,uint32_t *locktimep,uint25
     if ( (*locktimep= safecoin_interest_args(&txheighttimep,txheightp,&tiptime,&value,hash,n)) != 0 )
     {
         if ( (checkvalue == 0 || value == checkvalue) && (checkheight == 0 || *txheightp == checkheight) )
-          //  return(safecoin_interest(*txheightp,value,*locktimep,tiptime));
-	return(0);
+            return(safecoin_interest(*txheightp,value,*locktimep,tiptime));
         //fprintf(stderr,"nValue %llu lock.%u:%u nTime.%u -> %llu\n",(long long)coins.vout[n].nValue,coins.nLockTime,timestamp,pindex->nTime,(long long)interest);
         else fprintf(stderr,"safecoin_accrued_interest value mismatch %llu vs %llu or height mismatch %d vs %d\n",(long long)value,(long long)checkvalue,*txheightp,checkheight);
     }
@@ -1386,10 +1362,10 @@ uint64_t safecoin_accrued_interest(int32_t *txheightp,uint32_t *locktimep,uint25
 
 int32_t safecoin_nextheight()
 {
-    CBlockIndex *pindex; int32_t ht,longest = safecoin_longestchain();
-    if ( (pindex= chainActive.LastTip()) != 0 && (ht= pindex->GetHeight()) >= longest )
+    CBlockIndex *pindex; int32_t ht;
+    if ( (pindex= chainActive.LastTip()) != 0 && (ht= pindex->GetHeight()) > 0 )
         return(ht+1);
-    else return(longest + 1);
+    else return(safecoin_longestchain() + 1);
 }
 
 int32_t safecoin_isrealtime(int32_t *safeheightp)
@@ -1405,12 +1381,13 @@ int32_t safecoin_isrealtime(int32_t *safeheightp)
 
 int32_t safecoin_validate_interest(const CTransaction &tx,int32_t txheight,uint32_t cmptime,int32_t dispflag)
 {
+    dispflag = 1;
     if ( SAFECOIN_REWIND == 0 && ASSETCHAINS_SYMBOL[0] == 0 && (int64_t)tx.nLockTime >= LOCKTIME_THRESHOLD ) //1473793441 )
     {
-        if ( txheight > 89500 )
+        if ( txheight > 246748 )
         {
-	  //      if ( txheight < 247205 )
-          //      cmptime -= 16000;
+            if ( txheight < 247205 )
+                cmptime -= 16000;
             if ( (int64_t)tx.nLockTime < cmptime-SAFECOIN_MAXMEMPOOLTIME )
             {
                 if ( tx.nLockTime != 1477258935 && dispflag != 0 )
@@ -1439,36 +1416,91 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
 
 uint64_t safecoin_commission(const CBlock *pblock,int32_t height)
 {
+    static bool didinit = false,ishush3 = false;
+    // LABS fungible chains, cannot have any block reward!
+    if ( is_STAKED(ASSETCHAINS_SYMBOL) == 2 )
+        return(0);
+
+    if (!didinit) {
+        ishush3 = strncmp(ASSETCHAINS_SYMBOL, "HUSH3",5) == 0 ? true : false;
+        didinit = true;
+    }
+
     int32_t i,j,n=0,txn_count; int64_t nSubsidy; uint64_t commission,total = 0;
-    txn_count = pblock->vtx.size();
     if ( ASSETCHAINS_FOUNDERS != 0 )
     {
         nSubsidy = GetBlockSubsidy(height,Params().GetConsensus());
         //fprintf(stderr,"ht.%d nSubsidy %.8f prod %llu\n",height,(double)nSubsidy/COIN,(long long)(nSubsidy * ASSETCHAINS_COMMISSION));
         commission = ((nSubsidy * ASSETCHAINS_COMMISSION) / COIN);
+
+        if (ishush3) {
+            int32_t starting_commission = 125000000, HALVING1 = 340000,  INTERVAL = 840000, TRANSITION = 129, BR_END = 5422111;
+            // HUSH supply curve cannot be exactly represented via KMD AC CLI args, so we do it ourselves.
+            // You specify the BR, and the FR % gets added so 10% of 12.5 is 1.25
+            // but to tell the AC params, I need to say "11% of 11.25" is 1.25
+            // 11% ie. 1/9th cannot be exactly represented and so the FR has tiny amounts of error unless done manually
+            // Transition period of 128 blocks has BR=FR=0
+            if (height < TRANSITION) {
+                commission = 0;
+            } else if (height < HALVING1) {
+                commission = starting_commission;
+            } else if (height < HALVING1+1*INTERVAL) {
+                commission = starting_commission / 2;
+            } else if (height < HALVING1+2*INTERVAL) {
+                commission = starting_commission / 4;
+            } else if (height < HALVING1+3*INTERVAL) {
+                commission = starting_commission / 8;
+            } else if (height < HALVING1+4*INTERVAL) {
+                commission = starting_commission / 16;
+            } else if (height < HALVING1+5*INTERVAL) {
+                commission = starting_commission / 32;
+            } else if (height < HALVING1+6*INTERVAL) { // Block 5380000
+                // Block reward will go to zero between 7th+8th halvings, ac_end may need adjusting
+                commission = starting_commission / 64;
+            } else if (height < HALVING1+7*INTERVAL) {
+                // Block reward will be zero before this is ever reached
+                commission = starting_commission / 128; // Block 6220000
+            }
+        }
+
         if ( ASSETCHAINS_FOUNDERS > 1 )
         {
             if ( (height % ASSETCHAINS_FOUNDERS) == 0 )
-                commission = commission * ASSETCHAINS_FOUNDERS;
+            {
+                if ( ASSETCHAINS_FOUNDERS_REWARD == 0 )
+                    commission = commission * ASSETCHAINS_FOUNDERS;
+                else
+                    commission = ASSETCHAINS_FOUNDERS_REWARD;
+            }
             else commission = 0;
         }
     }
-    else
+    else if ( pblock != 0 )
     {
+        txn_count = pblock->vtx.size();
         for (i=0; i<txn_count; i++)
         {
             n = pblock->vtx[i].vout.size();
             for (j=0; j<n; j++)
             {
-                //fprintf(stderr,"(%d %.8f).%d ",i,dstr(block.vtx[i].vout[j].nValue),j);
+                if ( height > 225000 && ASSETCHAINS_STAKED != 0 && txn_count > 1 && i == txn_count-1 && j == n-1 )
+                    break;
+                //fprintf(stderr,"(%d %.8f).%d ",i,dstr(pblock->vtx[i].vout[j].nValue),j);
                 if ( i != 0 || j != 1 )
                     total += pblock->vtx[i].vout[j].nValue;
+                if ( total > 1000000 * COIN )
+                {
+                    total = 1000000 * COIN;
+                    break;
+                }
             }
         }
-        commission = ((total * ASSETCHAINS_COMMISSION) / COIN);
+        commission = ((total / 10000) * ASSETCHAINS_COMMISSION) / 10000;
+        //commission = ((total * ASSETCHAINS_COMMISSION) / COIN);
     }
     if ( commission < 10000 )
         commission = 0;
+    //fprintf(stderr,"-> %.8f\n",(double)commission/COIN);
     return(commission);
 }
 
@@ -1481,30 +1513,37 @@ uint32_t safecoin_segid32(char *coinaddr)
 
 int8_t safecoin_segid(int32_t nocache,int32_t height)
 {
-    CTxDestination voutaddress; CBlock block; CBlockIndex *pindex; uint64_t value; uint32_t txtime; char voutaddr[64],destaddr[64]; int32_t txn_count,vout; uint256 txid; int8_t segid = -1;
+    CTxDestination voutaddress; CBlock block; CBlockIndex *pindex; uint64_t value; uint32_t txtime; char voutaddr[64],destaddr[64]; int32_t txn_count,vout,newStakerActive; uint256 txid,merkleroot; CScript opret; int8_t segid = -1;
     if ( height > 0 && (pindex= safecoin_chainactive(height)) != 0 )
     {
         if ( nocache == 0 && pindex->segid >= -1 )
             return(pindex->segid);
         if ( safecoin_blockload(block,pindex) == 0 )
         {
+            newStakerActive = safecoin_newStakerActive(height, block.nTime);
             txn_count = block.vtx.size();
-            if ( txn_count > 1 && block.vtx[txn_count-1].vin.size() == 1 && block.vtx[txn_count-1].vout.size() == 1 )
+            if ( txn_count > 1 && block.vtx[txn_count-1].vin.size() == 1 && block.vtx[txn_count-1].vout.size() == 1+safecoin_hasOpRet(height,pindex->nTime) )
             {
                 txid = block.vtx[txn_count-1].vin[0].prevout.hash;
                 vout = block.vtx[txn_count-1].vin[0].prevout.n;
-                txtime = safecoin_txtime(&value,txid,vout,destaddr);
+                txtime = safecoin_txtime(opret,&value,txid,vout,destaddr);
                 if ( ExtractDestination(block.vtx[txn_count-1].vout[0].scriptPubKey,voutaddress) )
                 {
                     strcpy(voutaddr,CBitcoinAddress(voutaddress).ToString().c_str());
-                    if ( strcmp(destaddr,voutaddr) == 0 && block.vtx[txn_count-1].vout[0].nValue == value )
+                    if ( newStakerActive == 1 && block.vtx[txn_count-1].vout.size() == 2 && DecodeStakingOpRet(block.vtx[txn_count-1].vout[1].scriptPubKey, merkleroot) != 0 )
+                        newStakerActive++;
+                    if ( newStakerActive == 2 || (newStakerActive == 0 && strcmp(destaddr,voutaddr) == 0 && block.vtx[txn_count-1].vout[0].nValue == value) )
                     {
                         segid = safecoin_segid32(voutaddr) & 0x3f;
-                        //fprintf(stderr,"safecoin_segid.(%d) -> %02x\n",height,segid);
+                        //fprintf(stderr, "safecoin_segid: ht.%i --> %i\n",height,pindex->segid);
                     }
                 } else fprintf(stderr,"safecoin_segid ht.%d couldnt extract voutaddress\n",height);
             }
         }
+        // The new staker sets segid in safecoin_checkPOW, this persists after restart by being saved in the blockindex for blocks past the HF timestamp, to keep backwards compatibility.
+        // PoW blocks cannot contain a staking tx. If segid has not yet been set, we can set it here accurately.
+        if ( pindex->segid == -2 ) 
+            pindex->segid = segid;
     }
     return(segid);
 }
@@ -1520,7 +1559,7 @@ void safecoin_segids(uint8_t *hashbuf,int32_t height,int32_t n)
         memset(hashbuf,0xff,n);
         for (i=0; i<n; i++)
         {
-            hashbuf[i] = (uint8_t)safecoin_segid(1,height+i);
+            hashbuf[i] = (uint8_t)safecoin_segid(0,height+i);
             //fprintf(stderr,"%02x ",hashbuf[i]);
         }
         if ( n == 100 )
@@ -1543,100 +1582,51 @@ uint32_t safecoin_stakehash(uint256 *hashp,char *address,uint8_t *hashbuf,uint25
     return(addrhash.uints[0]);
 }
 
-uint32_t safecoin_stake(int32_t validateflag,arith_uint256 bnTarget,int32_t nHeight,uint256 txid,int32_t vout,uint32_t blocktime,uint32_t prevtime,char *destaddr)
+arith_uint256 safecoin_adaptivepow_target(int32_t height,arith_uint256 bnTarget,uint32_t nTime)
 {
-    bool fNegative,fOverflow; uint8_t hashbuf[256]; char address[64]; bits256 addrhash; arith_uint256 hashval,mindiff,ratio,coinage256; uint256 hash,pasthash; int32_t diff=0,segid,minage,i,iter=0; uint32_t txtime,segid32,winner = 0 ; uint64_t value,coinage;
-    txtime = safecoin_txtime2(&value,txid,vout,address);
-    if ( validateflag == 0 )
+    arith_uint256 origtarget,easy; int32_t diff,tipdiff; int64_t mult; bool fNegative,fOverflow; CBlockIndex *tipindex;
+    if ( height > 10 && (tipindex= safecoin_chainactive(height - 1)) != 0 ) // disable offchain diffchange
     {
-        //fprintf(stderr,"blocktime.%u -> ",blocktime);
-        if ( blocktime < prevtime+3 )
-            blocktime = prevtime+3;
-        if ( blocktime < GetAdjustedTime()-60 )
-            blocktime = GetAdjustedTime()+30;
-        //fprintf(stderr,"blocktime.%u txtime.%u\n",blocktime,txtime);
-    }
-    if ( value == 0 || txtime == 0 || blocktime == 0 || prevtime == 0 )
-    {
-        //fprintf(stderr,"safecoin_stake null %.8f %u %u %u\n",dstr(value),txtime,blocktime,prevtime);
-        return(0);
-    }
-    if ( value < SATOSHIDEN )
-        return(0);
-    value /= SATOSHIDEN;
-    mindiff.SetCompact(SAFECOIN_MINDIFF_NBITS,&fNegative,&fOverflow);
-    ratio = (mindiff / bnTarget);
-    if ( (minage= nHeight*3) > 6000 ) // about 100 blocks
-        minage = 6000;
-    safecoin_segids(hashbuf,nHeight-101,100);
-    segid32 = safecoin_stakehash(&hash,address,hashbuf,txid,vout);
-    segid = ((nHeight + segid32) & 0x3f);
-    for (iter=0; iter<600; iter++)
-    {
-        if ( blocktime+iter+segid*2 < txtime+minage )
-            continue;
-        diff = (iter + blocktime - txtime - minage);
-        if ( diff < 0 )
-            diff = 60;
-        else if ( diff > 3600*24*30 )
+        diff = (nTime - tipindex->GetMedianTimePast());
+        tipdiff = (nTime - tipindex->nTime);
+        if ( tipdiff > 13*ASSETCHAINS_BLOCKTIME )
+            diff = tipdiff;
+        if ( diff >= 13 * ASSETCHAINS_BLOCKTIME && (height < 30 || tipdiff > 2*ASSETCHAINS_BLOCKTIME) )
         {
-            //printf("diff.%d (iter.%d blocktime.%u txtime.%u minage.%d)\n",(int32_t)diff,iter,blocktime,txtime,(int32_t)minage);
-            diff = 3600*24*30;
-        }
-        if ( iter > 0 )
-            diff += segid*2;
-        coinage = (value * diff);
-        if ( blocktime+iter+segid*2 > prevtime+480 )
-            coinage *= ((blocktime+iter+segid*2) - (prevtime+400));
-        coinage256 = arith_uint256(coinage+1);
-        hashval = ratio * (UintToArith256(hash) / coinage256);
-        if ( hashval <= bnTarget )
-        {
-            winner = 1;
-            if ( validateflag == 0 )
+            mult = diff - 12 * ASSETCHAINS_BLOCKTIME;
+            mult = (mult / ASSETCHAINS_BLOCKTIME) * ASSETCHAINS_BLOCKTIME + ASSETCHAINS_BLOCKTIME / 2;
+            origtarget = bnTarget;
+            bnTarget = bnTarget * arith_uint256(mult * mult);
+            easy.SetCompact(SAFECOIN_MINDIFF_NBITS,&fNegative,&fOverflow);
+            if ( bnTarget < origtarget || bnTarget > easy ) // deal with overflow
             {
-                //fprintf(stderr,"winner blocktime.%u iter.%d segid.%d\n",blocktime,iter,segid);
-                blocktime += iter;
-                blocktime += segid * 2;
-            }
-            break;
-        }
-        if ( validateflag != 0 )
-        {
-            /*for (i=31; i>=24; i--)
-                fprintf(stderr,"%02x",((uint8_t *)&hashval)[i]);
-            fprintf(stderr," vs ");
-            for (i=31; i>=24; i--)
-                fprintf(stderr,"%02x",((uint8_t *)&bnTarget)[i]);
-            fprintf(stderr," segid.%d iter.%d winner.%d coinage.%llu %d ht.%d t.%u v%d diff.%d\n",segid,iter,winner,(long long)coinage,(int32_t)(blocktime - txtime),nHeight,blocktime,(int32_t)value,(int32_t)diff);*/
-            break;
-        }
-    }
-    //fprintf(stderr,"iterated until i.%d winner.%d\n",i,winner);
-    if ( 0 && validateflag != 0 )
-    {
-        for (i=31; i>=24; i--)
-            fprintf(stderr,"%02x",((uint8_t *)&hashval)[i]);
-        fprintf(stderr," vs ");
-        for (i=31; i>=24; i--)
-            fprintf(stderr,"%02x",((uint8_t *)&bnTarget)[i]);
-        fprintf(stderr," segid.%d iter.%d winner.%d coinage.%llu %d ht.%d t.%u v%d diff.%d ht.%d\n",segid,iter,winner,(long long)coinage,(int32_t)(blocktime - txtime),nHeight,blocktime,(int32_t)value,(int32_t)diff,nHeight);
-    }
-    if ( nHeight < 10 )
-        return(blocktime);
-    return(blocktime * winner);
+                bnTarget = easy;
+                fprintf(stderr,"tipdiff.%d diff.%d height.%d miner overflowed mult.%lld, set to mindiff\n",tipdiff,diff,height,(long long)mult);
+            } else fprintf(stderr,"tipdiff.%d diff.%d height.%d miner elapsed %d, adjust by factor of %lld\n",tipdiff,diff,height,diff,(long long)mult);
+        } //else fprintf(stderr,"height.%d tipdiff.%d diff %d, vs %d\n",height,tipdiff,diff,13*ASSETCHAINS_BLOCKTIME);
+    } else fprintf(stderr,"adaptive cant find height.%d\n",height);
+    return(bnTarget);
 }
 
-arith_uint256 safecoin_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t height,int32_t goalperc)
+arith_uint256 safecoin_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t height,int32_t goalperc,int32_t newStakerActive)
 {
     int32_t oldflag = 0,dispflag = 0;
     CBlockIndex *pindex; arith_uint256 easydiff,bnTarget,hashval,sum,ave; bool fNegative,fOverflow; int32_t i,n,m,ht,percPoS,diff,val;
     *percPoSp = percPoS = 0;
-    if ( height <= 10 || (ASSETCHAINS_STAKED == 100 && height <= 100) )
+    
+    if ( newStakerActive == 0 && height <= 10 || (ASSETCHAINS_STAKED == 100 && height <= 100) ) 
         return(target);
+        
     sum = arith_uint256(0);
     ave = sum;
-    easydiff.SetCompact(SAFECOIN_MINDIFF_NBITS,&fNegative,&fOverflow);
+    if ( newStakerActive != 0 )
+    {
+        easydiff.SetCompact(ASSETCHAINS_STAKED_MIN_POW_DIFF,&fNegative,&fOverflow);
+        if ( height <= 10 )
+            return(easydiff);
+    }    
+    else 
+    easydiff.SetCompact(STAKING_MIN_DIFF,&fNegative,&fOverflow);
     for (i=n=m=0; i<100; i++)
     {
         ht = height - 100 + i;
@@ -1658,12 +1648,18 @@ arith_uint256 safecoin_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t 
                 sum += UintToArith256(pindex->GetBlockHash());
                 m++;
             }
-        }
+        } //else fprintf(stderr, "pindex returned null ht.%i\n",ht);
         if ( dispflag != 0 && ASSETCHAINS_STAKED < 100 && (i % 10) == 9 )
             fprintf(stderr," %d, ",percPoS);
     }
     if ( m+n < 100 )
-        percPoS = ((percPoS * n) + (goalperc * (100-n))) / 100;
+    {
+        // We do actual PoS % at the start. Requires coin distribution in first 10 blocks! 
+        if ( ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH || ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASHV1_1 )
+            percPoS = (percPoS*100) / (m+n); 
+        else
+            percPoS = ((percPoS * n) + (goalperc * (100-n))) / 100;            
+    } 
     if ( dispflag != 0 && ASSETCHAINS_STAKED < 100 )
         fprintf(stderr," -> %d%% percPoS vs goalperc.%d ht.%d\n",percPoS,goalperc,height);
     *percPoSp = percPoS;
@@ -1722,25 +1718,148 @@ arith_uint256 safecoin_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t 
             fprintf(stderr," ht.%d percPoS.%d vs goal.%d -> diff %d\n",height,percPoS,goalperc,goalperc - percPoS);
         }
     }
-    else bnTarget = ave; // recent ave is perfect
+    else
+        bnTarget = ave; // recent ave is perfect
+    if ( newStakerActive != 0 && bnTarget > easydiff )
+        bnTarget = easydiff;
     return(bnTarget);
+}
+
+uint32_t safecoin_stake(int32_t validateflag,arith_uint256 bnTarget,int32_t nHeight,uint256 txid,int32_t vout,uint32_t blocktime,uint32_t prevtime,char *destaddr,int32_t PoSperc)
+{
+    bool fNegative,fOverflow; uint8_t hashbuf[256]; char address[64]; bits256 addrhash; arith_uint256 hashval,mindiff,ratio,coinage256; uint256 hash,pasthash; int32_t segid,minage,i,iter=0; int64_t diff=0; uint32_t txtime,segid32,winner = 0 ; uint64_t value,coinage;
+    txtime = safecoin_txtime2(&value,txid,vout,address);
+    if ( validateflag == 0 )
+    {
+        //fprintf(stderr,"blocktime.%u -> ",blocktime);
+        if ( blocktime < prevtime+3 )
+            blocktime = prevtime+3;
+        if ( blocktime < GetAdjustedTime()-60 )
+            blocktime = GetAdjustedTime()+30;
+        //fprintf(stderr,"blocktime.%u txtime.%u\n",blocktime,txtime);
+    }
+    if ( value == 0 || txtime == 0 || blocktime == 0 || prevtime == 0 )
+    {
+        //fprintf(stderr,"safecoin_stake null %.8f %u %u %u\n",dstr(value),txtime,blocktime,prevtime);
+        return(0);
+    }
+    if ( value < SATOSHIDEN )
+        return(0);
+    value /= SATOSHIDEN;
+    mindiff.SetCompact(STAKING_MIN_DIFF,&fNegative,&fOverflow);
+    ratio = (mindiff / bnTarget);
+    if ( (minage= nHeight*3) > 6000 ) // about 100 blocks
+        minage = 6000;
+    safecoin_segids(hashbuf,nHeight-101,100);
+    segid32 = safecoin_stakehash(&hash,address,hashbuf,txid,vout);
+    segid = ((nHeight + segid32) & 0x3f);
+    for (iter=0; iter<600; iter++)
+    {
+        if ( blocktime+iter+segid*2 < txtime+minage )
+            continue;
+        diff = (iter + blocktime - txtime - minage);
+        // Disable PoS64 on VerusHash, doesnt work properly.
+        if ( 0 ) // ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH || ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASHV1_1 )
+        {
+            /*if ( PoSperc < ASSETCHAINS_STAKED )
+            {
+                // Under PoS % target and we need to increase diff.
+                //fprintf(stderr, "PoS too low diff.%i changed to.",diff);
+                diff = diff * ( (ASSETCHAINS_STAKED - PoSperc + 1) * (ASSETCHAINS_STAKED - PoSperc + 1) * ( nHeight < 50 ? 1000 : 1));
+                //fprintf(stderr, "%i \n",diff);
+            }
+            else */ 
+            if ( PoSperc > ASSETCHAINS_STAKED )
+            {
+                // Over PoS target need to lower diff.
+                //fprintf(stderr, "PoS too high diff.%i changed to.",diff);
+                diff = diff / ( (PoSperc - ASSETCHAINS_STAKED + 1) * (PoSperc - ASSETCHAINS_STAKED + 1) );
+                //fprintf(stderr, "%i \n",diff);
+            }
+        }
+        if ( diff < 0 )
+            diff = 60;
+        else if ( diff > 3600*24*30 )
+        {
+            //printf("diff.%d (iter.%d blocktime.%u txtime.%u minage.%d)\n",(int32_t)diff,iter,blocktime,txtime,(int32_t)minage);
+            diff = 3600*24*30;
+        }
+        if ( iter > 0 )
+            diff += segid*2;
+        coinage = (value * diff);
+        if ( 0 ) //&& ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH || ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASHV1_1 )
+        {
+            if ( PoSperc < ASSETCHAINS_STAKED )
+            {
+                // Under PoS % target and we need to increase diff.
+                //fprintf(stderr, "PoS too low diff.%i changed to.",diff);
+                if ( blocktime+iter+segid*2 > prevtime+128 )
+                    coinage *= ((blocktime+iter+segid*2) - (prevtime+102));
+                //fprintf(stderr, "%i \n",diff);
+            }   
+        }
+        if ( blocktime+iter+segid*2 > prevtime+480 )
+            coinage *= ((blocktime+iter+segid*2) - (prevtime+400));
+        coinage256 = arith_uint256(coinage+1);
+        hashval = ratio * (UintToArith256(hash) / coinage256);
+        if ( hashval <= bnTarget )
+        {
+            winner = 1;
+            if ( validateflag == 0 )
+            {
+                //fprintf(stderr,"winner blocktime.%u iter.%d segid.%d\n",blocktime,iter,segid);
+                blocktime += iter;
+                blocktime += segid * 2;
+            }
+            break;
+        }
+        if ( validateflag != 0 )
+        {
+            /*for (i=31; i>=24; i--)
+                fprintf(stderr,"%02x",((uint8_t *)&hashval)[i]);
+            fprintf(stderr," vs ");
+            for (i=31; i>=24; i--)
+                fprintf(stderr,"%02x",((uint8_t *)&bnTarget)[i]);
+            fprintf(stderr," segid.%d iter.%d winner.%d coinage.%llu %d ht.%d t.%u v%d diff.%d\n",segid,iter,winner,(long long)coinage,(int32_t)(blocktime - txtime),nHeight,blocktime,(int32_t)value,(int32_t)diff); */
+            break;
+        }
+    }
+    //fprintf(stderr,"iterated until i.%d winner.%d\n",i,winner);
+    if ( 0 && validateflag != 0 )
+    {
+        for (i=31; i>=24; i--)
+            fprintf(stderr,"%02x",((uint8_t *)&hashval)[i]);
+        fprintf(stderr," vs ");
+        for (i=31; i>=24; i--)
+            fprintf(stderr,"%02x",((uint8_t *)&bnTarget)[i]);
+        fprintf(stderr," segid.%d iter.%d winner.%d coinage.%llu %d ht.%d t.%u v%d diff.%d ht.%d\n",segid,iter,winner,(long long)coinage,(int32_t)(blocktime - txtime),nHeight,blocktime,(int32_t)value,(int32_t)diff,nHeight);
+    }
+    if ( nHeight < 10 )
+        return(blocktime);
+    return(blocktime * winner);
 }
 
 int32_t safecoin_is_PoSblock(int32_t slowflag,int32_t height,CBlock *pblock,arith_uint256 bnTarget,arith_uint256 bhash)
 {
-    CBlockIndex *previndex,*pindex; char voutaddr[64],destaddr[64]; uint256 txid; uint32_t txtime,prevtime=0; int32_t vout,PoSperc,txn_count,eligible=0,isPoS = 0,segid; uint64_t value; CTxDestination voutaddress;
+    CBlockIndex *previndex,*pindex; char voutaddr[64],destaddr[64]; uint256 txid, merkleroot; uint32_t txtime,prevtime=0; int32_t ret,vout,PoSperc,txn_count,eligible=0,isPoS = 0,segid; uint64_t value; arith_uint256 POWTarget;
     if ( ASSETCHAINS_STAKED == 100 && height <= 10 )
         return(1);
     BlockMap::const_iterator it = mapBlockIndex.find(pblock->GetHash());
     pindex = it != mapBlockIndex.end() ? it->second : NULL;
-    if ( pindex != 0 && pindex->segid >= -1 )
+    int32_t newStakerActive = safecoin_newStakerActive(height, pblock->nTime);
+    // Get PoSperc and POW Target. slowflag only here, calling it when blocks out of order causes problems.
+    if ( slowflag != 0 )
     {
-        if ( pindex->segid == -1 )
-            return(0);
-        else return(1);
+        POWTarget = safecoin_PoWtarget(&PoSperc,bnTarget,height,ASSETCHAINS_STAKED,newStakerActive);
+    }
+    else 
+    {
+        // checks opret merkle root and existence of staking tx.
+        return(safecoin_isPoS(pblock,height,0));
     }
     txn_count = pblock->vtx.size();
-    if ( txn_count > 1 && pblock->vtx[txn_count-1].vin.size() == 1 && pblock->vtx[txn_count-1].vout.size() == 1 )
+    //fprintf(stderr,"checkblock n.%d vins.%d vouts.%d %.8f %.8f\n",txn_count,(int32_t)pblock->vtx[txn_count-1].vin.size(),(int32_t)pblock->vtx[txn_count-1].vout.size(),(double)pblock->vtx[txn_count-1].vout[0].nValue/COIN,(double)pblock->vtx[txn_count-1].vout[1].nValue/COIN);
+    if ( txn_count > 1 && pblock->vtx[txn_count-1].vin.size() == 1 && pblock->vtx[txn_count-1].vout.size() == 1+safecoin_hasOpRet(height,pblock->nTime) )
     {
         it = mapBlockIndex.find(pblock->hashPrevBlock);
         if ( it != mapBlockIndex.end() && (previndex = it->second) != NULL )
@@ -1748,59 +1867,34 @@ int32_t safecoin_is_PoSblock(int32_t slowflag,int32_t height,CBlock *pblock,arit
 
         txid = pblock->vtx[txn_count-1].vin[0].prevout.hash;
         vout = pblock->vtx[txn_count-1].vin[0].prevout.n;
-        if ( prevtime != 0 )
+        if ( slowflag != 0 && prevtime != 0 )
         {
-            if ( safecoin_isPoS(pblock) != 0 )
+            if ( safecoin_isPoS(pblock,height,0) != 0 ) 
             {
-                eligible = safecoin_stake(1,bnTarget,height,txid,vout,pblock->nTime,prevtime+27,(char *)"");
+                // checks utxo is eligible to stake this block
+                eligible = safecoin_stake(1,bnTarget,height,txid,vout,pblock->nTime,prevtime+ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF,(char *)"",PoSperc); 
             }
             if ( eligible == 0 || eligible > pblock->nTime )
             {
                 if ( 0 && ASSETCHAINS_STAKED < 100 )
                     fprintf(stderr,"safecoin_is_PoSblock PoS failure ht.%d eligible.%u vs blocktime.%u, lag.%d -> check to see if it is PoW block\n",height,eligible,(uint32_t)pblock->nTime,(int32_t)(eligible - pblock->nTime));
-                if ( slowflag != 0 && pindex != 0 )
-                {
-                    pindex->segid = -1;
-                    fprintf(stderr,"PoW block detected set segid.%d <- %d\n",height,pindex->segid);
-                }
             }
             else
             {
-                isPoS = 2; // 2 means staking utxo validated
-                if ( slowflag != 0 && height > 100 )
-                {
-                    segid = -3;
-                    if ( pindex != 0 && pindex->segid == -2 && (segid= safecoin_segid(1,height)) >= 0 )
-                    {
-                        pindex->segid = segid;
-                        fprintf(stderr,"B set segid.%d <- %d\n",height,pindex->segid);
-                    } //else fprintf(stderr,"unexpected null pindex for slowflag set ht.%d segid.%d:%d\n",height,pindex!=0?pindex->segid:-3,segid);
-                }
-            }
-        }
-        if ( slowflag == 0 && isPoS == 0 ) // maybe previous block is not seen yet, do the best approx
-        {
-            if ( safecoin_isPoS(pblock) != 0 )
                 isPoS = 1;
-        }
-        if ( slowflag != 0 && isPoS != 0 )
-        {
-            if ( isPoS != 2 )
-            {
-                fprintf(stderr,"ht.%d isPoS.%d utxo not validated -> must be PoW fake\n",height,isPoS);
-                isPoS = 0;
-            }
-            else
-            {
-                bnTarget = safecoin_PoWtarget(&PoSperc,bnTarget,height,ASSETCHAINS_STAKED);
-                if ( bhash < bnTarget )
+                /*
+                    If POWTarget is easydiff, then we have no possible way to detect a PoW block from a staking block! 
+                    The simplest fix is to make the min diff for PoW blocks higher than the staking mindiff.
+                    The logic here, is that all PoS equihash solutions MUST be under the POW target diff, 
+                    The floor diff can be adjusted with ASSETCHAINS_STAKED_MIN_POW_DIFF, this is a hardforking change. 
+                */
+                if ( ASSETCHAINS_STAKED < 100 && bhash < POWTarget )
                 {
-                    //fprintf(stderr,"ht.%d isPoS but meets PoW diff!\n",height);
+                    fprintf(stderr,"[%s:%i] isPoS but meets PoW diff nBits.%u < target.%u\n", ASSETCHAINS_SYMBOL, height, bhash.GetCompact(), POWTarget.GetCompact());
                     isPoS = 0;
                 }
             }
         }
-        //else return(-1);
     }
     //fprintf(stderr,"slow.%d ht.%d isPoS.%d\n",slowflag,height,isPoS);
     return(isPoS != 0);
@@ -1809,22 +1903,478 @@ int32_t safecoin_is_PoSblock(int32_t slowflag,int32_t height,CBlock *pblock,arit
 bool GetStakeParams(const CTransaction &stakeTx, CStakeParams &stakeParams);
 bool ValidateMatchingStake(const CTransaction &ccTx, uint32_t voutNum, const CTransaction &stakeTx, bool &cheating);
 
+// for now, we will ignore slowFlag in the interest of keeping success/fail simpler for security purposes
+bool verusCheckPOSBlock(int32_t slowflag, CBlock *pblock, int32_t height)
+{
+    CBlockIndex *pastBlockIndex;
+    uint256 txid, blkHash;
+    int32_t txn_count;
+    uint32_t voutNum;
+    CAmount value;
+    bool isPOS = false;
+    CTxDestination voutaddress, destaddress, cbaddress;
+    arith_uint256 target, hash;
+    CTransaction tx;
+
+    if (!pblock->IsVerusPOSBlock())
+    {
+        printf("%s, height %d not POS block\n", pblock->nNonce.GetHex().c_str(), height);
+        //pblock->nNonce.SetPOSTarget(pblock->nNonce.GetPOSTarget());
+        //printf("%s after setting POS target\n", pblock->nNonce.GetHex().c_str());
+        return false;
+    }
+
+    char voutaddr[64], destaddr[64], cbaddr[64];
+
+    txn_count = pblock->vtx.size();
+
+    if ( txn_count > 1 )
+    {
+        target.SetCompact(pblock->GetVerusPOSTarget());
+        txid = pblock->vtx[txn_count-1].vin[0].prevout.hash;
+        voutNum = pblock->vtx[txn_count-1].vin[0].prevout.n;
+        value = pblock->vtx[txn_count-1].vout[0].nValue;
+
+        {
+            bool validHash = (value != 0);
+            bool enablePOSNonce = CPOSNonce::NewPOSActive(height);
+            uint256 rawHash;
+            arith_uint256 posHash;
+
+            if (validHash && enablePOSNonce)
+            {
+                validHash = pblock->GetRawVerusPOSHash(rawHash, height);
+                posHash = UintToArith256(rawHash) / value;
+                if (!validHash || posHash > target)
+                {
+                    validHash = false;
+                    printf("ERROR: invalid nonce value for PoS block\nnNonce: %s\nrawHash: %s\nposHash: %s\nvalue: %lu\n",
+                            pblock->nNonce.GetHex().c_str(), rawHash.GetHex().c_str(), posHash.GetHex().c_str(), value);
+                }
+            }
+            if (validHash)
+            {
+                if (slowflag == 0)
+                {
+                    isPOS = true;
+                }
+                else if (!(pastBlockIndex = safecoin_chainactive(height - 100)))
+                {
+                    fprintf(stderr,"ERROR: chain not fully loaded or invalid PoS block %s - no past block found\n",blkHash.ToString().c_str());
+                }
+                else
+#ifndef SAFECOIN_ZCASH
+                if (!GetTransaction(txid, tx, Params().GetConsensus(), blkHash, true))
+#else
+                if (!GetTransaction(txid, tx, blkHash, true))
+#endif
+                {
+                    fprintf(stderr,"ERROR: invalid PoS block %s - no source transaction\n",blkHash.ToString().c_str());
+                }
+                else
+                {
+                    CBlockHeader bh = pastBlockIndex->GetBlockHeader();
+                    uint256 pastHash = bh.GetVerusEntropyHash(height - 100);
+
+                    // if height is over when Nonce is required to be the new format, we check that the new format is correct
+                    // if over when we have the new POS hash function, we validate that as well
+                    // they are 100 blocks apart
+                    CPOSNonce nonce = pblock->nNonce;
+
+                    //printf("before nNonce: %s, height: %d\n", pblock->nNonce.GetHex().c_str(), height);
+                    //validHash = pblock->GetRawVerusPOSHash(rawHash, height);
+                    //hash = UintToArith256(rawHash) / tx.vout[voutNum].nValue;
+                    //printf("Raw POShash:   %s\n", hash.GetHex().c_str());
+
+                    hash = UintToArith256(tx.GetVerusPOSHash(&nonce, voutNum, height, pastHash));
+
+                    //printf("after nNonce:  %s, height: %d\n", nonce.GetHex().c_str(), height);
+                    //printf("POShash:       %s\n\n", hash.GetHex().c_str());
+
+                    if (posHash == hash && hash <= target)
+                    {
+                        BlockMap::const_iterator it = mapBlockIndex.find(blkHash);
+                        if ((it == mapBlockIndex.end()) ||
+                            !(pastBlockIndex = it->second) ||
+                            (height - pastBlockIndex->GetHeight()) < VERUS_MIN_STAKEAGE)
+                        {
+                            fprintf(stderr,"ERROR: invalid PoS block %s - stake source too new or not found\n",blkHash.ToString().c_str());
+                        }
+                        else
+                        {
+                            // make sure we have the right target
+                            CBlockIndex *previndex;
+                            it = mapBlockIndex.find(pblock->hashPrevBlock);
+                            if (it == mapBlockIndex.end() || !(previndex = it->second))
+                            {
+                                fprintf(stderr,"ERROR: invalid PoS block %s - no prev block found\n",blkHash.ToString().c_str());
+                            }
+                            else
+                            {
+                                arith_uint256 cTarget;
+                                uint32_t nBits = lwmaGetNextPOSRequired(previndex, Params().GetConsensus());
+                                cTarget.SetCompact(nBits);
+                                bool nonceOK = true;
+
+                                // check to see how many fail
+                                //if (nonce != pblock->nNonce)
+                                //    printf("Mismatched nNonce: %s\nblkHash: %s, height: %d\n", nonce.GetHex().c_str(), pblock->GetHash().GetHex().c_str(), height);
+
+                                if (CPOSNonce::NewNonceActive(height) && !nonce.CheckPOSEntropy(pastHash, txid, voutNum))
+                                {
+                                    fprintf(stderr,"ERROR: invalid PoS block %s - nonce entropy corrupted or forged\n",blkHash.ToString().c_str());
+                                    nonceOK = false;
+                                }
+                                else
+                                {
+                                    if (cTarget != target)
+                                    {
+                                        fprintf(stderr,"ERROR: invalid PoS block %s - invalid diff target\n",blkHash.ToString().c_str());
+                                        nonceOK = false;
+                                    }
+                                }
+                                if ( nonceOK && ExtractDestination(pblock->vtx[txn_count-1].vout[0].scriptPubKey, voutaddress) &&
+                                        ExtractDestination(tx.vout[voutNum].scriptPubKey, destaddress) )
+                                {
+                                    strcpy(voutaddr, CBitcoinAddress(voutaddress).ToString().c_str());
+                                    strcpy(destaddr, CBitcoinAddress(destaddress).ToString().c_str());
+                                    if ( !strcmp(destaddr,voutaddr) )
+                                    {
+                                        isPOS = true;
+                                        CTransaction &cbtx = pblock->vtx[0];
+                                        for (int i = 0; i < cbtx.vout.size(); i++)
+                                        {
+                                            if (CScriptExt::ExtractVoutDestination(cbtx, i, cbaddress))
+                                            {
+                                                strcpy(cbaddr, CBitcoinAddress(cbaddress).ToString().c_str());
+                                                if (!strcmp(destaddr,cbaddr))
+                                                    continue;
+                                            }
+                                            else
+                                            {
+                                                if (cbtx.vout[i].scriptPubKey.IsOpReturn())
+                                                    continue;
+                                                isPOS = false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        fprintf(stderr,"ERROR: invalid PoS block %s - invalid stake or coinbase destination\n",blkHash.ToString().c_str());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        printf("ERROR: malformed nonce value for PoS block\nnNonce: %s\nrawHash: %s\nposHash: %s\nvalue: %lu\n",
+                            pblock->nNonce.GetHex().c_str(), rawHash.GetHex().c_str(), posHash.GetHex().c_str(), value);
+                    }
+                }
+            }
+        }
+    }
+    return(isPOS);
+}
+
+uint64_t safecoin_notarypayamount(int32_t nHeight, int64_t notarycount)
+{
+    int8_t curEra = 0; int64_t ret = 0;
+    // if we have an end block in the first era, find our current era
+    if ( ASSETCHAINS_ENDSUBSIDY[0] > 1 )
+    {
+        for ( curEra = 0; curEra <= ASSETCHAINS_LASTERA; curEra++ )
+        {
+            if ( ASSETCHAINS_ENDSUBSIDY[curEra] > nHeight || ASSETCHAINS_ENDSUBSIDY[curEra] == 0 )
+                break;
+        }
+    }
+    if ( curEra > ASSETCHAINS_LASTERA )
+        return(0);
+    
+    if ( notarycount == 0 )
+    {
+        fprintf(stderr, "safecoin_notarypayamount failed num notaries is 0!\n");
+        return(0);
+    }
+    // Because of reorgs we cannot use the notarized height value. 
+    // We need to basically guess here and just pay some static amount.
+    // Has the unwanted effect of varying coin emission, but cannot be helped.
+    //fprintf(stderr, "era.%i paying total of %lu\n",curEra, ASSETCHAINS_NOTARY_PAY[curEra]);
+    ret = ASSETCHAINS_NOTARY_PAY[curEra] / notarycount;
+    return(ret);
+}
+
+int32_t safecoin_getnotarizedheight(uint32_t timestamp,int32_t height, uint8_t *script, int32_t len)
+{
+    // Check the notarisation is valid, and extract notarised height. 
+    uint64_t voutmask;
+    uint8_t scriptbuf[10001]; 
+    int32_t isratification,specialtx,notarizedheight;
+
+    if ( len >= sizeof(uint32_t) && len <= sizeof(scriptbuf) )
+    {
+        memcpy(scriptbuf,script,len);
+        if ( safecoin_voutupdate(true,&isratification,0,scriptbuf,len,height,uint256(),1,1,&voutmask,&specialtx,&notarizedheight,0,1,0,timestamp) != -2 )
+        {
+            fprintf(stderr, "<<<<<<INVALID NOTARIZATION ht.%i\n",notarizedheight);
+            return(0);
+        }
+    } else return(0);
+    return(notarizedheight);
+}
+
+uint64_t safecoin_notarypay(CMutableTransaction &txNew, std::vector<int8_t> &NotarisationNotaries, uint32_t timestamp, int32_t height, uint8_t *script, int32_t len)
+{
+    // fetch notary pubkey array.
+    uint64_t total = 0, AmountToPay = 0;
+    int8_t numSN = 0; uint8_t notarypubkeys[64][33] = {0};
+    numSN = safecoin_notaries(notarypubkeys, height, timestamp);
+
+    // No point going further, no notaries can be paid.
+    if ( notarypubkeys[0][0] == 0 )
+        return(0);
+    
+    // Check the notarisation is valid.
+    int32_t notarizedheight = safecoin_getnotarizedheight(timestamp, height, script, len);
+    if ( notarizedheight == 0 )
+        return(0);
+
+    // resize coinbase vouts to number of notary nodes +1 for coinbase itself.
+    txNew.vout.resize(NotarisationNotaries.size()+1);
+    
+    // Calcualte the amount to pay according to the current era.
+    AmountToPay = safecoin_notarypayamount(height,NotarisationNotaries.size());
+    if ( AmountToPay == 0 )
+        return(0);
+    
+    // loop over notarisation vins and add transaction to coinbase.
+    // Commented prints here can be used to verify manually the pubkeys match.
+    for (int8_t n = 0; n < NotarisationNotaries.size(); n++) 
+    {
+        uint8_t *ptr;
+        txNew.vout[n+1].scriptPubKey.resize(35);
+        ptr = (uint8_t *)&txNew.vout[n+1].scriptPubKey[0];
+        ptr[0] = 33;
+        for (int8_t i=0; i<33; i++)
+        {
+            ptr[i+1] = notarypubkeys[NotarisationNotaries[n]][i];
+            //fprintf(stderr,"%02x",ptr[i+1]);
+        }
+        ptr[34] = OP_CHECKSIG;
+        //fprintf(stderr," set notary %i PUBKEY33 into vout[%i] amount.%lu\n",NotarisationNotaries[n],n+1,AmountToPay);
+        txNew.vout[n+1].nValue = AmountToPay;
+        total += txNew.vout[n+1].nValue;
+    }
+    return(total);
+}
+
+bool GetNotarisationNotaries(uint8_t notarypubkeys[64][33], int8_t &numNN, const std::vector<CTxIn> &vin, std::vector<int8_t> &NotarisationNotaries)
+{
+    uint8_t *script; int32_t scriptlen;
+    if ( notarypubkeys[0][0] == 0 )
+        return false;
+    BOOST_FOREACH(const CTxIn& txin, vin)
+    {
+        uint256 hash; CTransaction tx1;
+        if ( GetTransaction(txin.prevout.hash,tx1,hash,false) )
+        {
+            for (int8_t i = 0; i < numNN; i++) 
+            {
+                script = (uint8_t *)&tx1.vout[txin.prevout.n].scriptPubKey[0];
+                scriptlen = (int32_t)tx1.vout[txin.prevout.n].scriptPubKey.size();
+                if ( scriptlen == 35 && script[0] == 33 && script[34] == OP_CHECKSIG && memcmp(script+1,notarypubkeys[i],33) == 0 )
+                    NotarisationNotaries.push_back(i);
+            }
+        } else return false;
+    }
+    return true;
+}
+
+uint64_t safecoin_checknotarypay(CBlock *pblock,int32_t height)
+{
+    std::vector<int8_t> NotarisationNotaries; uint8_t *script; int32_t scriptlen;
+    uint64_t timestamp = pblock->nTime;
+    int8_t numSN = 0; uint8_t notarypubkeys[64][33] = {0};
+    numSN = safecoin_notaries(notarypubkeys, height, timestamp);
+    if ( !GetNotarisationNotaries(notarypubkeys, numSN, pblock->vtx[1].vin, NotarisationNotaries) )
+        return(0);
+    
+    // check a notary didnt sign twice (this would be an invalid notarisation later on and cause problems)
+    std::set<int> checkdupes( NotarisationNotaries.begin(), NotarisationNotaries.end() );
+    if ( checkdupes.size() != NotarisationNotaries.size() ) {
+        fprintf(stderr, "Possible notarisation is signed multiple times by same notary. It is invalid.\n");
+        return(0);
+    }
+    const CChainParams& chainparams = Params();
+    const Consensus::Params &consensusParams = chainparams.GetConsensus();
+    uint64_t totalsats = 0;
+    CMutableTransaction txNew = CreateNewContextualCMutableTransaction(consensusParams, height);
+    if ( pblock->vtx[1].vout.size() == 2 && pblock->vtx[1].vout[1].nValue == 0 )
+    {
+        // Get the OP_RETURN for the notarisation
+        uint8_t *script = (uint8_t *)&pblock->vtx[1].vout[1].scriptPubKey[0];
+        int32_t scriptlen = (int32_t)pblock->vtx[1].vout[1].scriptPubKey.size();
+        if ( script[0] == OP_RETURN )
+        {
+            // Create the coinbase tx again, using the extracted data, this is the same function the miner uses, with the same data. 
+            // This allows us to know exactly that the coinbase is correct.
+            totalsats = safecoin_notarypay(txNew, NotarisationNotaries, pblock->nTime, height, script, scriptlen);
+        } 
+        else 
+        {
+            fprintf(stderr, "vout 2 of notarisation is not OP_RETURN scriptlen.%i\n", scriptlen);
+            return(0);
+        }
+    } else return(0);
+    
+    // if notarypay fails, because the notarisation is not valid, exit now as txNew was not created.
+    // This should never happen, as the notarisation is checked before this function is called.
+    if ( totalsats == 0 )
+    {
+        fprintf(stderr, "notary pay returned 0!\n");
+        return(0);
+    }
+    
+    int8_t n = 0, i = 0, matches = 0;
+    uint64_t total = 0, AmountToPay = 0;
+    
+    // get the pay amount from the created tx.
+    AmountToPay = txNew.vout[1].nValue;
+    
+    // Check the created coinbase pays the correct notaries.
+    BOOST_FOREACH(const CTxOut& txout, pblock->vtx[0].vout)
+    {
+        // skip the coinbase paid to the miner.
+        if ( n == 0 ) 
+        {
+            n++;
+            continue;
+        }
+        // Check the pubkeys match the pubkeys in the notarisation.
+        script = (uint8_t *)&txout.scriptPubKey[0];
+        scriptlen = (int32_t)txout.scriptPubKey.size();
+        if ( scriptlen == 35 && script[0] == 33 && script[34] == OP_CHECKSIG && memcmp(script+1,notarypubkeys[NotarisationNotaries[n-1]],33) == 0 )
+        {
+            // check the value is correct
+            if ( pblock->vtx[0].vout[n].nValue == AmountToPay )
+            {
+                matches++;
+                total += txout.nValue;
+                //fprintf(stderr, "MATCHED AmountPaid.%lu notaryid.%i\n",AmountToPay,NotarisationNotaries[n-1]);
+            }
+            else fprintf(stderr, "NOT MATCHED AmountPaid.%llu AmountToPay.%llu notaryid.%i\n", (long long)pblock->vtx[0].vout[n].nValue, (long long)AmountToPay, NotarisationNotaries[n-1]);
+        }
+        n++;
+    }
+    if ( matches != 0 && matches == NotarisationNotaries.size() && totalsats == total )
+    {
+        //fprintf(stderr, "Validated coinbase matches notarisation in tx position 1.\n" );
+        return(totalsats);
+    }
+    return(0);
+}
+
+bool safecoin_appendACscriptpub()
+{
+    static bool didinit = false;
+    if ( didinit ) 
+        return didinit;
+    if ( ASSETCHAINS_SCRIPTPUB[ASSETCHAINS_SCRIPTPUB.back()] == 49 && ASSETCHAINS_SCRIPTPUB[ASSETCHAINS_SCRIPTPUB.back()-1] == 51 )
+    {
+        CTransaction tx; uint256 blockhash; 
+        // get transaction and check that it occured before height 100. 
+        if ( myGetTransaction(SAFECOIN_EARLYTXID,tx,blockhash) && mapBlockIndex[blockhash]->GetHeight() < SAFECOIN_EARLYTXID_HEIGHT )
+        {
+             for (int i = 0; i < tx.vout.size(); i++) 
+             {
+                 if ( tx.vout[i].scriptPubKey[0] == OP_RETURN )
+                 {
+                     ASSETCHAINS_SCRIPTPUB.pop_back(); ASSETCHAINS_SCRIPTPUB.pop_back(); // remove last 2 chars. 
+                      // get OP_RETURN from txid and append the HexStr of it to scriptpub 
+                     ASSETCHAINS_SCRIPTPUB.append(HexStr(tx.vout[i].scriptPubKey.begin()+3, tx.vout[i].scriptPubKey.end()));
+                     //fprintf(stderr, "ac_script.%s\n",ASSETCHAINS_SCRIPTPUB.c_str());
+                     didinit = true;
+                     return true;
+                 }
+             }
+        }
+        fprintf(stderr, "could not get SAFECOIN_EARLYTXID.%s OP_RETURN data. Restart with correct txid!\n", SAFECOIN_EARLYTXID.GetHex().c_str());
+        StartShutdown();
+    }
+    return false;
+}
+
+void GetSafecoinEarlytxidScriptPub()
+{
+    if ( SAFECOIN_EARLYTXID == zeroid )
+    {
+        fprintf(stderr, "Restart deamon with -earlytxid.\n");
+        StartShutdown();
+        return;
+    }
+    if ( ASSETCHAINS_EARLYTXIDCONTRACT == EVAL_PRICES && SAFECOIN_SNAPSHOT_INTERVAL == 0 )
+    {
+        fprintf(stderr, "Prices->paymentsCC contract must have -ac_snapshot enabled to pay out.\n");
+        StartShutdown();
+        return;
+    }
+    if ( chainActive.Height() < SAFECOIN_EARLYTXID_HEIGHT )
+    {
+        fprintf(stderr, "Cannot fetch -earlytxid before block %d.\n",SAFECOIN_EARLYTXID_HEIGHT);
+        StartShutdown();
+        return;
+    }
+    CTransaction tx; uint256 blockhash; int32_t i;
+    // get transaction and check that it occured before height 100. 
+    if ( myGetTransaction(SAFECOIN_EARLYTXID,tx,blockhash) && mapBlockIndex[blockhash]->GetHeight() < SAFECOIN_EARLYTXID_HEIGHT )
+    {
+        for (i = 0; i < tx.vout.size(); i++) 
+            if ( tx.vout[i].scriptPubKey[0] == OP_RETURN )
+                break;
+        if ( i < tx.vout.size() )
+        {
+            SAFECOIN_EARLYTXID_SCRIPTPUB = CScript(tx.vout[i].scriptPubKey.begin()+3, tx.vout[i].scriptPubKey.end());
+            fprintf(stderr, "SAFECOIN_EARLYTXID_SCRIPTPUB.%s\n", HexStr(SAFECOIN_EARLYTXID_SCRIPTPUB.begin(),SAFECOIN_EARLYTXID_SCRIPTPUB.end()).c_str());
+            return;
+        }
+    }
+    fprintf(stderr, "INVALID -earlytxid, restart daemon with correct txid.\n");
+    StartShutdown();
+}
 
 int64_t safecoin_checkcommission(CBlock *pblock,int32_t height)
 {
-    int64_t checktoshis=0; uint8_t *script,scripthex[8192]; int32_t scriptlen,matched = 0;
-    if ( ASSETCHAINS_COMMISSION != 0 )
+    int64_t checktoshis=0; uint8_t *script,scripthex[8192]; int32_t scriptlen,matched = 0; static bool didinit = false;
+    if ( ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_FOUNDERS_REWARD != 0 )
     {
         checktoshis = safecoin_commission(pblock,height);
-        //fprintf(stderr,"height.%d commission %.8f\n",height,(double)checktoshis/COIN);
-        /*if ( checktoshis > 10000 && pblock->vtx[0].vout.size() != 2 )  jl777: not sure why this was here
+        if ( checktoshis >= 10000 && pblock->vtx[0].vout.size() < 2 )
+        {
+            //fprintf(stderr,"safecoin_checkcommission vsize.%d height.%d commission %.8f\n",(int32_t)pblock->vtx[0].vout.size(),height,(double)checktoshis/COIN);
             return(-1);
-        else*/ if ( checktoshis != 0 )
+        }
+        else if ( checktoshis != 0 )
         {
             script = (uint8_t *)&pblock->vtx[0].vout[1].scriptPubKey[0];
             scriptlen = (int32_t)pblock->vtx[0].vout[1].scriptPubKey.size();
+            if ( 0 )
+            {
+                int32_t i;
+                for (i=0; i<scriptlen; i++)
+                    fprintf(stderr,"%02x",script[i]);
+                fprintf(stderr," vout[1] %.8f vs %.8f\n",(double)checktoshis/COIN,(double)pblock->vtx[0].vout[1].nValue/COIN);
+            }
             if ( ASSETCHAINS_SCRIPTPUB.size() > 1 )
             {
+                static bool didinit = false;
+                if ( !didinit && height > SAFECOIN_EARLYTXID_HEIGHT && SAFECOIN_EARLYTXID != zeroid && safecoin_appendACscriptpub() )
+                {
+                    fprintf(stderr, "appended CC_op_return to ASSETCHAINS_SCRIPTPUB.%s\n", ASSETCHAINS_SCRIPTPUB.c_str());
+                    didinit = true;
+                }
                 if ( ASSETCHAINS_SCRIPTPUB.size()/2 == scriptlen && scriptlen < sizeof(scripthex) )
                 {
                     decode_hex(scripthex,scriptlen,(char *)ASSETCHAINS_SCRIPTPUB.c_str());
@@ -1838,10 +2388,13 @@ int64_t safecoin_checkcommission(CBlock *pblock,int32_t height)
                 matched = 25;
             if ( matched == 0 )
             {
-                //int32_t i;
-                //for (i=0; i<25; i++)
-                //    fprintf(stderr,"%02x",script[i]);
-                //fprintf(stderr," payment to wrong pubkey scriptlen.%d, scriptpub[%d]\n",scriptlen,(int32_t)ASSETCHAINS_SCRIPTPUB.size()/2);
+                if ( 0 && ASSETCHAINS_SCRIPTPUB.size() > 1 )
+                {
+                    int32_t i;
+                    for (i=0; i<ASSETCHAINS_SCRIPTPUB.size(); i++)
+                        fprintf(stderr,"%02x",ASSETCHAINS_SCRIPTPUB[i]);
+                }
+                fprintf(stderr," -ac[%d] payment to wrong pubkey scriptlen.%d, scriptpub[%d] checktoshis.%llu\n",(int32_t)ASSETCHAINS_SCRIPTPUB.size(),scriptlen,(int32_t)ASSETCHAINS_SCRIPTPUB.size()/2,(long long)checktoshis);
                 return(-1);
 
             }
@@ -1857,9 +2410,9 @@ int64_t safecoin_checkcommission(CBlock *pblock,int32_t height)
 
 bool SAFECOIN_TEST_ASSETCHAIN_SKIP_POW = 0;
 
-int32_t safecoin_checkPOW(int32_t slowflag,CBlock *pblock,int32_t height)
+int32_t safecoin_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,int32_t height)
 {
-    uint256 hash; arith_uint256 bnTarget,bhash; bool fNegative,fOverflow; uint8_t *script,pubkey33[33],pubkeys[64][33]; int32_t i,possible,PoSperc,is_PoSblock=0,n,failed = 0,notaryid = -1; int64_t checktoshis,value; CBlockIndex *pprev;
+    uint256 hash,merkleroot; arith_uint256 bnTarget,bhash; bool fNegative,fOverflow; uint8_t *script,pubkey33[33],pubkeys[64][33]; int32_t i,scriptlen,possible,PoSperc,is_PoSblock=0,n,failed = 0,notaryid = -1; int64_t checktoshis,value; CBlockIndex *pprev;
     if ( SAFECOIN_TEST_ASSETCHAIN_SKIP_POW == 0 && Params().NetworkIDString() == "regtest" )
         SAFECOIN_TEST_ASSETCHAIN_SKIP_POW = 1;
     if ( !CheckEquihashSolution(pblock, Params()) )
@@ -1884,12 +2437,17 @@ int32_t safecoin_checkPOW(int32_t slowflag,CBlock *pblock,int32_t height)
         if ( height == 0 )
             return(0);
     }
-
+    //if ( ASSETCHAINS_ADAPTIVEPOW > 0 )
+    //    bnTarget = safecoin_adaptivepow_target(height,bnTarget,pblock->nTime);
     if ( ASSETCHAINS_LWMAPOS != 0 && bhash > bnTarget )
     {
-
+        // if proof of stake is active, check if this is a valid PoS block before we fail
+        if (verusCheckPOSBlock(slowflag, pblock, height))
+        {
+            return(0);
+        }
     }
-    if ( (ASSETCHAINS_SYMBOL[0] != 0 || height > 108800) && bhash > bnTarget )
+    if ( (ASSETCHAINS_SYMBOL[0] != 0 || height > 792000) && bhash > bnTarget )
     {
         failed = 1;
         if ( height > 0 && ASSETCHAINS_SYMBOL[0] == 0 ) // for the fast case
@@ -1912,19 +2470,23 @@ int32_t safecoin_checkPOW(int32_t slowflag,CBlock *pblock,int32_t height)
                 return(-1);
         }
     }
+    //fprintf(stderr,"ASSETCHAINS_STAKED.%d ht.%d\n",(int32_t)ASSETCHAINS_STAKED,height);
     if ( ASSETCHAINS_STAKED != 0 && height >= 2 ) // must PoS or have at least 16x better PoW
     {
+        CBlockIndex *pindex; 
+        BlockMap::const_iterator it = mapBlockIndex.find(pblock->GetHash());
+        pindex = it != mapBlockIndex.end() ? it->second : NULL;
+        int32_t newStakerActive = safecoin_newStakerActive(height, pblock->nTime);
         if ( (is_PoSblock= safecoin_is_PoSblock(slowflag,height,pblock,bnTarget,bhash)) == 0 )
         {
-            if ( slowflag == 0 ) // need all past 100 blocks to calculate PoW target
+            if ( slowflag == 0 || height <= 100 ) // need all past 100 blocks to calculate PoW target
                 return(0);
             if ( ASSETCHAINS_STAKED == 100 && height > 100 )  // only PoS allowed! POSTEST64
                 return(-1);
             else
             {
-                if ( slowflag != 0 )
-                    bnTarget = safecoin_PoWtarget(&PoSperc,bnTarget,height,ASSETCHAINS_STAKED);
-                if ( bhash > bnTarget )
+                bnTarget = safecoin_PoWtarget(&PoSperc,bnTarget,height,ASSETCHAINS_STAKED,newStakerActive);
+                if ( bhash > bnTarget ) 
                 {
                     for (i=31; i>=16; i--)
                         fprintf(stderr,"%02x",((uint8_t *)&bhash)[i]);
@@ -1933,22 +2495,71 @@ int32_t safecoin_checkPOW(int32_t slowflag,CBlock *pblock,int32_t height)
                         fprintf(stderr,"%02x",((uint8_t *)&bnTarget)[i]);
                     fprintf(stderr," ht.%d PoW diff violation PoSperc.%d vs goalperc.%d\n",height,PoSperc,(int32_t)ASSETCHAINS_STAKED);
                     return(-1);
-                } else failed = 0;
+                }
+                else
+                {
+                    if ( newStakerActive != 0 )
+                    {
+                        // PoW fake blocks will be rejected here. If a staking tx is included in a block that meets PoW min diff after block 100, then this will reject it. 
+                        if ( pblock->vtx.size() > 1 && pblock->vtx[pblock->vtx.size()-1].vout.size() == 2 && DecodeStakingOpRet(pblock->vtx[pblock->vtx.size()-1].vout[1].scriptPubKey, merkleroot) != 0 )
+                        {
+                            fprintf(stderr, "[%s:%d] staking tx in PoW block, nBits.%u < target.%u\n", ASSETCHAINS_SYMBOL,height,bhash.GetCompact(),bnTarget.GetCompact());
+                            return(-1);
+                        }
+                        // set the pindex->segid as this is now fully validated to be a PoW block. 
+                        if ( pindex != 0 )
+                        {   
+                        pindex->segid = -1;
+                        //fprintf(stderr,"PoW block detected set segid.%d <- %d\n",height,pindex->segid);
+                    }
+                }
+                    failed = 0; 
+                }
             }
         }
         else if ( is_PoSblock < 0 )
         {
-            fprintf(stderr,"unexpected negative is_PoSblock.%d\n",is_PoSblock);
+            fprintf(stderr,"[%s:%d] unexpected negative is_PoSblock.%d\n",ASSETCHAINS_SYMBOL,height,is_PoSblock);
             return(-1);
         }
-        else if ( ASSETCHAINS_STAKED != 0 )
+        else 
+        {
+            if ( slowflag != 0 && newStakerActive != 0 ) 
+            {
+                int8_t segid = -2;
+                // the value passed to stakeTxValue, is the blockreward + the valuein-valueout(txfee) of the last tx in the block.
+                // the coinbase must pay the fees from the last transaction and the block reward at a minimum.
+                if ( pblock->vtx.size() < 1 || pblock->vtx[0].vout.size() < 1 )
+                {
+                    fprintf(stderr, "[%s:%d] missing coinbase.\n", ASSETCHAINS_SYMBOL, height);
+                    return(-1);
+                }
+                else if ( pblock->vtx[0].vout[0].nValue < stakeTxValue )
+                {
+                    fprintf(stderr, "[%s:%d] coinbase vout0.%lld < blockreward+stakingtxfee.%lld\n", ASSETCHAINS_SYMBOL, height, (long long)pblock->vtx[0].vout[0].nValue, (long long)stakeTxValue);
+                    return(-1);
+                }
+                // set the pindex->segid as this is now fully validated to be a PoS block. 
+                char voutaddr[64]; CTxDestination voutaddress;
+                if ( ExtractDestination(pblock->vtx.back().vout[0].scriptPubKey,voutaddress) )
+                {
+                    strcpy(voutaddr,CBitcoinAddress(voutaddress).ToString().c_str());
+                    segid = safecoin_segid32(voutaddr) & 0x3f;
+                }
+                if ( pindex != 0 && segid >= 0 )
+                {
+                    pindex->segid = segid;
+                    //fprintf(stderr,"PoS block set segid.%d <- %d\n",height,pindex->segid);
+                }    
+            }
             failed = 0;
     }
-    if ( failed == 0 && ASSETCHAINS_COMMISSION != 0 ) //ASSETCHAINS_OVERRIDE_PUBKEY33[0] != 0 )
+    }
+    if ( failed == 0 && ASSETCHAINS_COMMISSION != 0 ) 
     {
         if ( height == 1 )
         {
-            if ( ASSETCHAINS_SCRIPTPUB.size() > 1 )
+            if ( ASSETCHAINS_SCRIPTPUB.size() > 1 && ASSETCHAINS_SCRIPTPUB[ASSETCHAINS_SCRIPTPUB.back()] != 49 && ASSETCHAINS_SCRIPTPUB[ASSETCHAINS_SCRIPTPUB.back()-1] != 51 )
             {
                 int32_t scriptlen; uint8_t scripthex[10000];
                 script = (uint8_t *)&pblock->vtx[0].vout[0].scriptPubKey[0];
@@ -1960,10 +2571,11 @@ int32_t safecoin_checkPOW(int32_t slowflag,CBlock *pblock,int32_t height)
                         return(-1);
                 } else return(-1);
             }
-            else
+            else if ( ASSETCHAINS_OVERRIDE_PUBKEY33[0] != 0 )
             {
                 script = (uint8_t *)&pblock->vtx[0].vout[0].scriptPubKey[0];
-                if ( script[0] != 33 || script[34] != OP_CHECKSIG || memcmp(script+1,ASSETCHAINS_OVERRIDE_PUBKEY33,33) != 0 )
+                scriptlen = (int32_t)pblock->vtx[0].vout[0].scriptPubKey.size();
+                if ( scriptlen != 35 || script[0] != 33 || script[34] != OP_CHECKSIG || memcmp(script+1,ASSETCHAINS_OVERRIDE_PUBKEY33,33) != 0 )
                     return(-1);
             }
         }
@@ -1973,6 +2585,32 @@ int32_t safecoin_checkPOW(int32_t slowflag,CBlock *pblock,int32_t height)
                 return(-1);
         }
     }
+    // Consensus rule to force miners to mine the notary coinbase payment happens in ConnectBlock 
+    // the default daemon miner, checks the actual vins so the only way this will fail, is if someone changes the miner, 
+    // and then creates txs to the crypto address meeting min sigs and puts it in tx position 1.
+    // If they go through this effort, the block will still fail at connect block, and will be auto purged by the temp file fix.   
+    if ( failed == 0 && ASSETCHAINS_NOTARY_PAY[0] != 0 && pblock->vtx.size() > 1 )
+    {
+        // We check the full validation in ConnectBlock directly to get the amount for coinbase. So just approx here.
+        if ( slowflag == 0 && pblock->vtx[0].vout.size() > 1 )
+        {
+            // Check the notarisation tx is to the crypto address.
+            if ( !safecoin_is_notarytx(pblock->vtx[1]) == 1 )
+            {
+                fprintf(stderr, "notarisation is not to crypto address ht.%i\n",height);
+                return(-1); 
+            }
+            // Check min sigs.
+            int8_t numSN = 0; uint8_t notarypubkeys[64][33] = {0};
+            numSN = safecoin_notaries(notarypubkeys, height, pblock->nTime);
+            if ( pblock->vtx[1].vin.size() < numSN/5 )
+            {
+                fprintf(stderr, "ht.%i does not meet minsigs.%i sigs.%lld\n",height,numSN/5,(long long)pblock->vtx[1].vin.size());
+                return(-1);
+            }
+        }
+    }
+
 //fprintf(stderr,"safecoin_checkPOW possible.%d slowflag.%d ht.%d notaryid.%d failed.%d\n",possible,slowflag,height,notaryid,failed);
     if ( failed != 0 && possible == 0 && notaryid < 0 )
         return(-1);
@@ -2033,7 +2671,7 @@ int64_t safecoin_newcoins(int64_t *zfundsp,int64_t *sproutfundsp,int32_t nHeight
                     voutsum += tx.vout[j].nValue;
             }
         }
-        for (const JSDescription& joinsplit : tx.vjoinsplit)
+        BOOST_FOREACH(const JSDescription& joinsplit, tx.vjoinsplit)
         {
             zfunds -= joinsplit.vpub_new;
             zfunds += joinsplit.vpub_old;
@@ -2080,4 +2718,246 @@ int64_t safecoin_coinsupply(int64_t *zfundsp,int64_t *sproutfundsp,int32_t heigh
     *zfundsp = zfunds;
     *sproutfundsp = sproutfunds;
     return(supply);
+}
+struct safecoin_staking
+{
+    char address[64];
+    uint256 txid;
+    arith_uint256 hashval;
+    uint64_t nValue;
+    uint32_t segid32,txtime;
+    int32_t vout;
+    CScript scriptPubKey;
+};
+
+struct safecoin_staking *safecoin_addutxo(struct safecoin_staking *array,int32_t *numkp,int32_t *maxkp,uint32_t txtime,uint64_t nValue,uint256 txid,int32_t vout,char *address,uint8_t *hashbuf,CScript pk)
+{
+    uint256 hash; uint32_t segid32; struct safecoin_staking *kp;
+    segid32 = safecoin_stakehash(&hash,address,hashbuf,txid,vout);
+    if ( *numkp >= *maxkp )
+    {
+        *maxkp += 1000;
+        array = (struct safecoin_staking *)realloc(array,sizeof(*array) * (*maxkp));
+        //fprintf(stderr,"realloc max.%d array.%p\n",*maxkp,array);
+    }
+    kp = &array[(*numkp)++];
+    //fprintf(stderr,"kp.%p num.%d\n",kp,*numkp);
+    memset(kp,0,sizeof(*kp));
+    strcpy(kp->address,address);
+    kp->txid = txid;
+    kp->vout = vout;
+    kp->hashval = UintToArith256(hash);
+    kp->txtime = txtime;
+    kp->segid32 = segid32;
+    kp->nValue = nValue;
+    kp->scriptPubKey = pk;
+    return(array);
+}
+
+int32_t safecoin_staked(CMutableTransaction &txNew,uint32_t nBits,uint32_t *blocktimep,uint32_t *txtimep,uint256 *utxotxidp,int32_t *utxovoutp,uint64_t *utxovaluep,uint8_t *utxosig, uint256 merkleroot)
+{
+    static struct safecoin_staking *array; static int32_t numkp,maxkp; static uint32_t lasttime;
+    int32_t PoSperc = 0, newStakerActive; 
+    set<CBitcoinAddress> setAddress; struct safecoin_staking *kp; int32_t winners,segid,minage,nHeight,counter=0,i,m,siglen=0,nMinDepth = 1,nMaxDepth = 99999999; vector<COutput> vecOutputs; uint32_t block_from_future_rejecttime,besttime,eligible,earliest = 0; CScript best_scriptPubKey; arith_uint256 mindiff,ratio,bnTarget,tmpTarget; CBlockIndex *tipindex,*pindex; CTxDestination address; bool fNegative,fOverflow; uint8_t hashbuf[256]; CTransaction tx; uint256 hashBlock;
+    uint64_t cbPerc = *utxovaluep, tocoinbase = 0;
+    if (!EnsureWalletIsAvailable(0))
+        return 0;
+    
+    bnTarget.SetCompact(nBits, &fNegative, &fOverflow);
+    assert(pwalletMain != NULL);
+    *utxovaluep = 0;
+    memset(utxotxidp,0,sizeof(*utxotxidp));
+    memset(utxovoutp,0,sizeof(*utxovoutp));
+    memset(utxosig,0,72);
+    if ( (tipindex= chainActive.Tip()) == 0 )
+        return(0);
+    nHeight = tipindex->GetHeight() + 1;
+    if ( (minage= nHeight*3) > 6000 ) // about 100 blocks
+        minage = 6000;
+    if ( *blocktimep < tipindex->nTime+60)
+        *blocktimep = tipindex->nTime+60;
+    safecoin_segids(hashbuf,nHeight-101,100);
+    // this was for VerusHash PoS64
+    //tmpTarget = safecoin_PoWtarget(&PoSperc,bnTarget,nHeight,ASSETCHAINS_STAKED);
+    bool resetstaker = false;
+    if ( array != 0 )
+    {
+        LOCK(cs_main);
+        CBlockIndex* pblockindex = chainActive[tipindex->GetHeight()];
+        CBlock block; CTxDestination addressout;
+        if ( ASSETCHAINS_MARMARA != 0 )
+            resetstaker = true;
+         else if ( ReadBlockFromDisk(block, pblockindex, 1) && safecoin_isPoS(&block, nHeight, &addressout) != 0 && IsMine(*pwalletMain,addressout) != 0 )
+        {
+              resetstaker = true;
+              fprintf(stderr, "[%s:%d] Reset ram staker after mining a block!\n",ASSETCHAINS_SYMBOL,nHeight);
+        }
+    }
+
+    if ( resetstaker || array == 0 || time(NULL) > lasttime+600 )
+    {
+        LOCK2(cs_main, pwalletMain->cs_wallet);
+        pwalletMain->AvailableCoins(vecOutputs, false, NULL, true);
+        if ( array != 0 )
+        {
+            free(array);
+            array = 0;
+            maxkp = numkp = 0;
+            lasttime = 0;
+        }
+        if ( ASSETCHAINS_MARMARA == 0 )
+        {
+            BOOST_FOREACH(const COutput& out, vecOutputs)
+            {
+                if ( (tipindex= chainActive.Tip()) == 0 || tipindex->GetHeight()+1 > nHeight )
+                {
+                    fprintf(stderr,"[%s:%d] chain tip changed during staking loop t.%u counter.%d\n",ASSETCHAINS_SYMBOL,nHeight,(uint32_t)time(NULL),counter);
+                    return(0);
+                }
+                counter++;
+                if ( out.nDepth < nMinDepth || out.nDepth > nMaxDepth )
+                {
+                    //fprintf(stderr,"safecoin_staked invalid depth %d\n",(int32_t)out.nDepth);
+                    continue;
+                }
+                CAmount nValue = out.tx->vout[out.i].nValue;
+                if ( nValue < COIN  || !out.fSpendable )
+                    continue;
+                const CScript& pk = out.tx->vout[out.i].scriptPubKey;
+                if ( ExtractDestination(pk,address) != 0 )
+                {
+                    if ( IsMine(*pwalletMain,address) == 0 )
+                        continue;
+                    if ( myGetTransaction(out.tx->GetHash(),tx,hashBlock) != 0 && (pindex= safecoin_getblockindex(hashBlock)) != 0 )
+                    {
+                        array = safecoin_addutxo(array,&numkp,&maxkp,(uint32_t)pindex->nTime,(uint64_t)nValue,out.tx->GetHash(),out.i,(char *)CBitcoinAddress(address).ToString().c_str(),hashbuf,(CScript)pk);
+                        //fprintf(stderr,"addutxo numkp.%d vs max.%d\n",numkp,maxkp);
+                    }
+                }
+            }
+        }
+        else
+        {
+            struct CCcontract_info *cp,C; uint256 txid; int32_t vout,ht,unlockht; CAmount nValue; char coinaddr[64]; CPubKey mypk,Marmarapk,pk;
+            std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
+            cp = CCinit(&C,EVAL_MARMARA);
+            mypk = pubkey2pk(Mypubkey());
+            Marmarapk = GetUnspendable(cp,0);
+            GetCCaddress1of2(cp,coinaddr,Marmarapk,mypk);
+            SetCCunspents(unspentOutputs,coinaddr,true);
+            for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> >::const_iterator it=unspentOutputs.begin(); it!=unspentOutputs.end(); it++)
+            {
+                txid = it->first.txhash;
+                vout = (int32_t)it->first.index;
+                if ( (nValue= it->second.satoshis) < COIN )
+                    continue;
+                if ( myGetTransaction(txid,tx,hashBlock) != 0 && (pindex= safecoin_getblockindex(hashBlock)) != 0 && myIsutxo_spentinmempool(ignoretxid,ignorevin,txid,vout) == 0 )
+                {
+                    const CScript &scriptPubKey = tx.vout[vout].scriptPubKey;
+                    if ( DecodeMaramaraCoinbaseOpRet(tx.vout[tx.vout.size()-1].scriptPubKey,pk,ht,unlockht) != 0 && pk == mypk )
+                    {
+                        array = safecoin_addutxo(array,&numkp,&maxkp,(uint32_t)pindex->nTime,(uint64_t)nValue,txid,vout,coinaddr,hashbuf,(CScript)scriptPubKey);
+                    }
+                    // else fprintf(stderr,"SKIP addutxo %.8f numkp.%d vs max.%d\n",(double)nValue/COIN,numkp,maxkp);
+                }
+            }
+        }
+        lasttime = (uint32_t)time(NULL);
+        //fprintf(stderr,"finished kp data of utxo for staking %u ht.%d numkp.%d maxkp.%d\n",(uint32_t)time(NULL),nHeight,numkp,maxkp);
+    }
+    block_from_future_rejecttime = (uint32_t)GetAdjustedTime() + ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX;    
+    for (i=winners=0; i<numkp; i++)
+    {
+        if ( fRequestShutdown || !GetBoolArg("-gen",false) )
+            return(0);
+        if ( (tipindex= chainActive.Tip()) == 0 || tipindex->GetHeight()+1 > nHeight )
+        {
+            fprintf(stderr,"[%s:%d] chain tip changed during staking loop t.%u counter.%d\n",ASSETCHAINS_SYMBOL,nHeight,(uint32_t)time(NULL),i);
+            return(0);
+        }
+        kp = &array[i];
+        eligible = safecoin_stake(0,bnTarget,nHeight,kp->txid,kp->vout,0,(uint32_t)tipindex->nTime+ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF,kp->address,PoSperc);
+        if ( eligible > 0 )
+        {
+            besttime = 0;
+            if ( eligible == safecoin_stake(1,bnTarget,nHeight,kp->txid,kp->vout,eligible,(uint32_t)tipindex->nTime+ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF,kp->address,PoSperc) )
+            {
+                // have elegible utxo to stake with. 
+                if ( earliest == 0 || eligible < earliest || (eligible == earliest && (*utxovaluep == 0 || kp->nValue < *utxovaluep)) )
+                {
+                    // is better than the previous best, so use it instead.
+                    earliest = eligible;
+                    best_scriptPubKey = kp->scriptPubKey;
+                    *utxovaluep = (uint64_t)kp->nValue;
+                    decode_hex((uint8_t *)utxotxidp,32,(char *)kp->txid.GetHex().c_str());
+                    *utxovoutp = kp->vout;
+                    *txtimep = kp->txtime;
+                }
+                /*if ( eligible < block_from_future_rejecttime )
+                { 
+                    // better to scan all and choose earliest! 
+                    fprintf(stderr, "block_from_future_rejecttime.%u vs eligible.%u \n", block_from_future_rejecttime, eligible);
+                    break;
+                } */ 
+            }
+        }
+    }
+    if ( numkp < 500 && array != 0 )
+    {
+        free(array);
+        array = 0;
+        maxkp = numkp = 0;
+        lasttime = 0;
+    }
+    if ( earliest != 0 )
+    {
+        bool signSuccess; SignatureData sigdata; uint64_t txfee; uint8_t *ptr; uint256 revtxid,utxotxid;
+        auto consensusBranchId = CurrentEpochBranchId(chainActive.Height() + 1, Params().GetConsensus());
+        const CKeyStore& keystore = *pwalletMain;
+        txNew.vin.resize(1);
+        txNew.vout.resize(1);
+        txfee = 0;
+        for (i=0; i<32; i++)
+            ((uint8_t *)&revtxid)[i] = ((uint8_t *)utxotxidp)[31 - i];
+        txNew.vin[0].prevout.hash = revtxid;
+        txNew.vin[0].prevout.n = *utxovoutp;
+        txNew.vout[0].scriptPubKey = best_scriptPubKey;
+        txNew.vout[0].nValue = *utxovaluep - txfee;
+        txNew.nLockTime = earliest;
+        txNew.nExpiryHeight = nHeight;
+        if ( (newStakerActive= safecoin_newStakerActive(nHeight,earliest)) != 0 )
+        {
+            if ( cbPerc > 0 && cbPerc <= 100 )
+            {
+                tocoinbase = txNew.vout[0].nValue*cbPerc/100;
+                txNew.vout[0].nValue -= tocoinbase;
+            }            
+            txNew.vout.resize(2);
+            txNew.vout[1].scriptPubKey = EncodeStakingOpRet(merkleroot);
+            txNew.vout[1].nValue = 0;
+        } 
+        CTransaction txNewConst(txNew);
+        if ( ASSETCHAINS_MARMARA == 0 )
+        {
+            signSuccess = ProduceSignature(TransactionSignatureCreator(&keystore, &txNewConst, 0, *utxovaluep, SIGHASH_ALL), best_scriptPubKey, sigdata, consensusBranchId);
+            UpdateTransaction(txNew,0,sigdata);
+            ptr = (uint8_t *)&sigdata.scriptSig[0];
+            siglen = sigdata.scriptSig.size();
+            for (i=0; i<siglen; i++)
+                utxosig[i] = ptr[i];
+            *utxovaluep = newStakerActive != 0 ? tocoinbase : txNew.vout[0].nValue+txfee;
+        }
+        else
+        {
+            siglen = MarmaraSignature(utxosig,txNew);
+            if ( siglen > 0 )
+                signSuccess = true;
+            else signSuccess = false;
+        }
+        if (!signSuccess)
+            fprintf(stderr,"failed to create signature\n");
+        else
+            *blocktimep = earliest;
+    }
+    return(siglen);
 }

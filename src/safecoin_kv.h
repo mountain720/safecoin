@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -101,9 +101,7 @@ int32_t safecoin_kvsearch(uint256 *pubkeyp,int32_t current_height,uint32_t *flag
 
 void safecoin_kvupdate(uint8_t *opretbuf,int32_t opretlen,uint64_t value)
 {
-
-  
-  static uint256 zeroes;
+    static uint256 zeroes;
     uint32_t flags; uint256 pubkey,refpubkey,sig; int32_t i,refvaluesize,hassig,coresize,haspubkey,height,kvheight; uint16_t keylen,valuesize,newflag = 0; uint8_t *key,*valueptr,keyvalue[IGUANA_MAXSCRIPTSIZE*8]; struct safecoin_kv *ptr; char *transferpubstr,*tstr; uint64_t fee;
     //    if ( ASSETCHAINS_SYMBOL[0] == 0 ) // disable KV for SAFE
     //        return;
@@ -122,27 +120,32 @@ void safecoin_kvupdate(uint8_t *opretbuf,int32_t opretlen,uint64_t value)
     valueptr = &key[keylen];
     
     // resource non-expensive checks first 
-    // first eliminatory check for the exact keyname size: 66 + 7 + 1 = 74
-    if (keylen != 74) return;
+    // first eliminatory check for the exact keyname size: 66 + 7 + 1 = 74 
+    // update: since recent blocks are 7 digits, 75 is also valid key length
+    if (keylen != 74 && keylen != 75)
+		return;
     
     std::string str_keyname((char*)key, (int)keylen);
     std::string parentkey = str_keyname.substr(0, 66);
-    std::string safe_height = str_keyname.substr(66, 7);
-    std::string one = str_keyname.substr(73, 1);    
+    std::string safe_height = str_keyname.substr(66, (keylen == 74) ? 7 : 8);
+    std::string one = str_keyname.substr((keylen == 74) ? 73 : 74, 1);    
     std::string sid = std::string((char *)valueptr, (int)valuesize);
     
     // second eliminatory check for the exact keyname termination character: 1
-    if (one != "1") return;
+    if (one != "1")
+		return;
     
     // third eliminatory check for the parent pubkey validity 
     std::vector<std::string> vs_notaries = vs_safecoin_notaries(height, 0);
     std::vector<std::string>::iterator it;
     it = find (vs_notaries.begin(), vs_notaries.end(), parentkey);
-    if (it == vs_notaries.end()) return;
+    if (it == vs_notaries.end())
+		return;
     
     // initial checks passed, keep going
         
     fee = safecoin_kvfee(flags,opretlen,keylen);
+
     //fprintf(stderr,"fee %.8f vs %.8f flags.%d keylen.%d valuesize.%d height.%d (%02x %02x %02x) (%02x %02x %02x)\n",(double)fee/COIN,(double)value/COIN,flags,keylen,valuesize,height,key[0],key[1],key[2],valueptr[0],valueptr[1],valueptr[2]);
     if ( value >= fee )
     {
@@ -174,7 +177,7 @@ void safecoin_kvupdate(uint8_t *opretbuf,int32_t opretlen,uint64_t value)
                 {
                     if ( safecoin_kvsigverify(keyvalue,keylen+refvaluesize,refpubkey,sig) < 0 )
                     {
-                        //fprintf(stderr,"safecoin_kvsigverify error [%d]\n",coresize-13);
+                        // fprintf(stderr,"safecoin_kvsigverify error [%d]\n",coresize-13);
                         return;
                     }
                 }
@@ -183,6 +186,7 @@ void safecoin_kvupdate(uint8_t *opretbuf,int32_t opretlen,uint64_t value)
             
             bool is_valid_beacon_kv = true;
 
+/*
             // CHECK FOR DUPLICATES
             portable_mutex_lock(&SAFECOIN_KV_mutex);
             int32_t current_height = height;
@@ -213,6 +217,8 @@ void safecoin_kvupdate(uint8_t *opretbuf,int32_t opretlen,uint64_t value)
             }
             
             portable_mutex_unlock(&SAFECOIN_KV_mutex);
+*/
+
             
             if (is_valid_beacon_kv && 0) // we are skipping collateral check for now
             {
@@ -236,7 +242,7 @@ void safecoin_kvupdate(uint8_t *opretbuf,int32_t opretlen,uint64_t value)
 
 					uint160 hashBytes;
 					std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
-					if (address.GetIndexKey(hashBytes, type))
+					if (address.GetIndexKey(hashBytes, type, false))
 					{
 						if (GetAddressUnspent(hashBytes, type, unspentOutputs))
 						{
@@ -309,7 +315,6 @@ void safecoin_kvupdate(uint8_t *opretbuf,int32_t opretlen,uint64_t value)
             }
             else if ( ptr == 0 )
             {
-
 				ptr = (struct safecoin_kv *)calloc(1,sizeof(*ptr));
 				ptr->key = (uint8_t *)calloc(1,keylen);
 				ptr->keylen = keylen;

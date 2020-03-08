@@ -3,6 +3,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #include "wallet/walletdb.h"
 
 #include "consensus/validation.h"
@@ -15,14 +30,18 @@
 #include "utiltime.h"
 #include "wallet/wallet.h"
 #include "zcash/Proof.hpp"
+#include "safecoin_defs.h"
 
 #include <boost/filesystem.hpp>
+#include <boost/foreach.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/thread.hpp>
 
 using namespace std;
 
 static uint64_t nAccountingEntryNumber = 0;
+static list<uint256> deadTxns; 
+extern CBlockIndex *safecoin_blockindex(uint256 hash);
 
 //
 // CWalletDB
@@ -291,7 +310,7 @@ CAmount CWalletDB::GetAccountCreditDebit(const string& strAccount)
     ListAccountCreditDebit(strAccount, entries);
 
     CAmount nCreditDebit = 0;
-    for (const CAccountingEntry& entry : entries)
+    BOOST_FOREACH (const CAccountingEntry& entry, entries)
         nCreditDebit += entry.nCreditDebit;
 
     return nCreditDebit;
@@ -358,7 +377,7 @@ DBErrors CWalletDB::ReorderTransactions(CWallet* pwallet)
     }
     list<CAccountingEntry> acentries;
     ListAccountCreditDebit("", acentries);
-    for (CAccountingEntry& entry : acentries)
+    BOOST_FOREACH(CAccountingEntry& entry, acentries)
     {
         txByTime.insert(make_pair(entry.nTime, TxPair((CWalletTx*)0, &entry)));
     }
@@ -389,7 +408,7 @@ DBErrors CWalletDB::ReorderTransactions(CWallet* pwallet)
         else
         {
             int64_t nOrderPosOff = 0;
-            for (const int64_t& nOffsetStart : nOrderPosOffsets)
+            BOOST_FOREACH(const int64_t& nOffsetStart, nOrderPosOffsets)
             {
                 if (nOrderPos >= nOffsetStart)
                     ++nOrderPosOff;
@@ -467,9 +486,17 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             ssValue >> wtx;
             CValidationState state;
             auto verifier = libzcash::ProofVerifier::Strict();
-            if (!(CheckTransaction(0,wtx, state, verifier) && (wtx.GetHash() == hash) && state.IsValid()))
+            // ac_public chains set at height like SAFE and ZEX, will force a rescan if we dont ignore this error: bad-txns-acpublic-chain
+            // there cannot be any ztx in the wallet on ac_public chains that started from block 1, so this wont affect those. 
+            // PIRATE fails this check for notary nodes, need exception. Triggers full rescan without it. 
+            if ( !(CheckTransaction(0,wtx, state, verifier, 0, 0) && (wtx.GetHash() == hash) && state.IsValid()) && (state.GetRejectReason() != "bad-txns-acpublic-chain" && state.GetRejectReason() != "bad-txns-acprivacy-chain" && state.GetRejectReason() != "bad-txns-stakingtx") )
+            {
+                //fprintf(stderr, "tx failed: %s rejectreason.%s\n", wtx.GetHash().GetHex().c_str(), state.GetRejectReason().c_str());
+                // vin-empty on staking chains is error relating to a failed staking tx, that for some unknown reason did not fully erase. save them here to erase and re-add later on.
+                if ( ASSETCHAINS_STAKED != 0 && state.GetRejectReason() == "bad-txns-vin-empty" )
+                    deadTxns.push_back(hash);
                 return false;
-
+            }
             // Undo serialize changes in 31600
             if (31404 <= wtx.fTimeReceivedIsTxTime && wtx.fTimeReceivedIsTxTime <= 31703)
             {
@@ -858,7 +885,7 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
 
 static bool IsKeyType(string strType)
 {
-    return (strType== "key" || strType == "wkey" ||
+    return (strType == "key" || strType == "wkey" ||
             strType == "hdseed" || strType == "chdseed" ||
             strType == "zkey" || strType == "czkey" ||
             strType == "sapzkey" || strType == "csapzkey" ||
@@ -917,8 +944,8 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
                 {
                     // Leave other errors alone, if we try to fix them we might make things worse.
                     fNoncriticalErrors = true; // ... but do warn the user there is something wrong.
-                    if (strType == "tx")
-                        // Rescan if there is a bad transaction record:
+                    // set rescan for any error that is not vin-empty on staking chains.
+                    if ( deadTxns.empty() && strType == "tx")
                         SoftSetBoolArg("-rescan", true);
                 }
             }
@@ -934,6 +961,29 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
         result = DB_CORRUPT;
     }
 
+    if ( !deadTxns.empty() )
+    {
+        // staking chains with vin-empty error is a failed staking tx. 
+        // we remove then re add the tx here to stop needing a full rescan, which does not actually fix the problem.
+        int32_t reAdded = 0;
+        BOOST_FOREACH (uint256& hash, deadTxns) 
+        {
+            fprintf(stderr, "Removing possible orphaned staking transaction from wallet.%s\n", hash.ToString().c_str());
+            if (!EraseTx(hash))
+                fprintf(stderr, "could not delete tx.%s\n",hash.ToString().c_str());
+            uint256 blockhash; CTransaction tx; CBlockIndex* pindex;
+            if ( GetTransaction(hash,tx,blockhash,false) && (pindex= safecoin_blockindex(blockhash)) != 0 && chainActive.Contains(pindex) )
+            {
+                CWalletTx wtx(pwallet,tx);
+                pwallet->AddToWallet(wtx, true, NULL);
+                reAdded++;
+            }
+        }
+        fprintf(stderr, "Cleared %li orphaned staking transactions from wallet. Readded %i real transactions.\n",deadTxns.size(),reAdded);
+        fNoncriticalErrors = false;
+        deadTxns.clear();
+    }
+    
     if (fNoncriticalErrors && result == DB_LOAD_OK)
         result = DB_NONCRITICAL_ERROR;
 
@@ -954,7 +1004,7 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
     if ((wss.nKeys + wss.nCKeys) != wss.nKeyMeta)
         pwallet->nTimeFirstKey = 1; // 0 would be considered 'no value'
 
-    for (uint256 hash : wss.vWalletUpgrade)
+    BOOST_FOREACH(uint256 hash, wss.vWalletUpgrade)
         WriteTx(hash, pwallet->mapWallet[hash]);
 
     // Rewrite encrypted wallets of versions 0.4.0 and 0.5.0rc:
@@ -966,7 +1016,7 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
 
     if (wss.fAnyUnordered)
         result = ReorderTransactions(pwallet);
-    
+
     return result;
 }
 
@@ -1054,7 +1104,7 @@ DBErrors CWalletDB::ZapWalletTx(CWallet* pwallet, vector<CWalletTx>& vWtx)
         return err;
 
     // erase each wallet TX
-    for (uint256& hash : vTxHash) {
+    BOOST_FOREACH (uint256& hash, vTxHash) {
         if (!EraseTx(hash))
             return DB_CORRUPT;
     }
@@ -1065,7 +1115,7 @@ DBErrors CWalletDB::ZapWalletTx(CWallet* pwallet, vector<CWalletTx>& vWtx)
 void ThreadFlushWalletDB(const string& strFile)
 {
     // Make this thread recognisable as the wallet flushing thread
-    RenameThread("safecoin-wallet");
+    RenameThread("zcash-wallet");
 
     static bool fOneThread;
     if (fOneThread)
@@ -1210,7 +1260,7 @@ bool CWalletDB::Recover(CDBEnv& dbenv, const std::string& filename, bool fOnlyKe
     CWalletScanState wss;
 
     DbTxn* ptxn = dbenv.TxnBegin();
-    for (CDBEnv::KeyValPair& row : salvagedData)
+    BOOST_FOREACH(CDBEnv::KeyValPair& row, salvagedData)
     {
         if (fOnlyKeys)
         {

@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -29,9 +29,9 @@ uint64_t safecoin_paxtotal();
 int32_t safecoin_longestchain();
 uint64_t safecoin_maxallowed(int32_t baseid);
 int32_t safecoin_bannedset(int32_t *indallvoutsp,uint256 *array,int32_t max);
-bool pubkey2addr(char *destaddr,uint8_t *pubkey33);
+int32_t safecoin_checkvout(int32_t vout,int32_t k,int32_t indallvouts);
 
-pthread_mutex_t safecoin_mutex;
+pthread_mutex_t safecoin_mutex,staked_mutex;
 
 #define SAFECOIN_ELECTION_GAP 2000    //((ASSETCHAINS_SYMBOL[0] == 0) ? 2000 : 100)
 #define SAFECOIN_ASSETCHAIN_MAXLEN 65
@@ -41,20 +41,28 @@ int32_t NUM_PRICES; uint32_t *PVALS;
 struct knotaries_entry *Pubkeys;
 
 struct safecoin_state SAFECOIN_STATES[34];
+const uint32_t nStakedDecemberHardforkTimestamp = 1576840000; //December 2019 hardfork 12/20/2019 @ 11:06am (UTC)
+const int32_t nDecemberHardforkHeight = 1670000;   //December 2019 hardfork
 
 #define _COINBASE_MATURITY 100
 int COINBASE_MATURITY = _COINBASE_MATURITY;//100;
 unsigned int WITNESS_CACHE_SIZE = _COINBASE_MATURITY+10;
+uint256 SAFECOIN_EARLYTXID;
 
-int32_t SAFECOIN_MININGTHREADS = -1,IS_SAFECOIN_NOTARY,USE_EXTERNAL_PUBKEY,SAFECOIN_CHOSEN_ONE,ASSETCHAINS_SEED,SAFECOIN_ON_DEMAND,SAFECOIN_EXTERNAL_NOTARIES,SAFECOIN_PASSPORT_INITDONE,SAFECOIN_PAX,SAFECOIN_EXCHANGEWALLET,SAFECOIN_REWIND,SAFECOIN_CONNECTING = -1,SAFECOIN_DEALERNODE,SAFECOIN_EXTRASATOSHI,ASSETCHAINS_FOUNDERS;
+int32_t SAFECOIN_MININGTHREADS = -1,IS_SAFECOIN_NOTARY,IS_STAKED_NOTARY,USE_EXTERNAL_PUBKEY,SAFECOIN_CHOSEN_ONE,ASSETCHAINS_SEED,SAFECOIN_ON_DEMAND,SAFECOIN_EXTERNAL_NOTARIES,SAFECOIN_PASSPORT_INITDONE,SAFECOIN_PAX,SAFECOIN_EXCHANGEWALLET,SAFECOIN_REWIND,STAKED_ERA,SAFECOIN_CONNECTING = -1,SAFECOIN_DEALERNODE,SAFECOIN_EXTRASATOSHI,ASSETCHAINS_FOUNDERS,ASSETCHAINS_CBMATURITY,SAFECOIN_NSPV;
 int32_t SAFECOIN_INSYNC,SAFECOIN_LASTMINED,prevSAFECOIN_LASTMINED,SAFECOIN_CCACTIVATE,JUMBLR_PAUSE = 1;
-std::string NOTARY_PUBKEY,ASSETCHAINS_NOTARIES,ASSETCHAINS_OVERRIDE_PUBKEY,DONATION_PUBKEY,ASSETCHAINS_SCRIPTPUB;
-uint8_t NOTARY_PUBKEY33[33],ASSETCHAINS_OVERRIDE_PUBKEY33[33],ASSETCHAINS_OVERRIDE_PUBKEYHASH[20],ASSETCHAINS_PUBLIC,ASSETCHAINS_PRIVATE,ASSETCHAINS_TXPOW;
+std::string NOTARY_PUBKEY,ASSETCHAINS_NOTARIES,ASSETCHAINS_OVERRIDE_PUBKEY,DONATION_PUBKEY,ASSETCHAINS_SCRIPTPUB,NOTARY_ADDRESS,ASSETCHAINS_SELFIMPORT,ASSETCHAINS_CCLIB;
+uint8_t NOTARY_PUBKEY33[33],ASSETCHAINS_OVERRIDE_PUBKEY33[33],ASSETCHAINS_OVERRIDE_PUBKEYHASH[20],ASSETCHAINS_PUBLIC,ASSETCHAINS_PRIVATE,ASSETCHAINS_TXPOW,ASSETCHAINS_MARMARA;
+int8_t ASSETCHAINS_ADAPTIVEPOW;
 bool VERUS_MINTBLOCKS;
+std::vector<uint8_t> Mineropret;
+std::vector<std::string> vWhiteListAddress;
+char NOTARYADDRS[64][64];
+char NOTARY_ADDRESSES[NUM_SAFECOIN_SEASONS][64][64];
 
 char ASSETCHAINS_SYMBOL[SAFECOIN_ASSETCHAIN_MAXLEN],ASSETCHAINS_USERPASS[4096];
-uint16_t ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT;
-uint32_t ASSETCHAIN_INIT,ASSETCHAINS_CC,SAFECOIN_STOPAT,SAFECOIN_DPOWCONFS = 1;
+uint16_t ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT,ASSETCHAINS_BEAMPORT,ASSETCHAINS_CODAPORT;
+uint32_t ASSETCHAIN_INIT,ASSETCHAINS_CC,SAFECOIN_STOPAT,SAFECOIN_DPOWCONFS = 1,STAKING_MIN_DIFF;
 uint32_t ASSETCHAINS_MAGIC = 2387029918;
 int64_t ASSETCHAINS_GENESISTXVAL = 5000000000;
 
@@ -67,21 +75,26 @@ int64_t MAX_MONEY = 200000000 * 100000000LL;
 // spec will use an op_return with CLTV at front and anything after |OP_RETURN|PUSH of rest|OPRETTYPE_TIMELOCK|script|
 #define _ASSETCHAINS_TIMELOCKOFF 0xffffffffffffffff
 uint64_t ASSETCHAINS_TIMELOCKGTE = _ASSETCHAINS_TIMELOCKOFF;
-uint64_t ASSETCHAINS_TIMEUNLOCKFROM = 0, ASSETCHAINS_TIMEUNLOCKTO = 0;
+uint64_t ASSETCHAINS_TIMEUNLOCKFROM = 0, ASSETCHAINS_TIMEUNLOCKTO = 0,ASSETCHAINS_CBOPRET=0;
 
-uint32_t ASSETCHAINS_LASTERA = 1;
-uint64_t ASSETCHAINS_ENDSUBSIDY[ASSETCHAINS_MAX_ERAS],ASSETCHAINS_REWARD[ASSETCHAINS_MAX_ERAS],ASSETCHAINS_HALVING[ASSETCHAINS_MAX_ERAS],ASSETCHAINS_DECAY[ASSETCHAINS_MAX_ERAS];
+uint64_t ASSETCHAINS_LASTERA = 1;
+uint64_t ASSETCHAINS_ENDSUBSIDY[ASSETCHAINS_MAX_ERAS+1],ASSETCHAINS_REWARD[ASSETCHAINS_MAX_ERAS+1],ASSETCHAINS_HALVING[ASSETCHAINS_MAX_ERAS+1],ASSETCHAINS_DECAY[ASSETCHAINS_MAX_ERAS+1],ASSETCHAINS_NOTARY_PAY[ASSETCHAINS_MAX_ERAS+1],ASSETCHAINS_PEGSCCPARAMS[3];
+uint8_t ASSETCHAINS_CCDISABLES[256];
+std::vector<std::string> ASSETCHAINS_PRICES,ASSETCHAINS_STOCKS;
 
 #define _ASSETCHAINS_EQUIHASH 0
-uint32_t ASSETCHAINS_NUMALGOS = 2;
+uint32_t ASSETCHAINS_NUMALGOS = 3;
 uint32_t ASSETCHAINS_EQUIHASH = _ASSETCHAINS_EQUIHASH;
 uint32_t ASSETCHAINS_VERUSHASH = 1;
-const char *ASSETCHAINS_ALGORITHMS[] = {"equihash", "verushash"};
-uint64_t ASSETCHAINS_NONCEMASK[] = {0xffff,0xfffffff};
-uint32_t ASSETCHAINS_NONCESHIFT[] = {32,16};
-uint32_t ASSETCHAINS_HASHESPERROUND[] = {1,4096};
+uint32_t ASSETCHAINS_VERUSHASHV1_1 = 2;
+const char *ASSETCHAINS_ALGORITHMS[] = {"equihash", "verushash", "verushash11"};
+uint64_t ASSETCHAINS_NONCEMASK[] = {0xffff,0xfffffff,0xfffffff};
+uint32_t ASSETCHAINS_NONCESHIFT[] = {32,16,16};
+uint32_t ASSETCHAINS_HASHESPERROUND[] = {1,4096,4096};
 uint32_t ASSETCHAINS_ALGO = _ASSETCHAINS_EQUIHASH;
-
+// min diff returned from GetNextWorkRequired needs to be added here for each algo, so they can work with ac_staked.
+uint32_t ASSETCHAINS_MINDIFF[] = {537857807,504303375,487526159};
+                                            // ^ wrong!
 // Verus proof of stake controls
 int32_t ASSETCHAINS_LWMAPOS = 0;        // percentage of blocks should be PoS
 int32_t VERUS_BLOCK_POSUNITS = 1024;    // one block is 1000 units
@@ -93,13 +106,21 @@ int32_t ASSETCHAINS_SAPLING = -1;
 int32_t ASSETCHAINS_OVERWINTER = -1;
 
 uint64_t SAFECOIN_INTERESTSUM,SAFECOIN_WALLETBALANCE;
-uint64_t ASSETCHAINS_COMMISSION,ASSETCHAINS_STAKED,ASSETCHAINS_SUPPLY = 10;
+int32_t ASSETCHAINS_STAKED;
+uint64_t ASSETCHAINS_COMMISSION,ASSETCHAINS_SUPPLY = 10,ASSETCHAINS_FOUNDERS_REWARD;
 
 uint32_t SAFECOIN_INITDONE;
 char SAFEUSERPASS[8192+512+1],BTCUSERPASS[8192]; uint16_t SAFE_PORT = 8771,BITCOIND_RPCPORT = 8771;
 uint64_t PENDING_SAFECOIN_TX;
 extern int32_t SAFECOIN_LOADINGBLOCKS;
 unsigned int MAX_BLOCK_SIGOPS = 20000;
+
+int32_t SAFECOIN_TESTNODE, SAFECOIN_SNAPSHOT_INTERVAL; 
+CScript SAFECOIN_EARLYTXID_SCRIPTPUB;
+int32_t ASSETCHAINS_EARLYTXIDCONTRACT;
+int32_t ASSETCHAINS_STAKED_SPLIT_PERCENTAGE;
+
+std::map <std::int8_t, int32_t> mapHeightEvalActivate;
 
 struct safecoin_kv *SAFECOIN_KV;
 pthread_mutex_t SAFECOIN_KV_mutex,SAFECOIN_CC_mutex;
@@ -125,20 +146,20 @@ int32_t safecoin_baseid(char *origbase)
 #ifndef SATOSHIDEN
 #define SATOSHIDEN ((uint64_t)100000000L)
 #endif
-int64_t safecoin_current_supply(uint32_t nHeight)
+uint64_t safecoin_current_supply(uint32_t nHeight)
 {
     uint64_t cur_money;
     int32_t baseid;
 
-    if ( (baseid = safecoin_baseid(ASSETCHAINS_SYMBOL)) >= 0 && baseid < 32 )
-        cur_money = ASSETCHAINS_GENESISTXVAL + ASSETCHAINS_SUPPLY + nHeight * ASSETCHAINS_REWARD[0] / SATOSHIDEN;
-    else
+    //if ( (baseid = safecoin_baseid(ASSETCHAINS_SYMBOL)) >= 0 && baseid < 32 )
+    //    cur_money = ASSETCHAINS_GENESISTXVAL + ASSETCHAINS_SUPPLY + nHeight * ASSETCHAINS_REWARD[0] / SATOSHIDEN;
+    //else
     {
         // figure out max_money by adding up supply to a maximum of 10,000,000 blocks
         cur_money = (ASSETCHAINS_SUPPLY+1) * SATOSHIDEN + (ASSETCHAINS_MAGIC & 0xffffff) + ASSETCHAINS_GENESISTXVAL;
         if ( ASSETCHAINS_LASTERA == 0 && ASSETCHAINS_REWARD[0] == 0 )
         {
-            cur_money += (nHeight * 10000) / SATOSHIDEN;
+            cur_money += (nHeight * 10000);// / SATOSHIDEN;
         }
         else
         {
@@ -151,6 +172,8 @@ int64_t safecoin_current_supply(uint32_t nHeight)
 
                 // add rewards from this era, up to nHeight
                 int64_t reward = ASSETCHAINS_REWARD[j];
+                
+                //fprintf(stderr,"last.%d reward %llu period %llu\n",(int32_t)ASSETCHAINS_LASTERA,(long long)reward,(long long)ASSETCHAINS_HALVING[j]);
                 if ( reward > 0 )
                 {
                     uint64_t lastEnd = j == 0 ? 0 : ASSETCHAINS_ENDSUBSIDY[j - 1];
@@ -162,17 +185,19 @@ int64_t safecoin_current_supply(uint32_t nHeight)
                     uint32_t modulo = (curEnd - lastEnd) % period;
                     uint64_t decay = ASSETCHAINS_DECAY[j];
 
-                    if (!period)
+                    //fprintf(stderr,"period.%llu cur_money %.8f += %.8f * %d\n",(long long)period,(double)cur_money/COIN,(double)reward/COIN,nHeight);
+                    if ( ASSETCHAINS_HALVING[j] == 0 )
                     {
                         // no halving, straight multiply
                         cur_money += reward * (nHeight - 1);
+                        //fprintf(stderr,"cur_money %.8f\n",(double)cur_money/COIN);
                     }
                     // if exactly SATOSHIDEN, linear decay to zero or to next era, same as:
                     // (next_era_reward + (starting reward - next_era_reward) / 2) * num_blocks
                     else if ( decay == SATOSHIDEN )
                     {
                         int64_t lowestSubsidy, subsidyDifference, stepDifference, stepTriangle;
-                        int64_t denominator, modulo;
+                        int64_t denominator, modulo=1;
                         int32_t sign = 1;
 
                         if ( j == ASSETCHAINS_LASTERA )
@@ -259,6 +284,18 @@ int64_t safecoin_current_supply(uint32_t nHeight)
                 }
             }
         }
+    }    
+    if ( SAFECOIN_BIT63SET(cur_money) != 0 )
+        return(SAFECOIN_MAXNVALUE);
+    if ( ASSETCHAINS_COMMISSION != 0 )
+    {
+        uint64_t newval = (cur_money + (cur_money/COIN * ASSETCHAINS_COMMISSION));
+        if ( SAFECOIN_BIT63SET(newval) != 0 )
+            return(SAFECOIN_MAXNVALUE);
+        else if ( newval < cur_money ) // check for underflow
+            return(SAFECOIN_MAXNVALUE);
+        return(newval);
     }
-    return((int64_t)(cur_money + (cur_money * ASSETCHAINS_COMMISSION)));
+    //fprintf(stderr,"cur_money %.8f\n",(double)cur_money/COIN);
+    return(cur_money);
 }

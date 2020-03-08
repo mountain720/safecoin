@@ -2,7 +2,32 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #include "consensus/upgrades.h"
+extern int32_t SAFECOIN_NSPV;
+#define NSPV_BRANCHID 0x76b809bb
+
+#ifndef SAFECOIN_NSPV_FULLNODE
+#define SAFECOIN_NSPV_FULLNODE (SAFECOIN_NSPV <= 0)
+#endif // !SAFECOIN_NSPV_FULLNODE
+
+#ifndef SAFECOIN_NSPV_SUPERLITE
+#define SAFECOIN_NSPV_SUPERLITE (SAFECOIN_NSPV > 0)
+#endif // !SAFECOIN_NSPV_SUPERLITE
 
 /**
  * General information about each network upgrade.
@@ -82,7 +107,10 @@ int CurrentEpoch(int nHeight, const Consensus::Params& params) {
     return Consensus::BASE_SPROUT;
 }
 
-uint32_t CurrentEpochBranchId(int nHeight, const Consensus::Params& params) {
+uint32_t CurrentEpochBranchId(int nHeight, const Consensus::Params& params)
+{
+    if ( SAFECOIN_NSPV_SUPERLITE )
+        return(NSPV_BRANCHID);
     return NetworkUpgradeInfo[CurrentEpoch(nHeight, params)].nBranchId;
 }
 

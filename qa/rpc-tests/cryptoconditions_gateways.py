@@ -20,8 +20,10 @@ class CryptoconditionsGatewaysTest(CryptoconditionsTestFramework):
 
         result = rpc.gatewaysaddress()
         assert_success(result)
-        for x in ['GatewaysCCaddress', 'myCCaddress', 'Gatewaysmarker', 'myaddress']:
-            assert_equal(result[x][0], 'R')
+
+        for x in result.keys():
+            if x.find('ddress') > 0:
+                assert_equal(result[x][0], 'R')
 
         assert_equal("03ea9c062b9652d8eff34879b504eda0717895d27597aaeb60347d65eed96ccb40", result["GatewaysPubkey"])
 
@@ -63,7 +65,7 @@ class CryptoconditionsGatewaysTest(CryptoconditionsTestFramework):
         assert convertion_txid, "got txid"
 
         # binding gateway
-        bind_hex = rpc.gatewaysbind(token_txid, oracle_txid, "SAFE", "100000000", "1", "1", self.pubkey)
+        bind_hex = rpc.gatewaysbind(token_txid, oracle_txid, "KMD", "100000000", "1", "1", self.pubkey)
         assert_success(bind_hex)
         bind_txid = self.send_and_mine(bind_hex["hex"], rpc)
         assert bind_txid, "got txid"

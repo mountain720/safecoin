@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -13,11 +13,9 @@
  *                                                                            *
  ******************************************************************************/
 
-#include <Condition.h>
-#include <Fulfillment.h>
-#include "include/cJSON.h"
+#include "asn/Condition.h"
+#include "asn/Fulfillment.h"
 #include "asn/asn_application.h"
-#include "cryptoconditions.h"
 
 #ifndef INTERNAL_H
 #define INTERNAL_H

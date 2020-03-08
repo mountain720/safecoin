@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -15,10 +15,12 @@
 
 
 #include "safecoin_defs.h"
-
 #include "safecoin_cJSON.h"
 
+#include "notaries_staked.h"
+
 #define SAFECOIN_MAINNET_START 178999
+#define SAFECOIN_NOTARIES_HEIGHT1 814000
 
 const char *Notaries_genesis[][2] =
 {
@@ -53,124 +55,89 @@ const char *Notaries_genesis[][2] =
     {"safenode_r", "0357a41230ffd72d1fd9379500ac97ac27d0b0a0a6e4197ba4d1f76ff4f88ff1e2" },
     {"safenode_s", "02380c684558673aa7cdc638fd8b2ca8f2b7ae5b7d15a622b10b2b406f43c7f1cc" },
     {"safenode_t", "02d8ddaa4d3dbb38cb1e3fd769f05efc8985243f414a045889be9ec5ad688a1dce" }, // 30
-    {"safenode_u", "039846a7ae3bee6390ef7ee95769a7443aa1bb5d7e85afd676ebe7ad7420010135" },
+    {"safenode_u", "039846a7ae3bee6390ef7ee95769a7443aa1bb5d7e85afd676ebe7ad7420010135" }
 };
 
-const char *Notaries_elected0[][2] =
-{
-    {"0dev1_jj", "0333b9796526ef8de88712a649d618689a1de1ed1adf9fb5ec415f31e560b1f9a3" },
-    {"0dev2_oleksandr", "03f5c47ec482fa1a57821edd0c492948aec9b22ab2b4e38e45fba34e4b6f697a29" },
-    {"0dev3_arch", "0248c657bf46ff8b77c230134fc04482dd549b91d4fb2ba27414bec02edac4ae98" },
-    {"0dev4_rag", "030ca5b3f0ad6eac4afd90b2be8e52a74df852960b9bb4b69bcd413ad2df6232fe" },
-    {"bman_1", "02d3d47e14af1be6617c8e92dbab0537efb47f7732f5afb1024209b60a9d84a31c" },
-    {"bman_2", "03608d2368b19ae3c47d9496283630953dfa85526fe1cad159d9ef8b796f3236be" },
-    {"bman_3", "02448b40e1cca6367f6e10aaf00faabdcca9c219d453d67548f2e6fd08ce90c10f" },
-    {"bman_4", "02e55b44a4ce698e0ee6fed3fc571e06d3939dc0537851dc23246734a2b181f1c4" },
-    {"traysi_1", "0255895db02e46d65c6ad6313a467074949efa47feefc003b1d96ec309151c4340" },
-    {"traysi_2", "0221fa83d4c5f04c63b9bb3a7085242e8daa83c9a97024a4f46720dd174ed1764a" },
-    {"safenode_a", "031e332d04f067aad39553330d3dbb99deaaa97fac579e5633b6483abe3f503654" }, // 10
-    {"safenode_b", "03f19b118737f54a586dd33e92dbb397fc29c88413b41ac21b87440bec58070ef9" },
-    {"safenode_c", "02d72b424eee08eb333a9c95d8915bba4e5e05b9a42080eb6811907b73ea30b474" },
-    {"safenode_d", "020cc2dd8eea9955f66eb127236763dd057a845d8f830c5357d90705f9d23797a6" },
-    {"safenode_d", "025f1dde907090870289ee8f8ef7a870473c00080d344365efda5a23c4c305f93a" },
-    {"safenode_e", "0328ac56b5835d03774724fadee4d1b09cea956515e57cbe95d599e6dd0caced4b" },
-    {"safenode_f", "03433e564ba7287dce6883e9bc73354654e6d305204bcb1fab4bf1e42675eb4c2f" },
-    {"safenode_g", "02c8431929d7493a7feb0e397c88a6a1651f1709cb2b420b55e7d732ebc31041e9" },
-    {"safenode_h", "0318cf394b58e9b56ddd62fb03082e5382575a60e440a23fbb7380e7fd50b295eb" },
-    {"safenode_i", "026676e7fa71ca8fd6436bb2a218500e82411d942e2f3dd46bbf31985654a569ed" },
-    {"safenode_j", "02aa030a8bd00c430d2846ebad41af3ff12d5a4507ec12dcb3de485e2aa6bfd0a1" }, // 20
-    {"safenode_k", "036fd60dcac267a26771093df5210511e0317031263d66ddf8d104813a3159d18d" },
-    {"safenode_l", "02d300502f61150d580a42a09963e347a2ad3ce51f11960d358df8f394f9672a67" },
-    {"safenode_m", "02412d9dd21f2457cba8533e08679898a2ffa48fe4c4691e2a696842749c80031f" },
-    {"safenode_n", "0277b12ff3cd22325fde276e706d365b2757d5e27f3c23005dece66ebb0c58a0fe" },
-    {"safenode_o", "0213671eba7c4c03e07629bc30b071571605a478f65b1dfff2343e5275b6974d7c" },
-    {"safenode_p", "025bedc84e35a3bb89c3126656ad83854573928030bb313472e3a13cc52b2f8cf2" },
-    {"safenode_q", "03f5c5dec766e84ac5a378650ed82ea0df459a0022d9f7a85e7f94426d01c7f128" },
-    {"safenode_r", "0357a41230ffd72d1fd9379500ac97ac27d0b0a0a6e4197ba4d1f76ff4f88ff1e2" },
-    {"safenode_s", "02380c684558673aa7cdc638fd8b2ca8f2b7ae5b7d15a622b10b2b406f43c7f1cc" },
-    {"safenode_t", "02d8ddaa4d3dbb38cb1e3fd769f05efc8985243f414a045889be9ec5ad688a1dce" }, // 30
-    {"safenode_u", "039846a7ae3bee6390ef7ee95769a7443aa1bb5d7e85afd676ebe7ad7420010135" },
-};
-
-#define SAFECOIN_NOTARIES_TIMESTAMP1 1525132800 // May 1st 2018 1530921600 // 7/7/2017
-#define SAFECOIN_NOTARIES_HEIGHT1 ((513000 / SAFECOIN_ELECTION_GAP) * SAFECOIN_ELECTION_GAP)
-
-const char *Notaries_elected1[][2] =
-{
-    {"0dev1_jj", "0333b9796526ef8de88712a649d618689a1de1ed1adf9fb5ec415f31e560b1f9a3" },
-    {"0dev2_oleksandr", "03f5c47ec482fa1a57821edd0c492948aec9b22ab2b4e38e45fba34e4b6f697a29" },
-    {"0dev3_arch", "0248c657bf46ff8b77c230134fc04482dd549b91d4fb2ba27414bec02edac4ae98" },
-    {"0dev4_rag", "030ca5b3f0ad6eac4afd90b2be8e52a74df852960b9bb4b69bcd413ad2df6232fe" },
-    {"bman_1", "02d3d47e14af1be6617c8e92dbab0537efb47f7732f5afb1024209b60a9d84a31c" },
-    {"bman_2", "03608d2368b19ae3c47d9496283630953dfa85526fe1cad159d9ef8b796f3236be" },
-    {"bman_3", "02448b40e1cca6367f6e10aaf00faabdcca9c219d453d67548f2e6fd08ce90c10f" },
-    {"bman_4", "02e55b44a4ce698e0ee6fed3fc571e06d3939dc0537851dc23246734a2b181f1c4" },
-    {"traysi_1", "0255895db02e46d65c6ad6313a467074949efa47feefc003b1d96ec309151c4340" },
-    {"traysi_2", "0221fa83d4c5f04c63b9bb3a7085242e8daa83c9a97024a4f46720dd174ed1764a" },
-    {"safenode_a", "031e332d04f067aad39553330d3dbb99deaaa97fac579e5633b6483abe3f503654" }, // 10
-    {"safenode_b", "03f19b118737f54a586dd33e92dbb397fc29c88413b41ac21b87440bec58070ef9" },
-    {"safenode_c", "02d72b424eee08eb333a9c95d8915bba4e5e05b9a42080eb6811907b73ea30b474" },
-    {"safenode_d", "020cc2dd8eea9955f66eb127236763dd057a845d8f830c5357d90705f9d23797a6" },
-    {"safenode_d", "025f1dde907090870289ee8f8ef7a870473c00080d344365efda5a23c4c305f93a" },
-    {"safenode_e", "0328ac56b5835d03774724fadee4d1b09cea956515e57cbe95d599e6dd0caced4b" },
-    {"safenode_f", "03433e564ba7287dce6883e9bc73354654e6d305204bcb1fab4bf1e42675eb4c2f" },
-    {"safenode_g", "02c8431929d7493a7feb0e397c88a6a1651f1709cb2b420b55e7d732ebc31041e9" },
-    {"safenode_h", "0318cf394b58e9b56ddd62fb03082e5382575a60e440a23fbb7380e7fd50b295eb" },
-    {"safenode_i", "026676e7fa71ca8fd6436bb2a218500e82411d942e2f3dd46bbf31985654a569ed" },
-    {"safenode_j", "02aa030a8bd00c430d2846ebad41af3ff12d5a4507ec12dcb3de485e2aa6bfd0a1" }, // 20
-    {"safenode_k", "036fd60dcac267a26771093df5210511e0317031263d66ddf8d104813a3159d18d" },
-    {"safenode_l", "02d300502f61150d580a42a09963e347a2ad3ce51f11960d358df8f394f9672a67" },
-    {"safenode_m", "02412d9dd21f2457cba8533e08679898a2ffa48fe4c4691e2a696842749c80031f" },
-    {"safenode_n", "0277b12ff3cd22325fde276e706d365b2757d5e27f3c23005dece66ebb0c58a0fe" },
-    {"safenode_o", "0213671eba7c4c03e07629bc30b071571605a478f65b1dfff2343e5275b6974d7c" },
-    {"safenode_p", "025bedc84e35a3bb89c3126656ad83854573928030bb313472e3a13cc52b2f8cf2" },
-    {"safenode_q", "03f5c5dec766e84ac5a378650ed82ea0df459a0022d9f7a85e7f94426d01c7f128" },
-    {"safenode_r", "0357a41230ffd72d1fd9379500ac97ac27d0b0a0a6e4197ba4d1f76ff4f88ff1e2" },
-    {"safenode_s", "02380c684558673aa7cdc638fd8b2ca8f2b7ae5b7d15a622b10b2b406f43c7f1cc" },
-    {"safenode_t", "02d8ddaa4d3dbb38cb1e3fd769f05efc8985243f414a045889be9ec5ad688a1dce" }, // 30
-    {"safenode_u", "039846a7ae3bee6390ef7ee95769a7443aa1bb5d7e85afd676ebe7ad7420010135" },
-};
 #define CRYPTO777_PUBSECPSTR "02004a23684b6e12441ac4c913775f4f74584c48a9167d2fb65da6a2ddc9852761"
+
+int32_t getsafeseason(int32_t height)
+{
+    if ( height <= SAFECOIN_SEASON_HEIGHTS[0] )
+        return(1);
+    for (int32_t i = 1; i < NUM_SAFECOIN_SEASONS; i++)
+    {
+        if ( height <= SAFECOIN_SEASON_HEIGHTS[i] && height >= SAFECOIN_SEASON_HEIGHTS[i-1] )
+            return(i+1);
+    }
+    return(0);
+}
+
+int32_t getacseason(uint32_t timestamp)
+{
+    if ( timestamp <= SAFECOIN_SEASON_TIMESTAMPS[0] )
+        return(1);
+    for (int32_t i = 1; i < NUM_SAFECOIN_SEASONS; i++)
+    {
+        if ( timestamp <= SAFECOIN_SEASON_TIMESTAMPS[i] && timestamp >= SAFECOIN_SEASON_TIMESTAMPS[i-1] )
+            return(i+1);
+    }
+    return(0);
+}
 
 int32_t safecoin_notaries(uint8_t pubkeys[64][33],int32_t height,uint32_t timestamp)
 {
-    static uint8_t elected_pubkeys0[64][33],elected_pubkeys1[64][33],did0,did1; static int32_t n0,n1;
     int32_t i,htind,n; uint64_t mask = 0; struct knotary_entry *kp,*tmp;
+    static uint8_t safe_pubkeys[NUM_SAFECOIN_SEASONS][64][33],didinit[NUM_SAFECOIN_SEASONS];
+    
     if ( timestamp == 0 && ASSETCHAINS_SYMBOL[0] != 0 )
         timestamp = safecoin_heightstamp(height);
     else if ( ASSETCHAINS_SYMBOL[0] == 0 )
         timestamp = 0;
-    if ( height >= SAFECOIN_NOTARIES_HARDCODED || ASSETCHAINS_SYMBOL[0] != 0 )
+
+    // If this chain is not a staked chain, use the normal Safecoin logic to determine notaries. This allows SAFECOIN to still sync and use its proper pubkeys for dPoW.
+    if ( is_STAKED(ASSETCHAINS_SYMBOL) == 0 )
     {
-        if ( (timestamp != 0 && timestamp <= SAFECOIN_NOTARIES_TIMESTAMP1) || (ASSETCHAINS_SYMBOL[0] == 0 && height <= SAFECOIN_NOTARIES_HEIGHT1) )
+        int32_t safe_season = 0;
+        if ( ASSETCHAINS_SYMBOL[0] == 0 )
         {
-            if ( did0 == 0 )
-            {
-                n0 = (int32_t)(sizeof(Notaries_elected0)/sizeof(*Notaries_elected0));
-                for (i=0; i<n0; i++)
-                    decode_hex(elected_pubkeys0[i],33,(char *)Notaries_elected0[i][1]);
-                did0 = 1;
-            }
-            memcpy(pubkeys,elected_pubkeys0,n0 * 33);
-            //if ( ASSETCHAINS_SYMBOL[0] != 0 )
-            //fprintf(stderr,"%s height.%d t.%u elected.%d notaries\n",ASSETCHAINS_SYMBOL,height,timestamp,n0);
-            return(n0);
+            // This is SAFECOIN, use block heights to determine the SAFECOIN notary season.. 
+            if ( height >= SAFECOIN_NOTARIES_HARDCODED )
+                safe_season = getsafeseason(height);
         }
-        else //if ( (timestamp != 0 && timestamp <= SAFECOIN_NOTARIES_TIMESTAMP2) || height <= SAFECOIN_NOTARIES_HEIGHT2 )
+        else 
         {
-            if ( did1 == 0 )
+            // This is a non LABS assetchain, use timestamp to detemine notary pubkeys. 
+            safe_season = getacseason(timestamp);
+        }
+        if ( safe_season != 0 )
+        {
+            if ( didinit[safe_season-1] == 0 )
             {
-                n1 = (int32_t)(sizeof(Notaries_elected1)/sizeof(*Notaries_elected1));
-                for (i=0; i<n1; i++)
-                    decode_hex(elected_pubkeys1[i],33,(char *)Notaries_elected1[i][1]);
-                if ( 0 && ASSETCHAINS_SYMBOL[0] != 0 )
-                    fprintf(stderr,"%s height.%d t.%u elected.%d notaries2\n",ASSETCHAINS_SYMBOL,height,timestamp,n1);
-                did1 = 1;
+                for (i=0; i<NUM_SAFECOIN_NOTARIES; i++) 
+                    decode_hex(safe_pubkeys[safe_season-1][i],33,(char *)notaries_elected[safe_season-1][i][1]);
+                if ( ASSETCHAINS_PRIVATE != 0 )
+                {
+                    // this is PIRATE, we need to populate the address array for the notary exemptions. 
+                    for (i = 0; i<NUM_SAFECOIN_NOTARIES; i++)
+                        pubkey2addr((char *)NOTARY_ADDRESSES[safe_season-1][i],(uint8_t *)safe_pubkeys[safe_season-1][i]);
+                }
+                didinit[safe_season-1] = 1;
             }
-            memcpy(pubkeys,elected_pubkeys1,n1 * 33);
-            return(n1);
+            memcpy(pubkeys,safe_pubkeys[safe_season-1],NUM_SAFECOIN_NOTARIES * 33);
+            return(NUM_SAFECOIN_NOTARIES);
         }
     }
+    else if ( timestamp != 0 )
+    { 
+        // here we can activate our pubkeys for LABS chains everythig is in notaries_staked.cpp
+        int32_t staked_era; int8_t numSN;
+        uint8_t staked_pubkeys[64][33];
+        staked_era = STAKED_era(timestamp);
+        numSN = numStakedNotaries(staked_pubkeys,staked_era);
+        memcpy(pubkeys,staked_pubkeys,numSN * 33);
+        return(numSN);
+    }
+
     htind = height / SAFECOIN_ELECTION_GAP;
     if ( htind >= SAFECOIN_MAXBLOCKS / SAFECOIN_ELECTION_GAP )
         htind = (SAFECOIN_MAXBLOCKS / SAFECOIN_ELECTION_GAP) - 1;
@@ -385,33 +352,44 @@ int32_t safecoin_prevMoMheight()
 int32_t safecoin_notarized_height(int32_t *prevMoMheightp,uint256 *hashp,uint256 *txidp)
 {
     char symbol[SAFECOIN_ASSETCHAIN_MAXLEN],dest[SAFECOIN_ASSETCHAIN_MAXLEN]; struct safecoin_state *sp;
+    *prevMoMheightp = 0;
+    memset(hashp,0,sizeof(*hashp));
+    memset(txidp,0,sizeof(*txidp));
     if ( (sp= safecoin_stateptr(symbol,dest)) != 0 )
     {
-        *hashp = sp->NOTARIZED_HASH;
-        *txidp = sp->NOTARIZED_DESTTXID;
-        *prevMoMheightp = safecoin_prevMoMheight();
-        return(sp->NOTARIZED_HEIGHT);
+        CBlockIndex *pindex;
+        if ( (pindex= safecoin_blockindex(sp->NOTARIZED_HASH)) == 0 || pindex->GetHeight() < 0 )
+        {
+            //fprintf(stderr,"found orphaned notarization at ht.%d pindex.%p\n",sp->NOTARIZED_HEIGHT,(void *)pindex);
+            memset(&sp->NOTARIZED_HASH,0,sizeof(sp->NOTARIZED_HASH));
+            memset(&sp->NOTARIZED_DESTTXID,0,sizeof(sp->NOTARIZED_DESTTXID));
+            sp->NOTARIZED_HEIGHT = 0;
     }
     else
     {
-        *prevMoMheightp = 0;
-        memset(hashp,0,sizeof(*hashp));
-        memset(txidp,0,sizeof(*txidp));
-        return(0);
+            *hashp = sp->NOTARIZED_HASH;
+            *txidp = sp->NOTARIZED_DESTTXID;
+            *prevMoMheightp = safecoin_prevMoMheight();
     }
+        return(sp->NOTARIZED_HEIGHT);
+    } else return(0);
 }
 
 int32_t safecoin_dpowconfs(int32_t txheight,int32_t numconfs)
 {
+    static int32_t hadnotarization;
     char symbol[SAFECOIN_ASSETCHAIN_MAXLEN],dest[SAFECOIN_ASSETCHAIN_MAXLEN]; struct safecoin_state *sp;
     if ( SAFECOIN_DPOWCONFS != 0 && txheight > 0 && numconfs > 0 && (sp= safecoin_stateptr(symbol,dest)) != 0 )
     {
         if ( sp->NOTARIZED_HEIGHT > 0 )
         {
+            hadnotarization = 1;
             if ( txheight < sp->NOTARIZED_HEIGHT )
                 return(numconfs);
             else return(1);
         }
+        else if ( hadnotarization != 0 )
+            return(1);
     }
     return(numconfs);
 }
