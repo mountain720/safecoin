@@ -1727,7 +1727,7 @@ void static BitcoinMiner()
         My_notaryid = notaryid;
     std::string solver;
     if ( ASSETCHAINS_NK[0] == 0 && ASSETCHAINS_NK[1] == 0 )
-        solver = "tromp";
+        solver = GetArg("-equihashsolver", "tromp");
     else 
         solver = "default";
     assert(solver == "tromp" || solver == "default");
