@@ -4236,6 +4236,17 @@ bool static DisconnectTip(CValidationState &state, bool fBare = false) {
 
 int32_t safecoin_activate_sapling(CBlockIndex *pindex)
 {
+    // set sapling activation height to exact height from chainparams ...
+    int32_t activation_from_chainparams = Params().GetConsensus().vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight;
+    if (activation_from_chainparams != Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT)
+    {
+        safecoin_setactivation(activation_from_chainparams);
+        fprintf(stderr,"%s sapling activation at %d\n",ASSETCHAINS_SYMBOL, activation_from_chainparams);
+        ASSETCHAINS_SAPLING = activation_from_chainparams;
+        return activation_from_chainparams;
+    }
+    
+    // ... or try this way
     uint32_t blocktime,prevtime; CBlockIndex *prev; int32_t i,transition=0,height,prevht;
     int32_t activation = 0;
     if ( pindex == 0 )
