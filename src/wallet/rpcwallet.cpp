@@ -4669,7 +4669,9 @@ UniValue z_sendmany(const UniValue& params, bool fHelp, const CPubKey& mypk)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    THROW_IF_SYNCING(SAFECOIN_INSYNC);
+
+    // THROW_IF_SYNCING(SAFECOIN_INSYNC);
+
 
     // Check that the from address is valid.
     auto fromaddress = params[0].get_str();
@@ -4985,7 +4987,9 @@ UniValue z_shieldcoinbase(const UniValue& params, bool fHelp, const CPubKey& myp
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    THROW_IF_SYNCING(SAFECOIN_INSYNC);
+
+    //    THROW_IF_SYNCING(SAFECOIN_INSYNC);
+
 
     // Validate the from address
     auto fromaddress = params[0].get_str();
