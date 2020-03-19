@@ -946,9 +946,9 @@ int32_t safecoin_safeids(uint8_t *safeids, int32_t height, int32_t width);
 
 /*
 std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint32_t>>>> vt_safecoin_safeids(int32_t height, int32_t width);
+*/
 
 std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint32_t>>>> vt_safecoin_safeids_new(int32_t height, int32_t width);
-*/
 
 std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint32_t>>>> vt_safecoin_safeids_optimized(int32_t height, int32_t width);
 
@@ -1068,8 +1068,18 @@ UniValue minerids(const UniValue& params, bool fHelp, const CPubKey& mypk)
     return ret;
 }
 
-UniValue safeids(const UniValue& params, bool fHelp, const CPubKey& mypk)
+UniValue optsafeids(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
+    /*
+    UniValue uv_debug(UniValue::VOBJ);
+    for (int i = 0; i < params.size(); i++)
+    {
+        uv_debug.push_back(Pair("param_" + std::to_string(i), params[i]));
+        uv_debug.push_back(Pair("param_" + std::to_string(i) + "_type", uvTypeName(params[i].getType())));
+    }
+    return uv_debug;
+    */
+    
     uint32_t width = REGISTRATION_TRIGGER_DAYS * 1440 + 100, notary_miners_count = 0, external_miners_count;
     uint32_t timestamp = 0;
     UniValue uv_result(UniValue::VOBJ);
@@ -1124,6 +1134,145 @@ UniValue safeids(const UniValue& params, bool fHelp, const CPubKey& mypk)
 				safeid_item.push_back(Pair("blocks", (int32_t)si_count.second));
 				int64_t balance_satoshis = 0;
 				uint32_t minconf = COLLATERAL_MATURITY; 
+				int type = 0;
+				CBitcoinAddress address(str_si_address);
+				uint160 hashBytes;
+
+				std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
+				if (address.GetIndexKey(hashBytes, type, false))
+				{
+					if (GetAddressUnspent(hashBytes, type, unspentOutputs))
+					{
+						std::sort(unspentOutputs.begin(), unspentOutputs.end(), heightSort);
+						for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>::const_iterator it = unspentOutputs.begin(); it != unspentOutputs.end(); it++)
+						{
+							std::string tmp_address;
+							if (getAddressFromIndex(it->first.type, it->first.hashBytes, tmp_address))
+							{
+								uint32_t confirmations = height - it->second.blockHeight;
+								if (confirmations >= minconf) balance_satoshis += it->second.satoshis;
+							}
+							else LogPrintf("SAFEIDS: Unknown address type %s\n", tmp_address.c_str());
+						}
+					}
+					else LogPrintf("SAFEIDS: No information available for address %s\n", str_si_address.c_str());
+				}
+				else LogPrintf("SAFEIDS: Invalid address %s\n", str_si_address.c_str());
+
+				safeid_item.push_back(Pair("collateral", ValueFromAmount(balance_satoshis)));
+				uv_safeids.push_back(safeid_item);
+			}
+			UniValue pubkey_item(UniValue::VOBJ);
+			pubkey_item.push_back(Pair("pubkey", s_pubkey.c_str()));
+			pubkey_item.push_back(Pair("SAFE-address", str_safe_address(s_pubkey).c_str()));
+
+			int64_t balance_satoshis = 0;
+			uint32_t minconf = 100; // required balance maturity set to 20000
+			int type = 0;
+			CBitcoinAddress address(str_safe_address(s_pubkey));
+			uint160 hashBytes;
+			std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
+			if (address.GetIndexKey(hashBytes, type, false))
+			  {
+			    if (GetAddressUnspent(hashBytes, type, unspentOutputs))
+			      {
+				std::sort(unspentOutputs.begin(), unspentOutputs.end(), heightSort);
+				for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>::const_iterator it = unspentOutputs.begin(); it != unspentOutputs.end(); it++)
+				  {
+				    std::string tmp_address;
+				    if (getAddressFromIndex(it->first.type, it->first.hashBytes, tmp_address))
+				      {
+					uint32_t confirmations = height - it->second.blockHeight;
+					if (confirmations > minconf) balance_satoshis += it->second.satoshis;
+				      }
+				    else LogPrintf("SAFEIDS: Unknown address type %s\n", tmp_address.c_str());
+				  }
+			      }
+			    else LogPrintf("SAFEIDS: No information available for address %s\n", str_safe_address(s_pubkey).c_str());
+			  }
+			else LogPrintf("SAFEIDS: Invalid address %s\n", str_safe_address(s_pubkey).c_str());
+
+
+
+
+
+
+			pubkey_item.push_back(Pair("balance", ValueFromAmount(balance_satoshis)));
+
+
+			
+			pubkey_item.push_back(Pair("blocks", (int32_t)u_block_count));
+			pubkey_item.push_back(Pair("safeids", uv_safeids));
+			uv_pubkeys.push_back(pubkey_item);
+		}
+             }
+		UniValue externals(UniValue::VOBJ);
+		externals.push_back(Pair("external-miners", (int32_t)(width - notary_miners_count)));
+		uv_pubkeys.push_back(externals);
+		uv_result.push_back(Pair("mined", uv_pubkeys)); 
+		uv_result.push_back(Pair("checked_at_height", (int32_t)height));   
+	}
+	else uv_result.push_back(Pair("error", (char *)"couldnt extract safeids"));
+    
+    return uv_result;
+}
+
+UniValue safeids(const UniValue& params, bool fHelp, const CPubKey& mypk)
+{
+    uint32_t width = REGISTRATION_TRIGGER_DAYS * 1440 + 100, notary_miners_count = 0, external_miners_count;
+    uint32_t timestamp = 0;
+    UniValue uv_result(UniValue::VOBJ);
+    std::string spubkey = "";
+    
+    
+    if ( fHelp )
+        throw runtime_error("safeids (height is optional)\n");
+        
+    LOCK(cs_main);
+    
+    int32_t height;
+    if (params.size() >= 1)
+		height = atoi(params[0].get_str().c_str());
+	else
+		height = chainActive.Height();
+		
+    if (params.size() >= 2) width = params[1].get_int();
+    if (params.size() == 3) spubkey = params[2].get_str().c_str();
+    if ( height <= 0 )
+        height = chainActive.LastTip()->GetHeight();
+    else
+    {
+        CBlockIndex *pblockindex = chainActive[height];
+        if ( pblockindex != 0 )
+            timestamp = pblockindex->GetBlockTime();
+    }
+    
+	UniValue uv_pubkeys(UniValue::VARR);
+	//std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint32_t>>>> vt = vt_safecoin_safeids(height, width);
+	std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint32_t>>>> vt = vt_safecoin_safeids_new(height, width);
+	
+	if (vt.size() > 0)
+	{
+		for (unsigned k = 0; k < vt.size(); k++)
+		  { 
+			std::string s_pubkey = std::get<0>(vt.at(k));
+			if (spubkey == "" || spubkey.compare(s_pubkey.c_str()) == 0){
+			  //		      printf("spubkey.%s\n",spubkey.c_str());
+			  //		      printf("s_pubkey.%s\n",s_pubkey.c_str());
+			uint32_t u_block_count = std::get<1>(vt.at(k));
+			if (s_pubkey != "invalid") notary_miners_count += u_block_count;
+			std::vector<pair<std::string, uint32_t>> v_safeids = std::get<2>(vt.at(k));
+			UniValue uv_safeids(UniValue::VARR);
+			for (unsigned l = 0; l < v_safeids.size(); l++)
+			{
+				std::pair<std::string, uint32_t> si_count = v_safeids.at(l);
+				std::string str_si_address = str_safe_address(si_count.first);
+				UniValue safeid_item(UniValue::VOBJ);
+				safeid_item.push_back(Pair("safeid", si_count.first.c_str()));
+				safeid_item.push_back(Pair("SAFE-address", str_si_address.c_str()));
+				safeid_item.push_back(Pair("blocks", (int32_t)si_count.second));
+				int64_t balance_satoshis = 0;
+				uint32_t minconf = COLLATERAL_MATURITY; // required balance maturity set to 20000 
 				int type = 0;
 				CBitcoinAddress address(str_si_address);
 				uint160 hashBytes;
