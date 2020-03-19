@@ -1075,8 +1075,8 @@ int32_t safecoin_minerids(uint8_t *minerids,int32_t height,int32_t width)
 // replacement for safecoin_safeids() - new one using kvsearch
 std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint32_t>>>> vt_safecoin_safeids_new(int32_t height, int32_t width)
 {
-  int32_t i, j, nonz, block_height, scan_range;
-  scan_range=height-750000;
+    int32_t i, j, nonz, block_height, scan_range;
+    scan_range = height - 750000;
     CBlockIndex *pindex;
     uint8_t pubkey33[33];
     std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint32_t>>>> vt;
@@ -1097,9 +1097,10 @@ std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint
 			for (int j = 0; j < vs_all_pubkeys.size(); j++)
 			{
 				std::string s_current_pubkey = vs_all_pubkeys.at(j);
-				std::string s_current_block_height = ((block_height < 1000000)?"0":"") +  std::to_string(block_height);
+				//std::string s_current_block_height = ((block_height < 1000000)?"0":"") +  std::to_string(block_height);
+                std::string s_current_block_height = "0" +  std::to_string(block_height);
 				std::string s_search_keyname = s_current_pubkey + s_current_block_height + "1";
-				
+                
 				int32_t flags = 1, keylen;
 				uint8_t value[IGUANA_MAXSCRIPTSIZE*8];
 				uint256 pubs;
@@ -1114,12 +1115,12 @@ std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint
 
 				if (valuesize > 0 && (height-heightp) < width) // key name found
 				{
-					std::string s_safeid;
+                    std::string s_safeid;
 					char *valuestr;
 					s_safeid.resize(valuesize);
 					valuestr = (char *)s_safeid.data();
 					memcpy (valuestr, value, valuesize);
-					
+                    
 					// we should store this safeid
 					std::vector<std::string>::iterator it;
 
@@ -1166,7 +1167,7 @@ std::vector<std::tuple<std::string, uint32_t, std::vector<pair<std::string, uint
 						vp_init_safeid.push_back(std::make_pair(s_safeid, 1));
 						vvp_pubkey_safeids.push_back(vp_init_safeid);
 					}
-				}	
+				}
 			}
         }
     }

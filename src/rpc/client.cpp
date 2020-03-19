@@ -168,6 +168,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "paxpending", 0 },
     { "notaries", 2 },
     { "minerids", 1 },
+    { "optsafeids", 0 },
+    { "optsafeids", 1 },
     { "safeids", 1 },
     { "safeids", 2 },
     { "safeids", 3 },
