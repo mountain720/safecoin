@@ -529,6 +529,7 @@ extern UniValue migrate_createnotaryapprovaltransaction(const UniValue& params, 
 
 extern UniValue notaries(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue minerids(const UniValue& params, bool fHelp, const CPubKey& mypk);
+extern UniValue optsafeids(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue safeids(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue kvsearch(const UniValue& params, bool fHelp, const CPubKey& mypk);
 extern UniValue kvupdate(const UniValue& params, bool fHelp, const CPubKey& mypk);
