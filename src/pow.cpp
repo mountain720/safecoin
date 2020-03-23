@@ -878,7 +878,7 @@ bool CheckProofOfWork(const CBlockHeader &blkHeader, uint8_t *pubkey33, int32_t 
                     flag = 0;
                 else fprintf(stderr,"ht.%d notaryid.%d special.%d flag.%d special2.%d\n",height,notaryid,special,flag,special2);
             }
-            if ( (flag != 0 || special2 > 0) && special2 != -2 )
+            if ( (flag != 0 || special2 > 0) && special2 != -2 && (height % 2 != 0) )
             {
                 bnTarget.SetCompact(SAFECOIN_MINDIFF_NBITS,&fNegative,&fOverflow);
                 /*
