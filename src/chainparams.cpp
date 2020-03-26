@@ -208,10 +208,10 @@ public:
         // guarantees the first two characters, when base58 encoded, are "SK"
         base58Prefixes[ZCSPENDING_KEY] = {171,54};
 
-        bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "zs";
-        bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "zviews";
-        bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "zivks";
-        bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "secret-extended-key-main";
+        bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "safe";
+        bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "sviews";
+        bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "sivks";
+        bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "secret-extended-key-safe";
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
 
