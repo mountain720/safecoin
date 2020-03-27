@@ -34,6 +34,7 @@
 
 #define SAFECOIN_SAPLING_ACTIVATION 1551916800 // March 7th, 2019
 #define SAFECOIN_SAPLING_DEADLINE 1551398400 // March 1st, 2019
+#define SAFECOIN_MAGNA_CARTA 1592182800 // June 15, 2020  805th Anniversary of Magna Carta Libertatum, charter of rights agreed to by King John of England
 
 #define COLLATERAL_MATURITY 4320 // one week => 10080, 3 days => 4320, n days => n * 1440
 #define REGISTRATION_GAP 900 // min number of blocks allowed since last safenode registration

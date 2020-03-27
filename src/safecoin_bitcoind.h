@@ -2729,6 +2729,10 @@ int32_t safecoin_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,
 int32_t safecoin_acpublic(uint32_t tiptime)
 {
     int32_t acpublic = ASSETCHAINS_PUBLIC; CBlockIndex *pindex;
+
+    if (ASSETCHAINS_SYMBOL[0] == 0 && tiptime >= SAFECOIN_MAGNA_CARTA)
+      return 0;
+    
     if ( acpublic == 0 )
     {
         if ( tiptime == 0 )
