@@ -1454,7 +1454,9 @@ uint32_t safecoin_interest_args(uint32_t *txheighttimep,int32_t *txheightp,uint3
 uint64_t safecoin_interest(int32_t txheight,uint64_t nValue,uint32_t nLockTime,uint32_t tiptime);
 
 uint64_t safecoin_accrued_interest(int32_t *txheightp,uint32_t *locktimep,uint256 hash,int32_t n,int32_t checkheight,uint64_t checkvalue,int32_t tipheight)
-{
+{  
+   if (ASSETCHAINS_SYMBOL[0] == 0)
+   return(0);  //disinterested
     uint64_t value; uint32_t tiptime=0,txheighttimep; CBlockIndex *pindex;
     if ( (pindex= chainActive[tipheight]) != 0 )
         tiptime = (uint32_t)pindex->nTime;
@@ -1490,6 +1492,9 @@ int32_t safecoin_isrealtime(int32_t *safeheightp)
 
 int32_t safecoin_validate_interest(const CTransaction &tx,int32_t txheight,uint32_t cmptime,int32_t dispflag)
 {
+    if (ASSETCHAINS_SYMBOL[0] == 0)
+    return(0);   //disinterested
+	    
     dispflag = 1;
     if ( SAFECOIN_REWIND == 0 && ASSETCHAINS_SYMBOL[0] == 0 && (int64_t)tx.nLockTime >= LOCKTIME_THRESHOLD ) //1473793441 )
     {
