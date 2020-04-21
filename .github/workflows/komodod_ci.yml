@@ -33,7 +33,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           # flag for some CC tests transactions - so DO NOT USE THIS CI ARTIFACTS IN PRODUCTION!!!
-          CONFIGURE_FLAGS='CPPFLAGS=-DTESTMODE' ./zcutil/build.sh --disable-tests -j$(nproc)
+          CONFIGURE_FLAGS='CPPFLAGS=-DTESTMODE' ./zcutil/build.sh -j$(nproc)
           tar -czvf safecoin-linux.tar.gz src/safecoind src/safecoin-cli
 
       - name: Upload safecoin-linux.tar.gz as artifact
