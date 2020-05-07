@@ -558,6 +558,19 @@ int validEHparameterList(EHparameters *ehparams, unsigned long blockheight, cons
     //if in overlap period, there will be two valid solutions, else 1.
     //The upcoming version of EH is preferred so will always be first element
     //returns number of elements in list
+	
+     //if this is an asset chain, it is Equihash 192_7 by default or whatever paramater is chosen by -ac_algo.                                         
+    //Examples:  -ac_algo=eh200_9,  -ac_algo=eh144_5, -ac_algo=eh192_7                                                                                
+    if ( ASSETCHAINS_SYMBOL[0] != 0 ){
+      ehparams[0]=params.eh_epoch_3_params();
+      if (GetArg("-ac_algo", "eh192_7") == "eh200_9")
+    ehparams[0]=params.eh_epoch_1_params();
+      if (GetArg("-ac_algo", "eh192_7") == "eh144_5")
+        ehparams[0]=params.eh_epoch_2_params();
+        return 1;
+    }
+	
+	
     if(blockheight>=params.eh_epoch_3_start() && blockheight>params.eh_epoch_2_end()){
         ehparams[0]=params.eh_epoch_3_params();
         return 1;
