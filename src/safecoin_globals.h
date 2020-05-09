@@ -41,8 +41,8 @@ int32_t NUM_PRICES; uint32_t *PVALS;
 struct knotaries_entry *Pubkeys;
 
 struct safecoin_state SAFECOIN_STATES[34];
-const uint32_t nStakedDecemberHardforkTimestamp = 1576840000; //December 2019 hardfork 12/20/2019 @ 11:06am (UTC)
-const int32_t nDecemberHardforkHeight = 1670000;   //December 2019 hardfork
+const uint32_t nStakedDecemberHardforkTimestamp = 1592092800; // June 14 2020 Hardfork
+const int32_t nDecemberHardforkHeight = 1214807;   //June 14 2020 hardfork
 
 #define _COINBASE_MATURITY 100
 int COINBASE_MATURITY = _COINBASE_MATURITY;//100;
@@ -63,10 +63,10 @@ char NOTARY_ADDRESSES[NUM_SAFECOIN_SEASONS][64][64];
 char ASSETCHAINS_SYMBOL[SAFECOIN_ASSETCHAIN_MAXLEN],ASSETCHAINS_USERPASS[4096];
 uint16_t ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT,ASSETCHAINS_BEAMPORT,ASSETCHAINS_CODAPORT;
 uint32_t ASSETCHAIN_INIT,ASSETCHAINS_CC,SAFECOIN_STOPAT,SAFECOIN_DPOWCONFS = 1,STAKING_MIN_DIFF;
-uint32_t ASSETCHAINS_MAGIC = 2387029918;
+uint32_t ASSETCHAINS_MAGIC = 2387029919;
 int64_t ASSETCHAINS_GENESISTXVAL = 5000000000;
 
-int64_t MAX_MONEY = 200000000 * 100000000LL;
+int64_t MAX_MONEY = 36000000 * 100000000LL;
 
 // consensus variables for coinbase timelock control and timelock transaction support
 // time locks are specified enough to enable their use initially to lock specific coinbase transactions for emission control
