@@ -2373,72 +2373,8 @@ fprintf(stderr,"extralen.%d before disable bits\n",extralen);
     if ( ASSETCHAINS_SYMBOL[0] != 0 )
     {
         BITCOIND_RPCPORT = GetArg("-rpcport", ASSETCHAINS_RPCPORT);
-        // Set cc enables for all existing ac_cc chains here. 
-        if ( strcmp("AXO",ASSETCHAINS_SYMBOL) == 0 )
-        {
-            // No CCs used on this chain yet.
-            CCDISABLEALL;
-        }
-        if ( strcmp("CCL",ASSETCHAINS_SYMBOL) == 0 )
-        {
-            // No CCs used on this chain yet. 
-            CCDISABLEALL;
-            CCENABLE(EVAL_TOKENS);
-            CCENABLE(EVAL_HEIR);
-        }
-        if ( strcmp("COQUI",ASSETCHAINS_SYMBOL) == 0 )
-        {
-            CCDISABLEALL;
-            CCENABLE(EVAL_DICE);
-            CCENABLE(EVAL_CHANNELS);
-            CCENABLE(EVAL_ORACLES);
-            CCENABLE(EVAL_ASSETS);
-            CCENABLE(EVAL_TOKENS);
-        }
-        if ( strcmp("DION",ASSETCHAINS_SYMBOL) == 0 )
-        {
-            // No CCs used on this chain yet. 
-            CCDISABLEALL;
-        }
         
-        if ( strcmp("EQL",ASSETCHAINS_SYMBOL) == 0 )
-        {
-            // No CCs used on this chain yet. 
-            CCDISABLEALL;
-        }
-        if ( strcmp("ILN",ASSETCHAINS_SYMBOL) == 0 )
-        {
-            // No CCs used on this chain yet. 
-            CCDISABLEALL;
-        }
-        if ( strcmp("OUR",ASSETCHAINS_SYMBOL) == 0 )
-        {
-            // No CCs used on this chain yet. 
-            CCDISABLEALL;
-        }
-        if ( strcmp("ZEXO",ASSETCHAINS_SYMBOL) == 0 )
-        {
-            // No CCs used on this chain yet. 
-            CCDISABLEALL;
-        }
-        if ( strcmp("SEC",ASSETCHAINS_SYMBOL) == 0 )
-        {
-            CCDISABLEALL;
-            CCENABLE(EVAL_ASSETS);
-            CCENABLE(EVAL_TOKENS);
-            CCENABLE(EVAL_ORACLES);
-        }
-        if ( strcmp("KMDICE",ASSETCHAINS_SYMBOL) == 0 )
-        {
-            CCDISABLEALL;
-            CCENABLE(EVAL_FAUCET);
-            CCENABLE(EVAL_DICE);
-            CCENABLE(EVAL_ORACLES);
-        }
-    } else BITCOIND_RPCPORT = GetArg("-rpcport", BaseParams().RPCPort());
-    SAFECOIN_DPOWCONFS = GetArg("-dpowconfs",dpowconfs);
-    if ( ASSETCHAINS_SYMBOL[0] == 0 || strcmp(ASSETCHAINS_SYMBOL,"SUPERNET") == 0 || strcmp(ASSETCHAINS_SYMBOL,"DEX") == 0 || strcmp(ASSETCHAINS_SYMBOL,"COQUI") == 0 || strcmp(ASSETCHAINS_SYMBOL,"PIRATE") == 0 || strcmp(ASSETCHAINS_SYMBOL,"SAFEICE") == 0 )
-        SAFECOIN_EXTRASATOSHI = 1;
+    } 
 }
 
 void safecoin_nameset(char *symbol,char *dest,char *source)
