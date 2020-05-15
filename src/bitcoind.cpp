@@ -76,7 +76,7 @@ void WaitForShutdown(boost::thread_group* threadGroup)
         fprintf(stderr,"error: earlytx must be before block height %d or tx does not exist\n",SAFECOIN_EARLYTXID_HEIGHT);
         StartShutdown();
     }
-    /*if ( ASSETCHAINS_STAKED == 0 && ASSETCHAINS_ADAPTIVEPOW == 0 && (pindex= safecoin_chainactive(1)) != 0 )
+    if ( ASSETCHAINS_STAKED == 0 && ASSETCHAINS_ADAPTIVEPOW == 0 && (pindex= safecoin_chainactive(1)) != 0 )
     {
         if ( pindex->nTime > ADAPTIVEPOW_CHANGETO_DEFAULTON )
         {
