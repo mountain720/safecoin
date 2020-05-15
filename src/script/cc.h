@@ -24,8 +24,7 @@
 
 
 extern uint32_t ASSETCHAINS_CC;
-bool IsCryptoConditionsEnabled();
-const uint32_t SafeContractsTimestamp = 1592265600;   //June 16 2020 Safecontracts enabled 
+bool IsCryptoConditionsEnabled(); 
 
 // Limit acceptable condition types
 // Prefix not enabled because no current use case, ambiguity on how to combine with secp256k1
