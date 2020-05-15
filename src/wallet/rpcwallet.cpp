@@ -6400,8 +6400,8 @@ UniValue marmara_poolpayout(const UniValue& params, bool fHelp, const CPubKey& m
         //marmarapoolpayout 0 2 '[["024131032ed90941e714db8e6dd176fe5a86c9d873d279edecf005c06f773da686",1000]]'
         throw runtime_error("marmarapoolpayout perc firstheight \"[[\\\"pubkey\\\":shares], ...]\"\n");
     }
-    if ( ensure_CCrequirements(EVAL_MARMARA) < 0 )
-        throw runtime_error(CC_REQUIREMENTS_MSG);
+    //    if ( ensure_CCrequirements(EVAL_MARMARA) < 0 )
+    //        throw runtime_error(CC_REQUIREMENTS_MSG);
     const CKeyStore& keystore = *pwalletMain;
     LOCK2(cs_main, pwalletMain->cs_wallet);
     perc = atof(params[0].get_str().c_str()) / 100.;

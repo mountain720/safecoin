@@ -19,7 +19,7 @@
 
 bool IsCryptoConditionsEnabled()
 {
-    return 0 != ASSETCHAINS_CC;
+  return 1;
 }
 
 
