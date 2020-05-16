@@ -2372,9 +2372,10 @@ fprintf(stderr,"extralen.%d before disable bits\n",extralen);
     int32_t dpowconfs = SAFECOIN_DPOWCONFS;
     if ( ASSETCHAINS_SYMBOL[0] != 0 )
     {
-        BITCOIND_RPCPORT = GetArg("-rpcport", ASSETCHAINS_RPCPORT);
-        
-    } 
+        BITCOIND_RPCPORT = GetArg("-rpcport", ASSETCHAINS_RPCPORT);        
+    }else BITCOIND_RPCPORT = GetArg("-rpcport", BaseParams().RPCPort());
+    SAFECOIN_DPOWCONFS = GetArg("-dpowconfs",dpowconfs);
+    
 }
 
 void safecoin_nameset(char *symbol,char *dest,char *source)
