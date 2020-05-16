@@ -209,7 +209,7 @@ int32_t safecoin_longestchain()
 
         TRY_LOCK(cs_main, lockMain); // Acquire cs_main
         if (!lockMain) {
-            return(KOMODO_LONGESTCHAIN);
+            return(SAFECOIN_LONGESTCHAIN);
         }
 
         depth++;
