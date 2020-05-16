@@ -758,7 +758,7 @@ void ThreadNotifyRecentlyAdded()
 }
 
 
-/* declarations needed for ThreadUpdateKomodoInternals */
+/* declarations needed for ThreadUpdateSafecoinInternals */
 void safecoin_passport_iteration();
 void safecoin_cbopretupdate(int32_t forceflag);
 
@@ -809,15 +809,15 @@ void ThreadUpdateSafecoinInternals() {
         }
     }
     catch (const boost::thread_interrupted&) {
-        // std::cerr << "ThreadUpdateKomodoInternals() interrupted" << std::endl;
+        // std::cerr << "ThreadUpdateSafecoinInternals() interrupted" << std::endl;
         // c.disconnect();
         throw;
     }
     catch (const std::exception& e) {
-        PrintExceptionContinue(&e, "ThreadUpdateKomodoInternals()");
+        PrintExceptionContinue(&e, "ThreadUpdateSafecoinInternals()");
     }
     catch (...) {
-        PrintExceptionContinue(NULL, "ThreadUpdateKomodoInternals()");
+        PrintExceptionContinue(NULL, "ThreadUpdateSafecoinInternals()");
     }
 
 }
