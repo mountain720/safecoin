@@ -10,8 +10,8 @@ $(package)_file_name_linux_arm=rust-$($(package)_version)-arm-unknown-linux-gnue
 $(package)_sha256_hash_linux_arm=1d039b6eed38e8ef2a31ad3b7663d9883ecd3e761b3a38715502023c4db4cb4a
 $(package)_file_name_linux_armhf=rust-$($(package)_version)-arm-unknown-linux-gnueabihf.tar.gz
 $(package)_sha256_hash_linux_armhf=e05dccf73b521ea8cf2976cde9844ad3270a6c98ccd8d9e99eabc0abac049a44
-$(package)_file_name_linux_armv7=rust-$($(package)_version)-armv7-unknown-linux-gnueabihf.tar.gz
-$(package)_sha256_hash_linux_armv7=d7b69f60689d2905d8d3c2829b0f1cd0f86265a255ff88ea0deb601aebac6428
+$(package)_file_name_linux_armv7l=rust-$($(package)_version)-armv7-unknown-linux-gnueabihf.tar.gz
+$(package)_sha256_hash_linux_armv7l=d7b69f60689d2905d8d3c2829b0f1cd0f86265a255ff88ea0deb601aebac6428
 $(package)_file_name_darwin=rust-$($(package)_version)-x86_64-apple-darwin.tar.gz
 $(package)_sha256_hash_darwin=f0dfba507192f9b5c330b5984ba71d57d434475f3d62bd44a39201e36fa76304
 $(package)_file_name_mingw32=rust-$($(package)_version)-x86_64-pc-windows-gnu.tar.gz
@@ -32,9 +32,9 @@ $(package)_sha256_hash=$($(package)_sha256_hash_linux_arm)
 else ifeq ($(host_arch),arm)
 $(package)_file_name=$($(package)_file_name_linux_armhf)
 $(package)_sha256_hash=$($(package)_sha256_hash_linux_armhf)
-else ifeq ($(host_arch),armv7)
-$(package)_file_name=$($(package)_file_name_linux_armv7)
-$(package)_sha256_hash=$($(package)_sha256_hash_linux_armv7)
+else ifeq ($(host_arch),armv7l)
+$(package)_file_name=$($(package)_file_name_linux_armv7l)
+$(package)_sha256_hash=$($(package)_sha256_hash_linux_armv7l)
 else
 $(package)_file_name=$($(package)_file_name_linux)
 $(package)_sha256_hash=$($(package)_sha256_hash_linux)
