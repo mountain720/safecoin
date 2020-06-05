@@ -2,8 +2,8 @@ package=rust
 $(package)_version=1.32.0
 $(package)_download_path=https://static.rust-lang.org/dist
 
-$(package)_file_name_linux=rust-$($(package)_version)-x86_64-unknown-linux-gnu.tar.gz
-$(package)_sha256_hash_linux=e024698320d76b74daf0e6e71be3681a1e7923122e3ebd03673fcac3ecc23810
+$(package)_file_name_linux_x86-64=rust-$($(package)_version)-x86_64-unknown-linux-gnu.tar.gz
+$(package)_sha256_hash_linux_x86-64=e024698320d76b74daf0e6e71be3681a1e7923122e3ebd03673fcac3ecc23810
 $(package)_file_name_linux_aarch64=rust-$($(package)_version)-aarch64-unknown-linux-gnu.tar.gz
 $(package)_sha256_hash_linux_aarch64=60def40961728212da4b3a9767d5a2ddb748400e150a5f8a6d5aa0e1b8ba1cee
 $(package)_file_name_linux_arm=rust-$($(package)_version)-arm-unknown-linux-gnueabi.tar.gz
@@ -36,8 +36,8 @@ else ifeq ($(host_arch),armv7l)
 $(package)_file_name=$($(package)_file_name_linux_armv7l)
 $(package)_sha256_hash=$($(package)_sha256_hash_linux_armv7l)
 else
-$(package)_file_name=$($(package)_file_name_linux)
-$(package)_sha256_hash=$($(package)_sha256_hash_linux)
+$(package)_file_name=$($(package)_file_name_linux_x86-64)
+$(package)_sha256_hash=$($(package)_sha256_hash_linux_x86-64)
 endif
 
 ifeq ($(host_os),mingw32)
