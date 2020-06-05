@@ -106,7 +106,7 @@ CONFIG_SITE="$PWD/depends/$HOST/share/config.site" ./configure "$HARDENING_ARG" 
 WD=$PWD
 cd src/cc
 echo $PWD
-./makecustom
+HOST="$HOST" ./makecustom
 cd $WD
 
 "$MAKE" "$@" V=1
