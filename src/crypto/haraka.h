@@ -28,7 +28,7 @@ Optimized Implementations for Haraka256 and Haraka512
 
 #if defined(__arm__) || defined(__aarch64__)
 #include "arm_neon.h"
-typedef uint8x16_t __m128i
+typedef uint8x16_t __m128i;
 #define _mm_load_si128(src) vld1q_u8(src)
 #define _mm_storeu_si128(dest,src) vst1q_u8(dest,src)
 #define _mm_aesenc_si128(V,R) vaesmcq_u8(vaeseq_u8(V,R))
