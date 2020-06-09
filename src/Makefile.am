@@ -454,6 +454,7 @@ endif
 
 # Verus hash specific library - optimized
 crypto_libverus_crypto_a_CPPFLAGS = -O3 -Wint-conversion -g -funroll-loops -fomit-frame-pointer -fPIC $(AM_CPPFLAGS)
+crypto_libverus_crypto_a_CXXFLAGS = -O3 -Wint-conversion -g -funroll-loops -fomit-frame-pointer -fPIC $(AM_CPPFLAGS)
 ifeq ($(BUILD_ARCH),aarch64)
 crypto_libverus_crypto_a_CPPFLAGS += -march=armv8-a+crypto
 crypto_libverus_crypto_a_CXXFLAGS += -march=armv8-a+crypto
