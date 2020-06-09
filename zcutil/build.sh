@@ -109,4 +109,4 @@ echo $PWD
 HOST="$HOST" ./makecustom
 cd $WD
 
-"$MAKE" "$@" V=1
+BUILD="$BUILD" "$MAKE" "$@" V=1
