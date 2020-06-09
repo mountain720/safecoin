@@ -35,7 +35,7 @@ typedef uint8x16_t __m128i;
 #define _mm_unpacklo_epi32(a,b) vzip2q_u8(a,b)
 #define _mm_unpackhi_epi32(a,b) vzip1q_u8(a,b)
 #define _mm_set_epi32(e3,e2,e1,e0) vreinterpretq_u8_u32((uint32x4_t){e3,e2,e1,e0})
-#define _mm_xor_si128(a,b) veorq_s8(a,b)
+#define _mm_xor_si128(a,b) veorq_u8(a,b)
 #else
 #include "immintrin.h"
 #endif
