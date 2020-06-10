@@ -4,7 +4,11 @@ AM_LDFLAGS = $(PTHREAD_CFLAGS) $(LIBTOOL_LDFLAGS) $(SAN_LDFLAGS) $(HARDENED_LDFL
 AM_CXXFLAGS = $(SAN_CXXFLAGS) $(HARDENED_CXXFLAGS) $(ERROR_CXXFLAGS)
 AM_CPPFLAGS = $(HARDENED_CPPFLAGS)
 EXTRA_LIBRARIES =
-BUILD_ARCH ?= $(subst aarch64,armv8-a,$(subst _,-,$(firstword $(subst -, ,$(BUILD))))) # should be x86-64 or aarch64
+if TARGET_AARCH64
+BUILD_ARCH = armv8-a
+else
+BUILD_ARCH = x86-64
+endif
 
 if EMBEDDED_LEVELDB
 LEVELDB_CPPFLAGS += -I$(srcdir)/leveldb/include
