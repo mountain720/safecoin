@@ -6,12 +6,6 @@ $(package)_file_name_linux_x86-64=rust-$($(package)_version)-x86_64-unknown-linu
 $(package)_sha256_hash_linux_x86-64=e024698320d76b74daf0e6e71be3681a1e7923122e3ebd03673fcac3ecc23810
 $(package)_file_name_linux_aarch64=rust-$($(package)_version)-aarch64-unknown-linux-gnu.tar.gz
 $(package)_sha256_hash_linux_aarch64=60def40961728212da4b3a9767d5a2ddb748400e150a5f8a6d5aa0e1b8ba1cee
-$(package)_file_name_linux_arm=rust-$($(package)_version)-arm-unknown-linux-gnueabi.tar.gz
-$(package)_sha256_hash_linux_arm=1d039b6eed38e8ef2a31ad3b7663d9883ecd3e761b3a38715502023c4db4cb4a
-$(package)_file_name_linux_armhf=rust-$($(package)_version)-arm-unknown-linux-gnueabihf.tar.gz
-$(package)_sha256_hash_linux_armhf=e05dccf73b521ea8cf2976cde9844ad3270a6c98ccd8d9e99eabc0abac049a44
-$(package)_file_name_linux_armv7l=rust-$($(package)_version)-armv7-unknown-linux-gnueabihf.tar.gz
-$(package)_sha256_hash_linux_armv7l=d7b69f60689d2905d8d3c2829b0f1cd0f86265a255ff88ea0deb601aebac6428
 $(package)_file_name_darwin=rust-$($(package)_version)-x86_64-apple-darwin.tar.gz
 $(package)_sha256_hash_darwin=f0dfba507192f9b5c330b5984ba71d57d434475f3d62bd44a39201e36fa76304
 $(package)_file_name_mingw32=rust-$($(package)_version)-x86_64-pc-windows-gnu.tar.gz
@@ -26,15 +20,6 @@ $(package)_sha256_hash=$($(package)_sha256_hash_mingw32)
 else ifeq ($(host_arch),aarch64)
 $(package)_file_name=$($(package)_file_name_linux_aarch64)
 $(package)_sha256_hash=$($(package)_sha256_hash_linux_aarch64)
-else ifeq ($(host_arch)-$(full_host_os),arm-linux-gnueabi)
-$(package)_file_name=$($(package)_file_name_linux_arm)
-$(package)_sha256_hash=$($(package)_sha256_hash_linux_arm)
-else ifeq ($(host_arch),arm)
-$(package)_file_name=$($(package)_file_name_linux_armhf)
-$(package)_sha256_hash=$($(package)_sha256_hash_linux_armhf)
-else ifeq ($(host_arch),armv7l)
-$(package)_file_name=$($(package)_file_name_linux_armv7l)
-$(package)_sha256_hash=$($(package)_sha256_hash_linux_armv7l)
 else
 $(package)_file_name=$($(package)_file_name_linux_x86-64)
 $(package)_sha256_hash=$($(package)_sha256_hash_linux_x86-64)

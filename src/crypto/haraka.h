@@ -26,7 +26,7 @@ Optimized Implementations for Haraka256 and Haraka512
 #ifndef HARAKA_H_
 #define HARAKA_H_
 
-#if defined(__arm__) || defined(__aarch64__)
+#if defined(__aarch64__)
 #include "arm_neon.h"
 #include <stdlib.h>
 typedef uint8x16_t __m128i;
@@ -116,7 +116,7 @@ extern u128 rc[40];
   s2 = _mm_unpackhi_epi32(s1, tmp); \
   s1 = _mm_unpacklo_epi32(s1, tmp);
 
-#if defined(__arm__) || defined(__aarch64__)
+#if defined(__aarch64__)
 #define TRUNCSTORE(out, s0, s1, s2, s3) \
   *(u64*)(out) = vreinterpretq_u64_u8(s0)[1]; \
   *(u64*)(out + 8) = vreinterpretq_u64_u8(s1)[1]; \
