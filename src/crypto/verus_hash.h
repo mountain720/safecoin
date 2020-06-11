@@ -133,7 +133,7 @@ inline bool IsCPUVerusOptimized()
     }
     return ((ecx & (bit_AVX | bit_AES)) == (bit_AVX | bit_AES));
     #else
-    return false;
+    return true;
     #endif
 };
 
