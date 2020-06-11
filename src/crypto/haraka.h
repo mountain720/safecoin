@@ -26,7 +26,20 @@ Optimized Implementations for Haraka256 and Haraka512
 #ifndef HARAKA_H_
 #define HARAKA_H_
 
+#if defined(__aarch64__)
+#include "arm_neon.h"
+#include <stdlib.h>
+typedef uint8x16_t __m128i;
+#define _mm_load_si128(src) vld1q_u8((const unsigned char *)(src))
+#define _mm_storeu_si128(dest,src) vst1q_u8((const unsigned char *)(dest),src)
+#define _mm_aesenc_si128(V,R) vaesmcq_u8(vaeseq_u8(V,R))
+#define _mm_unpacklo_epi32(a,b) vzip2q_u8(a,b)
+#define _mm_unpackhi_epi32(a,b) vzip1q_u8(a,b)
+#define _mm_set_epi32(e3,e2,e1,e0) vreinterpretq_u8_u32((uint32x4_t){e3,e2,e1,e0})
+#define _mm_xor_si128(a,b) veorq_u8(a,b)
+#else
 #include "immintrin.h"
+#endif
 
 #define NUMROUNDS 5
 
@@ -103,11 +116,19 @@ extern u128 rc[40];
   s2 = _mm_unpackhi_epi32(s1, tmp); \
   s1 = _mm_unpacklo_epi32(s1, tmp);
 
+#if defined(__aarch64__)
+#define TRUNCSTORE(out, s0, s1, s2, s3) \
+  *(u64*)(out) = vreinterpretq_u64_u8(s0)[1]; \
+  *(u64*)(out + 8) = vreinterpretq_u64_u8(s1)[1]; \
+  *(u64*)(out + 16) = vreinterpretq_u64_u8(s2)[0]; \
+  *(u64*)(out + 24) = vreinterpretq_u64_u8(s3)[0];
+#else
 #define TRUNCSTORE(out, s0, s1, s2, s3) \
   *(u64*)(out) = (u64*)(s0)[1]; \
   *(u64*)(out + 8) = (u64*)(s1)[1]; \
   *(u64*)(out + 16) = (u64*)(s2)[0]; \
   *(u64*)(out + 24) = (u64*)(s3)[0];
+#endif
 
 void load_constants();
 void test_implementations();
