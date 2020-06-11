@@ -109,4 +109,4 @@ echo $PWD
 ./makecustom
 cd $WD
 
-BUILD="$BUILD" "$MAKE" "$@" V=1
+"$MAKE" "$@" V=1
