@@ -1,5 +1,5 @@
 *** src/crypto/equihash.cpp	2017-01-03 10:53:52.444371361 +0000
---- ../../safecoin-jl777/src/crypto/equihash.cpp	2017-01-03 09:48:21.690037241 +0000
+--- ../../komodo-jl777/src/crypto/equihash.cpp	2017-01-03 09:48:21.690037241 +0000
 ***************
 *** 21,50 ****
   

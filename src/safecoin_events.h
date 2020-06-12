@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -188,10 +188,10 @@ void safecoin_eventadd_safeheight(struct safecoin_state *sp,char *symbol,int32_t
 }
 
 
-/*void safecoin_eventadd_deposit(int32_t actionflag,char *symbol,int32_t height,uint64_t safecoinshis,char *fiat,uint64_t fiatoshis,uint8_t rmd160[20],bits256 safetxid,uint16_t safevout,uint64_t price)
+/*void safecoin_eventadd_deposit(int32_t actionflag,char *symbol,int32_t height,uint64_t safetoshis,char *fiat,uint64_t fiatoshis,uint8_t rmd160[20],bits256 safetxid,uint16_t safevout,uint64_t price)
  {
  uint8_t opret[512]; uint16_t opretlen;
- safecoin_eventadd_opreturn(symbol,height,SAFECOIN_OPRETURN_DEPOSIT,safetxid,safecoinshis,safevout,opret,opretlen);
+ safecoin_eventadd_opreturn(symbol,height,SAFECOIN_OPRETURN_DEPOSIT,safetxid,safetoshis,safevout,opret,opretlen);
  }
  
  void safecoin_eventadd_issued(int32_t actionflag,char *symbol,int32_t height,int32_t fiatheight,bits256 fiattxid,uint16_t fiatvout,bits256 safetxid,uint16_t safevout,uint64_t fiatoshis)
@@ -200,16 +200,16 @@ void safecoin_eventadd_safeheight(struct safecoin_state *sp,char *symbol,int32_t
  safecoin_eventadd_opreturn(symbol,height,SAFECOIN_OPRETURN_ISSUED,fiattxid,fiatoshis,fiatvout,opret,opretlen);
  }
  
- void safecoin_eventadd_withdraw(int32_t actionflag,char *symbol,int32_t height,uint64_t safecoinshis,char *fiat,uint64_t fiatoshis,uint8_t rmd160[20],bits256 fiattxid,int32_t fiatvout,uint64_t price)
+ void safecoin_eventadd_withdraw(int32_t actionflag,char *symbol,int32_t height,uint64_t safetoshis,char *fiat,uint64_t fiatoshis,uint8_t rmd160[20],bits256 fiattxid,int32_t fiatvout,uint64_t price)
  {
  uint8_t opret[512]; uint16_t opretlen;
  safecoin_eventadd_opreturn(symbol,height,SAFECOIN_OPRETURN_WITHDRAW,fiattxid,fiatoshis,fiatvout,opret,opretlen);
  }
  
- void safecoin_eventadd_redeemed(int32_t actionflag,char *symbol,int32_t height,bits256 safetxid,uint16_t safevout,int32_t fiatheight,bits256 fiattxid,uint16_t fiatvout,uint64_t safecoinshis)
+ void safecoin_eventadd_redeemed(int32_t actionflag,char *symbol,int32_t height,bits256 safetxid,uint16_t safevout,int32_t fiatheight,bits256 fiattxid,uint16_t fiatvout,uint64_t safetoshis)
  {
  uint8_t opret[512]; uint16_t opretlen;
- safecoin_eventadd_opreturn(symbol,height,SAFECOIN_OPRETURN_REDEEMED,safetxid,safecoinshis,safevout,opret,opretlen);
+ safecoin_eventadd_opreturn(symbol,height,SAFECOIN_OPRETURN_REDEEMED,safetxid,safetoshis,safevout,opret,opretlen);
  }*/
 
 // process events

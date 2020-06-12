@@ -2,6 +2,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #include "rpc/server.h"
 #include "init.h"
 #include "key_io.h"
@@ -36,7 +51,7 @@ bool EnsureWalletIsAvailable(bool avoidException);
 /**
  * RPC call to generate a payment disclosure
  */
-UniValue z_getpaymentdisclosure(const UniValue& params, bool fHelp)
+UniValue z_getpaymentdisclosure(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
@@ -143,7 +158,7 @@ UniValue z_getpaymentdisclosure(const UniValue& params, bool fHelp)
 /**
  * RPC call to validate a payment disclosure data blob.
  */
-UniValue z_validatepaymentdisclosure(const UniValue& params, bool fHelp)
+UniValue z_validatepaymentdisclosure(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;

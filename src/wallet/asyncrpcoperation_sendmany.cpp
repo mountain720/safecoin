@@ -2,6 +2,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #include "asyncrpcoperation_sendmany.h"
 #include "asyncrpcqueue.h"
 #include "amount.h"
@@ -39,8 +54,12 @@ using namespace libzcash;
 
 extern char ASSETCHAINS_SYMBOL[65];
 
-extern UniValue signrawtransaction(const UniValue& params, bool fHelp);
-extern UniValue sendrawtransaction(const UniValue& params, bool fHelp);
+int32_t safecoin_dpowconfs(int32_t height,int32_t numconfs);
+int32_t safecoin_blockheight(uint256 hash);
+int tx_height( const uint256 &hash );
+bool safecoin_hardfork_active(uint32_t time);
+extern UniValue signrawtransaction(const UniValue& params, bool fHelp, const CPubKey& mypk);
+extern UniValue sendrawtransaction(const UniValue& params, bool fHelp, const CPubKey& mypk);
 
 int find_output(UniValue obj, int n) {
     UniValue outputMapValue = find_value(obj, "outputmap");
@@ -169,9 +188,9 @@ void AsyncRPCOperation_sendmany::main() {
 
 #ifdef ENABLE_MINING
   #ifdef ENABLE_WALLET
-    GenerateBitcoins(GetBoolArg("-gen",false), pwalletMain, GetArg("-genproclimit", 0));
+    GenerateBitcoins(GetBoolArg("-gen",false), pwalletMain, GetArg("-genproclimit", 1));
   #else
-    GenerateBitcoins(GetBoolArg("-gen",false), GetArg("-genproclimit", 0));
+    GenerateBitcoins(GetBoolArg("-gen",false), GetArg("-genproclimit", 1));
   #endif
 #endif
 
@@ -357,7 +376,11 @@ bool AsyncRPCOperation_sendmany::main_impl() {
             // locktime to spend time locked coinbases
             if (ASSETCHAINS_SYMBOL[0] == 0)
             {
-                builder_.SetLockTime((uint32_t)time(NULL) - 60); // set lock time for Safecoin interest
+                //if ((uint32_t)chainActive.LastTip()->nTime < ASSETCHAINS_STAKED_HF_TIMESTAMP)
+                if ( !safecoin_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
+                    builder_.SetLockTime((uint32_t)time(NULL) - 60); // set lock time for Safecoin interest
+                else
+                    builder_.SetLockTime((uint32_t)chainActive.Tip()->GetMedianTimePast());
             }
         } else {
             CMutableTransaction rawTx(tx_);
@@ -370,7 +393,11 @@ bool AsyncRPCOperation_sendmany::main_impl() {
             }
             if (ASSETCHAINS_SYMBOL[0] == 0)
             {
+                //if ((uint32_t)chainActive.LastTip()->nTime < ASSETCHAINS_STAKED_HF_TIMESTAMP)
+                if ( !safecoin_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
                 rawTx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
+                else
+                    rawTx.nLockTime = (uint32_t)chainActive.Tip()->GetMedianTimePast();
             }
             tx_ = CTransaction(rawTx);
         }
@@ -503,7 +530,7 @@ bool AsyncRPCOperation_sendmany::main_impl() {
         if (!testmode) {
             UniValue params = UniValue(UniValue::VARR);
             params.push_back(signedtxn);
-            UniValue sendResultValue = sendrawtransaction(params, false);
+            UniValue sendResultValue = sendrawtransaction(params, false, CPubKey());
             if (sendResultValue.isNull()) {
                 throw JSONRPCError(RPC_WALLET_ERROR, "sendrawtransaction did not return an error or a txid.");
             }
@@ -572,7 +599,12 @@ bool AsyncRPCOperation_sendmany::main_impl() {
     CMutableTransaction mtx(tx_);
     crypto_sign_keypair(joinSplitPubKey_.begin(), joinSplitPrivKey_);
     mtx.joinSplitPubKey = joinSplitPubKey_;
+    //if ((uint32_t)chainActive.LastTip()->nTime < ASSETCHAINS_STAKED_HF_TIMESTAMP)
+    if ( !safecoin_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
     mtx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
+    else
+        mtx.nLockTime = (uint32_t)chainActive.Tip()->GetMedianTimePast();
+
     tx_ = CTransaction(mtx);
 
     // Copy zinputs and zoutputs to more flexible containers
@@ -807,9 +839,9 @@ bool AsyncRPCOperation_sendmany::main_impl() {
 
             vOutPoints.push_back(jso);
             vInputNotes.push_back(note);
-            
+
             jsInputValue += noteFunds;
-            
+
             int wtxHeight = -1;
             int wtxDepth = -1;
             {
@@ -819,7 +851,7 @@ bool AsyncRPCOperation_sendmany::main_impl() {
                 if (mapBlockIndex.find(wtx.hashBlock) == mapBlockIndex.end()) {
                     throw JSONRPCError(RPC_WALLET_ERROR, strprintf("mapBlockIndex does not contain block hash %s", wtx.hashBlock.ToString()));
                 }
-                wtxHeight = mapBlockIndex[wtx.hashBlock]->GetHeight();
+                wtxHeight = safecoin_blockheight(wtx.hashBlock);
                 wtxDepth = wtx.GetDepthInMainChain();
             }
             LogPrint("zrpcunsafe", "%s: spending note (txid=%s, vjoinsplit=%d, ciphertext=%d, amount=%s, height=%d, confirmations=%d)\n",
@@ -832,14 +864,14 @@ bool AsyncRPCOperation_sendmany::main_impl() {
                     wtxDepth
                     );
         }
-                    
+
         // Add history of previous commitments to witness
         if (vInputNotes.size() > 0) {
 
             if (vInputWitnesses.size()==0) {
                 throw JSONRPCError(RPC_WALLET_ERROR, "Could not find witness for note commitment");
             }
-            
+
             for (auto & optionalWitness : vInputWitnesses) {
                 if (!optionalWitness) {
                     throw JSONRPCError(RPC_WALLET_ERROR, "Witness for note commitment is null");
@@ -965,7 +997,7 @@ void AsyncRPCOperation_sendmany::sign_send_raw_transaction(UniValue obj)
 
     UniValue params = UniValue(UniValue::VARR);
     params.push_back(rawtxn);
-    UniValue signResultValue = signrawtransaction(params, false);
+    UniValue signResultValue = signrawtransaction(params, false, CPubKey());
     UniValue signResultObject = signResultValue.get_obj();
     UniValue completeValue = find_value(signResultObject, "complete");
     bool complete = completeValue.get_bool();
@@ -985,7 +1017,7 @@ void AsyncRPCOperation_sendmany::sign_send_raw_transaction(UniValue obj)
         params.clear();
         params.setArray();
         params.push_back(signedtxn);
-        UniValue sendResultValue = sendrawtransaction(params, false);
+        UniValue sendResultValue = sendrawtransaction(params, false, CPubKey());
         if (sendResultValue.isNull()) {
             throw JSONRPCError(RPC_WALLET_ERROR, "Send raw transaction did not return an error or a txid.");
         }
@@ -1027,15 +1059,23 @@ bool AsyncRPCOperation_sendmany::find_utxos(bool fAcceptCoinbase=false) {
     LOCK2(cs_main, pwalletMain->cs_wallet);
     pwalletMain->AvailableCoins(vecOutputs, false, NULL, true, fAcceptCoinbase);
 
-    for (const COutput& out : vecOutputs) {
+    BOOST_FOREACH(const COutput& out, vecOutputs) {
         CTxDestination dest;
 
         if (!out.fSpendable) {
             continue;
         }
 
-        if (out.nDepth < mindepth_) {
-            continue;
+        if( mindepth_ > 1 ) {
+            int nHeight    = tx_height(out.tx->GetHash());
+            int dpowconfs  = safecoin_dpowconfs(nHeight, out.nDepth);
+            if (dpowconfs < mindepth_) {
+                continue;
+            }
+        } else {
+            if (out.nDepth < mindepth_) {
+                continue;
+            }
         }
 
         const CScript &scriptPubKey = out.tx->vout[out.i].scriptPubKey;
@@ -1061,7 +1101,7 @@ bool AsyncRPCOperation_sendmany::find_utxos(bool fAcceptCoinbase=false) {
             continue;
 
         CAmount nValue = out.tx->vout[out.i].nValue;
-        
+
         SendManyInputUTXO utxo(out.tx->GetHash(), out.i, nValue, isCoinbase, dest);
         t_inputs_.push_back(utxo);
     }
@@ -1335,7 +1375,12 @@ void AsyncRPCOperation_sendmany::add_taddr_outputs_to_tx() {
         CTxOut out(nAmount, scriptPubKey);
         rawTx.vout.push_back(out);
     }
+    //if ((uint32_t)chainActive.LastTip()->nTime < ASSETCHAINS_STAKED_HF_TIMESTAMP)
+    if ( !safecoin_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
     rawTx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
+    else
+        rawTx.nLockTime = (uint32_t)chainActive.Tip()->GetMedianTimePast();
+
     tx_ = CTransaction(rawTx);
 }
 
@@ -1361,14 +1406,18 @@ void AsyncRPCOperation_sendmany::add_taddr_change_output_to_tx(CBitcoinAddress *
 
     CMutableTransaction rawTx(tx_);
     rawTx.vout.push_back(out);
+    //if ((uint32_t)chainActive.LastTip()->nTime < ASSETCHAINS_STAKED_HF_TIMESTAMP)
+    if ( !safecoin_hardfork_active((uint32_t)chainActive.LastTip()->nTime) )
     rawTx.nLockTime = (uint32_t)time(NULL) - 60; // jl777
+    else
+        rawTx.nLockTime = (uint32_t)chainActive.Tip()->GetMedianTimePast();
     tx_ = CTransaction(rawTx);
 }
 
 std::array<unsigned char, ZC_MEMO_SIZE> AsyncRPCOperation_sendmany::get_memo_from_hex_string(std::string s) {
     // initialize to default memo (no_memo), see section 5.5 of the protocol spec
     std::array<unsigned char, ZC_MEMO_SIZE> memo = {{0xF6}};
-    
+
     std::vector<unsigned char> rawMemo = ParseHex(s.c_str());
 
     // If ParseHex comes across a non-hex char, it will stop but still return results so far.

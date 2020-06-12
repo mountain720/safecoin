@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -14,6 +14,7 @@
  ******************************************************************************/
 #include "safecoin_defs.h"
 #include "key_io.h"
+#include "cc/CCinclude.h"
 #include <string.h>
 
 #ifdef _WIN32
@@ -29,6 +30,7 @@
 #define portable_mutex_lock pthread_mutex_lock
 #define portable_mutex_unlock pthread_mutex_unlock
 
+extern void verus_hash(void *result, const void *data, size_t len);
 
 struct allocitem { uint32_t allocsize,type; };
 struct queueitem { struct queueitem *next,*prev; uint32_t allocsize,type;  };
@@ -1034,10 +1036,29 @@ int32_t safecoin_opreturnscript(uint8_t *script,uint8_t type,uint8_t *opret,int3
 // from all other blocks. the sequence is extremely likely, but not guaranteed to be unique for each block chain
 uint64_t safecoin_block_prg(uint32_t nHeight)
 {
+    if (strcmp(ASSETCHAINS_SYMBOL, "VRSC") != 0 || nHeight >= 12800)
+    {
+        uint64_t i, result = 0, hashSrc64 = ((uint64_t)ASSETCHAINS_MAGIC << 32) | (uint64_t)nHeight;
+        uint8_t hashSrc[8];
+        bits256 hashResult;
 
+        for ( i = 0; i < sizeof(hashSrc); i++ )
+        {
+            uint64_t x = hashSrc64 >> (i * 8);
+            hashSrc[i] = (uint8_t)(x & 0xff);
+        }
+        verus_hash(hashResult.bytes, hashSrc, sizeof(hashSrc));
+        for ( i = 0; i < 8; i++ )
+        {
+            result = (result << 8) | hashResult.bytes[i];
+        }
+        return result;
+    }
+    else
+    {
         int i;
         uint8_t hashSrc[8];
-        uint64_t result, hashSrc64 = (uint64_t)ASSETCHAINS_MAGIC << 32 + nHeight;
+        uint64_t result=0, hashSrc64 = (uint64_t)ASSETCHAINS_MAGIC << 32 + nHeight;
         bits256 hashResult;
 
         for ( i = 0; i < sizeof(hashSrc); i++ )
@@ -1053,7 +1074,7 @@ uint64_t safecoin_block_prg(uint32_t nHeight)
             result = (result << 8) + hashResult.bytes[i];
         }
         return result;
-   
+    }
 }
 
 // given a block height, this returns the unlock time for that block height, derived from
@@ -1352,11 +1373,13 @@ void safecoin_statefname(char *fname,char *symbol,char *str)
     if ( (n= (int32_t)strlen(ASSETCHAINS_SYMBOL)) != 0 )
     {
         len = (int32_t)strlen(fname);
-        if ( strcmp(ASSETCHAINS_SYMBOL,&fname[len - n]) == 0 )
+        if ( !mapArgs.count("-datadir") && strcmp(ASSETCHAINS_SYMBOL,&fname[len - n]) == 0 )
             fname[len - n] = 0;
+        else if(mapArgs.count("-datadir")) printf("DEBUG - safecoin_utils:1363: custom datadir\n");
         else
         {
-            printf("unexpected fname.(%s) vs %s [%s] n.%d len.%d (%s)\n",fname,symbol,ASSETCHAINS_SYMBOL,n,len,&fname[len - n]);
+            if ( strcmp(symbol,"REGTEST") != 0 )
+                printf("unexpected fname.(%s) vs %s [%s] n.%d len.%d (%s)\n",fname,symbol,ASSETCHAINS_SYMBOL,n,len,&fname[len - n]);
             return;
         }
     }
@@ -1370,7 +1393,7 @@ void safecoin_statefname(char *fname,char *symbol,char *str)
     }
     if ( symbol != 0 && symbol[0] != 0 && strcmp("SAFE",symbol) != 0 )
     {
-        strcat(fname,symbol);
+        if(!mapArgs.count("-datadir")) strcat(fname,symbol);
         //printf("statefname.(%s) -> (%s)\n",symbol,fname);
 #ifdef _WIN32
         strcat(fname,"\\");
@@ -1409,12 +1432,13 @@ void safecoin_configfile(char *symbol,uint16_t rpcport)
 #else
         sprintf(fname,"%s/%s",GetDataDir(false).string().c_str(),buf);
 #endif
+        if(mapArgs.count("-conf")) sprintf(fname, "%s", GetConfigFile().string().c_str());
         if ( (fp= fopen(fname,"rb")) == 0 )
         {
 #ifndef FROM_CLI
             if ( (fp= fopen(fname,"wb")) != 0 )
             {
-                fprintf(fp,"rpcuser=user%u\nrpcpassword=pass%s\nrpcport=%u\nserver=1\ntxindex=1\nrpcworkqueue=256\nrpcallowip=127.0.0.1\n",crc,password,rpcport);
+                fprintf(fp,"rpcuser=user%u\nrpcpassword=pass%s\nrpcport=%u\nserver=1\ntxindex=1\nrpcworkqueue=256\nrpcallowip=127.0.0.1\nrpcbind=127.0.0.1\n",crc,password,rpcport);
                 fclose(fp);
                 printf("Created (%s)\n",fname);
             } else printf("Couldnt create (%s)\n",fname);
@@ -1465,8 +1489,11 @@ uint16_t safecoin_userpass(char *userpass,char *symbol)
         sprintf(confname,"safecoin.conf");
 #endif
     }
-    else sprintf(confname,"%s.conf",symbol);
-    safecoin_statefname(fname,symbol,confname);
+    else if(!mapArgs.count("-conf")) {
+        sprintf(confname,"%s.conf",symbol);
+        safecoin_statefname(fname,symbol,confname);
+    } else sprintf(fname,"%s",GetDataDir().string().c_str());
+    
     if ( (fp= fopen(fname,"rb")) != 0 )
     {
         port = _safecoin_userpass(username,password,fp);
@@ -1551,7 +1578,7 @@ char *argv0names[] =
     (char *)"MNZ", (char *)"MNZ", (char *)"MNZ", (char *)"MNZ", (char *)"BTCH", (char *)"BTCH", (char *)"BTCH", (char *)"BTCH"
 };
 
-int64_t safecoin_max_money()
+uint64_t safecoin_max_money()
 {
     return safecoin_current_supply(10000000);
 }
@@ -1628,54 +1655,107 @@ uint64_t safecoin_ac_block_subsidy(int nHeight)
             }
         }
     }
-    if ( nHeight == 1 )
+    uint32_t magicExtra = ASSETCHAINS_STAKED ? ASSETCHAINS_MAGIC : (ASSETCHAINS_MAGIC & 0xffffff);
+    if ( ASSETCHAINS_SUPPLY > 10000000000 ) // over 10 billion?
     {
-        uint32_t magicExtra = ASSETCHAINS_STAKED ? ASSETCHAINS_MAGIC : (ASSETCHAINS_MAGIC & 0xffffff);
+        if ( nHeight <= ASSETCHAINS_SUPPLY/1000000000 )
+        {
+            subsidy += (uint64_t)1000000000 * COIN;
+            if ( nHeight == 1 )
+                subsidy += (ASSETCHAINS_SUPPLY % 1000000000)*COIN + magicExtra;
+        }
+    }
+    else if ( nHeight == 1 )
+    {
         if ( ASSETCHAINS_LASTERA == 0 )
             subsidy = ASSETCHAINS_SUPPLY * SATOSHIDEN + magicExtra;
         else
             subsidy += ASSETCHAINS_SUPPLY * SATOSHIDEN + magicExtra;
     }
+    else if ( is_STAKED(ASSETCHAINS_SYMBOL) == 2 )
+        return(0);
+    // LABS fungible chains, cannot have any block reward!
     return(subsidy);
 }
 
 extern int64_t MAX_MONEY;
+void safecoin_cbopretupdate(int32_t forceflag);
+void SplitStr(const std::string& strVal, std::vector<std::string> &outVals);
+
+int8_t equihash_params_possible(uint64_t n, uint64_t k)
+{
+    /* To add more of these you also need to edit:
+    * equihash.cpp very end of file with the tempate to point to the new param numbers 
+    * equihash.h
+    *  line 210/217 (declaration of equihash class)
+    * Add this object to the following functions: 
+    *  EhInitialiseState 
+    *  EhBasicSolve
+    *  EhOptimisedSolve
+    *  EhIsValidSolution
+    * Alternatively change ASSETCHAINS_N and ASSETCHAINS_K in safecoin_nk.h for fast testing.
+    */
+    if ( k == 7 && (n == 192) )
+        return(0);
+    if ( k == 9 && (n == 200 || n == 210) )
+        return(0);
+    if ( k == 5 && (n == 150 || n == 144 || n == 96 || n == 48) )
+        return(0);
+    if ( k == ASSETCHAINS_K && n == ASSETCHAINS_N)
+        return(0);
+    return(-1);
+}
 
 void safecoin_args(char *argv0)
 {
-    extern const char *Notaries_elected1[][2];
-    std::string name,addn; char *dirname,fname[512],arg0str[64],magicstr[9]; uint8_t magic[4],extrabuf[8192],*extraptr=0; FILE *fp; uint64_t val; uint16_t port; int32_t i,baseid,len,n,extralen = 0;
-    IS_SAFECOIN_NOTARY = GetBoolArg("-notary", false);
+    std::string name,addn,hexstr,symbol; char *dirname,fname[512],arg0str[64],magicstr[9]; uint8_t magic[4],extrabuf[32756],disablebits[32],*extraptr=0;
+    FILE *fp; uint64_t val; uint16_t port; int32_t i,nonz=0,baseid,len,n,extralen = 0; uint64_t ccenables[256], ccEnablesHeight[512] = {0}; CTransaction earlytx; uint256 hashBlock;
 
+    IS_SAFECOIN_NOTARY = GetBoolArg("-notary", false);
+    IS_STAKED_NOTARY = GetArg("-stakednotary", -1);
+    SAFECOIN_NSPV = GetArg("-nSPV",0);
+    memset(ccenables,0,sizeof(ccenables));
+    memset(disablebits,0,sizeof(disablebits));
+    memset(ccEnablesHeight,0,sizeof(ccEnablesHeight));
     if ( GetBoolArg("-gen", false) != 0 )
     {
         SAFECOIN_MININGTHREADS = GetArg("-genproclimit",-1);
     }
-    else SAFECOIN_MININGTHREADS = 0;
-
     if ( (SAFECOIN_EXCHANGEWALLET= GetBoolArg("-exchange", false)) != 0 )
         fprintf(stderr,"SAFECOIN_EXCHANGEWALLET mode active\n");
     DONATION_PUBKEY = GetArg("-donation", "");
     NOTARY_PUBKEY = GetArg("-pubkey", "");
     SAFECOIN_DEALERNODE = GetArg("-dealer",0);
+    SAFECOIN_TESTNODE = GetArg("-testnode",0);
+    ASSETCHAINS_STAKED_SPLIT_PERCENTAGE = GetArg("-splitperc",0);
     if ( strlen(NOTARY_PUBKEY.c_str()) == 66 )
     {
+        decode_hex(NOTARY_PUBKEY33,33,(char *)NOTARY_PUBKEY.c_str());
         USE_EXTERNAL_PUBKEY = 1;
         if ( IS_SAFECOIN_NOTARY == 0 )
         {
+            // We dont have any chain data yet, so use system clock to guess. 
+            // I think on season change should reccomend notaries to use -notary to avoid needing this. 
+            int32_t safe_season = getacseason(time(NULL));
             for (i=0; i<64; i++)
-                if ( strcmp(NOTARY_PUBKEY.c_str(),Notaries_elected1[i][1]) == 0 )
+            {
+                if ( strcmp(NOTARY_PUBKEY.c_str(),notaries_elected[safe_season-1][i][1]) == 0 )
                 {
                     IS_SAFECOIN_NOTARY = 1;
                     SAFECOIN_MININGTHREADS = 1;
                     mapArgs ["-genproclimit"] = itostr(SAFECOIN_MININGTHREADS);
-                    fprintf(stderr,"running as notary.%d %s\n",i,Notaries_elected1[i][0]);
+                    IS_STAKED_NOTARY = -1;
+                    fprintf(stderr,"running as notary.%d %s\n",i,notaries_elected[safe_season-1][i][0]);
                     break;
                 }
+            }
         }
-        //SAFECOIN_PAX = 1;
-    } //else SAFECOIN_PAX = GetArg("-pax",0);
-    name = GetArg("-ac_name","");
+    }
+    if ( IS_STAKED_NOTARY != -1 && IS_SAFECOIN_NOTARY == true ) {
+        fprintf(stderr, "Cannot be STAKED and SAFE notary at the same time!\n");
+        StartShutdown();
+    }
+	name = GetArg("-ac_name","");
     if ( argv0 != 0 )
     {
         len = (int32_t)strlen(argv0);
@@ -1692,14 +1772,43 @@ void safecoin_args(char *argv0)
     }
     SAFECOIN_STOPAT = GetArg("-stopat",0);
     MAX_REORG_LENGTH = GetArg("-maxreorg",MAX_REORG_LENGTH);
+    WITNESS_CACHE_SIZE = MAX_REORG_LENGTH+10;
     ASSETCHAINS_CC = GetArg("-ac_cc",0);
     SAFECOIN_CCACTIVATE = GetArg("-ac_ccactivate",0);
+    ASSETCHAINS_BLOCKTIME = GetArg("-ac_blocktime",60);
     ASSETCHAINS_PUBLIC = GetArg("-ac_public",0);
     ASSETCHAINS_PRIVATE = GetArg("-ac_private",0);
+    SAFECOIN_SNAPSHOT_INTERVAL = GetArg("-ac_snapshot",0);
+    Split(GetArg("-ac_nk",""), sizeof(ASSETCHAINS_NK)/sizeof(*ASSETCHAINS_NK), ASSETCHAINS_NK, 0);
+    
+    // -ac_ccactivateht=evalcode,height,evalcode,height,evalcode,height....
+    Split(GetArg("-ac_ccactivateht",""), sizeof(ccEnablesHeight)/sizeof(*ccEnablesHeight), ccEnablesHeight, 0);
+    // fill map with all eval codes and activation height of 0.
+    for ( int i = 0; i < 256; i++ )
+        mapHeightEvalActivate[i] = 0;
+    for ( int i = 0; i < 512; i++ )
+    {
+        int32_t ecode = ccEnablesHeight[i];
+        int32_t ht = ccEnablesHeight[i+1];
+        if ( i > 1 && ccEnablesHeight[i-2] == ecode )
+            break;
+        if ( ecode > 255 || ecode < 0 )
+            fprintf(stderr, "ac_ccactivateht: invalid evalcode.%i must be between 0 and 256.\n", ecode);
+        else if ( ht > 0 )
+        {
+            // update global map. 
+            mapHeightEvalActivate[ecode] = ht;
+            fprintf(stderr, "ac_ccactivateht: ecode.%i activates at height.%i\n", ecode, mapHeightEvalActivate[ecode]);
+        }
+        i++;
+    }
+    
     if ( (SAFECOIN_REWIND= GetArg("-rewind",0)) != 0 )
     {
         printf("SAFECOIN_REWIND %d\n",SAFECOIN_REWIND);
     }
+    SAFECOIN_EARLYTXID = Parseuint256(GetArg("-earlytxid","0").c_str());
+    ASSETCHAINS_EARLYTXIDCONTRACT = GetArg("-ac_earlytxidcontract",0);
     if ( name.c_str()[0] != 0 )
     {
         std::string selectedAlgo = GetArg("-ac_algo", std::string(ASSETCHAINS_ALGORITHMS[0]));
@@ -1709,11 +1818,20 @@ void safecoin_args(char *argv0)
             if (std::string(ASSETCHAINS_ALGORITHMS[i]) == selectedAlgo)
             {
                 ASSETCHAINS_ALGO = i;
+                STAKING_MIN_DIFF = ASSETCHAINS_MINDIFF[i];
                 // only worth mentioning if it's not equihash
                 if (ASSETCHAINS_ALGO != ASSETCHAINS_EQUIHASH)
                     printf("ASSETCHAINS_ALGO, algorithm set to %s\n", selectedAlgo.c_str());
                 break;
             }
+        }
+        if ( ASSETCHAINS_ALGO == ASSETCHAINS_EQUIHASH && ASSETCHAINS_NK[0] != 0 && ASSETCHAINS_NK[1] != 0 )
+        {
+            if ( equihash_params_possible(ASSETCHAINS_NK[0], ASSETCHAINS_NK[1]) == -1 ) 
+            {
+                printf("equihash values N.%li and K.%li are not currently available\n", ASSETCHAINS_NK[0], ASSETCHAINS_NK[1]);
+                exit(0);
+            } else printf("ASSETCHAINS_ALGO, algorithm set to equihash with N.%li and K.%li\n", ASSETCHAINS_NK[0], ASSETCHAINS_NK[1]);
         }
         if (i == ASSETCHAINS_NUMALGOS)
         {
@@ -1724,7 +1842,7 @@ void safecoin_args(char *argv0)
         if ( ASSETCHAINS_LASTERA < 1 || ASSETCHAINS_LASTERA > ASSETCHAINS_MAX_ERAS )
         {
             ASSETCHAINS_LASTERA = 1;
-            printf("ASSETCHAINS_LASTERA, if specified, must be between 1 and %u. ASSETCHAINS_LASTERA set to %u\n", ASSETCHAINS_MAX_ERAS, ASSETCHAINS_LASTERA);
+            printf("ASSETCHAINS_LASTERA, if specified, must be between 1 and %u. ASSETCHAINS_LASTERA set to %lu\n", ASSETCHAINS_MAX_ERAS, ASSETCHAINS_LASTERA);
         }
         ASSETCHAINS_LASTERA -= 1;
 
@@ -1738,10 +1856,11 @@ void safecoin_args(char *argv0)
             ASSETCHAINS_TIMEUNLOCKFROM = ASSETCHAINS_TIMEUNLOCKTO = 0;
         }
 
-        Split(GetArg("-ac_end",""),  ASSETCHAINS_ENDSUBSIDY, 0);
-        Split(GetArg("-ac_reward",""),  ASSETCHAINS_REWARD, 0);
-        Split(GetArg("-ac_halving",""),  ASSETCHAINS_HALVING, 0);
-        Split(GetArg("-ac_decay",""),  ASSETCHAINS_DECAY, 0);
+        Split(GetArg("-ac_end",""), sizeof(ASSETCHAINS_ENDSUBSIDY)/sizeof(*ASSETCHAINS_ENDSUBSIDY),  ASSETCHAINS_ENDSUBSIDY, 0);
+        Split(GetArg("-ac_reward",""), sizeof(ASSETCHAINS_REWARD)/sizeof(*ASSETCHAINS_REWARD),  ASSETCHAINS_REWARD, 0);
+        Split(GetArg("-ac_halving",""), sizeof(ASSETCHAINS_HALVING)/sizeof(*ASSETCHAINS_HALVING),  ASSETCHAINS_HALVING, 0);
+        Split(GetArg("-ac_decay",""), sizeof(ASSETCHAINS_DECAY)/sizeof(*ASSETCHAINS_DECAY),  ASSETCHAINS_DECAY, 0);
+        Split(GetArg("-ac_notarypay",""), sizeof(ASSETCHAINS_NOTARY_PAY)/sizeof(*ASSETCHAINS_NOTARY_PAY),  ASSETCHAINS_NOTARY_PAY, 0);
 
         for ( int i = 0; i < ASSETCHAINS_MAX_ERAS; i++ )
         {
@@ -1760,11 +1879,138 @@ void safecoin_args(char *argv0)
         MAX_BLOCK_SIGOPS = 60000;
         ASSETCHAINS_TXPOW = GetArg("-ac_txpow",0) & 3;
         ASSETCHAINS_FOUNDERS = GetArg("-ac_founders",0);// & 1;
+		ASSETCHAINS_FOUNDERS_REWARD = GetArg("-ac_founders_reward",0);
         ASSETCHAINS_SUPPLY = GetArg("-ac_supply",10);
+        if ( ASSETCHAINS_SUPPLY > (uint64_t)90*1000*1000000 )
+        {
+            fprintf(stderr,"-ac_supply must be less than 90 billion\n");
+            StartShutdown();
+        }
+        fprintf(stderr,"ASSETCHAINS_SUPPLY %llu\n",(long long)ASSETCHAINS_SUPPLY);
+        
         ASSETCHAINS_COMMISSION = GetArg("-ac_perc",0);
         ASSETCHAINS_OVERRIDE_PUBKEY = GetArg("-ac_pubkey","");
         ASSETCHAINS_SCRIPTPUB = GetArg("-ac_script","");
-        //ASSETCHAINS_FOUNDERS_PERIOD = GetArg("-ac_period",0);
+        ASSETCHAINS_BEAMPORT = GetArg("-ac_beam",0);
+        ASSETCHAINS_CODAPORT = GetArg("-ac_coda",0);
+        ASSETCHAINS_MARMARA = GetArg("-ac_marmara",0);
+        ASSETCHAINS_CBOPRET = GetArg("-ac_cbopret",0);
+        ASSETCHAINS_CBMATURITY = GetArg("-ac_cbmaturity",0);
+        ASSETCHAINS_ADAPTIVEPOW = GetArg("-ac_adaptivepow",0);
+        //fprintf(stderr,"ASSETCHAINS_CBOPRET.%llx\n",(long long)ASSETCHAINS_CBOPRET);
+        if ( ASSETCHAINS_CBOPRET != 0 )
+        {
+            SplitStr(GetArg("-ac_prices",""),  ASSETCHAINS_PRICES);
+            if ( ASSETCHAINS_PRICES.size() > 0 )
+                ASSETCHAINS_CBOPRET |= 4;
+            SplitStr(GetArg("-ac_stocks",""),  ASSETCHAINS_STOCKS);
+            if ( ASSETCHAINS_STOCKS.size() > 0 )
+                ASSETCHAINS_CBOPRET |= 8;
+            for (i=0; i<ASSETCHAINS_PRICES.size(); i++)
+                fprintf(stderr,"%s ",ASSETCHAINS_PRICES[i].c_str());
+            fprintf(stderr,"%d -ac_prices\n",(int32_t)ASSETCHAINS_PRICES.size());
+            for (i=0; i<ASSETCHAINS_STOCKS.size(); i++)
+                fprintf(stderr,"%s ",ASSETCHAINS_STOCKS[i].c_str());
+            fprintf(stderr,"%d -ac_stocks\n",(int32_t)ASSETCHAINS_STOCKS.size());
+        }
+        hexstr = GetArg("-ac_mineropret","");
+        if ( hexstr.size() != 0 )
+        {
+            Mineropret.resize(hexstr.size()/2);
+            decode_hex(Mineropret.data(),hexstr.size()/2,(char *)hexstr.c_str());
+            for (i=0; i<Mineropret.size(); i++)
+                fprintf(stderr,"%02x",Mineropret[i]);
+            fprintf(stderr," Mineropret\n");
+        }
+        if ( ASSETCHAINS_COMMISSION != 0 && ASSETCHAINS_FOUNDERS_REWARD != 0 )
+        {
+            fprintf(stderr,"cannot use founders reward and commission on the same chain.\n");
+            StartShutdown();
+        }
+        if ( ASSETCHAINS_CC != 0 )
+        {
+            uint8_t prevCCi = 0;
+            ASSETCHAINS_CCLIB = GetArg("-ac_cclib","");
+            Split(GetArg("-ac_ccenable",""), sizeof(ccenables)/sizeof(*ccenables),  ccenables, 0);
+            for (i=nonz=0; i<0x100; i++)
+            {
+                if ( ccenables[i] != prevCCi && ccenables[i] != 0 )
+                {
+                    nonz++;
+                    prevCCi = ccenables[i];
+                    fprintf(stderr,"%d ",(uint8_t)(ccenables[i] & 0xff));
+                }
+            }
+            fprintf(stderr,"nonz.%d ccenables[]\n",nonz);
+            if ( nonz > 0 )
+            {
+                for (i=0; i<256; i++)
+                {
+                    ASSETCHAINS_CCDISABLES[i] = 1;
+                    SETBIT(disablebits,i);
+                }
+                for (i=0; i<nonz; i++)
+                {
+                    CLEARBIT(disablebits,(ccenables[i] & 0xff));
+                    ASSETCHAINS_CCDISABLES[ccenables[i] & 0xff] = 0;
+                }
+                CLEARBIT(disablebits,0);
+            }
+            /*if ( ASSETCHAINS_CCLIB.size() > 0 )
+            {
+                for (i=first; i<=last; i++)
+                {
+                    CLEARBIT(disablebits,i);
+                    ASSETCHAINS_CCDISABLES[i] = 0;
+                }
+            }*/
+        }
+        if ( ASSETCHAINS_BEAMPORT != 0 )
+        {
+            fprintf(stderr,"can only have one of -ac_beam or -ac_coda\n");
+            StartShutdown();
+        }
+        ASSETCHAINS_SELFIMPORT = GetArg("-ac_import",""); // BEAM, CODA, PUBKEY, GATEWAY
+        if ( ASSETCHAINS_SELFIMPORT == "PUBKEY" )
+        {
+            if ( strlen(ASSETCHAINS_OVERRIDE_PUBKEY.c_str()) != 66 )
+            {
+                fprintf(stderr,"invalid -ac_pubkey for -ac_import=PUBKEY\n");
+                StartShutdown();
+            }
+        }
+        else if ( ASSETCHAINS_SELFIMPORT == "BEAM" )
+        {
+            if (ASSETCHAINS_BEAMPORT == 0)
+        {
+            fprintf(stderr,"missing -ac_beam for BEAM rpcport\n");
+            StartShutdown();
+        }
+        }
+        else if ( ASSETCHAINS_SELFIMPORT == "CODA" )
+        {
+            if (ASSETCHAINS_CODAPORT == 0)
+        {
+            fprintf(stderr,"missing -ac_coda for CODA rpcport\n");
+            StartShutdown();
+        }
+        }
+        else if ( ASSETCHAINS_SELFIMPORT == "PEGSCC")
+        {
+            Split(GetArg("-ac_pegsccparams",""), sizeof(ASSETCHAINS_PEGSCCPARAMS)/sizeof(*ASSETCHAINS_PEGSCCPARAMS), ASSETCHAINS_PEGSCCPARAMS, 0);
+            if (ASSETCHAINS_ENDSUBSIDY[0]!=1 || ASSETCHAINS_COMMISSION!=0)
+            {
+                fprintf(stderr,"when using import for pegsCC these must be set: -ac_end=1 -ac_perc=0\n");
+                StartShutdown();
+            }
+        }
+        // else it can be gateway coin
+        else if (!ASSETCHAINS_SELFIMPORT.empty() && (ASSETCHAINS_ENDSUBSIDY[0]!=1 || ASSETCHAINS_SUPPLY>0 || ASSETCHAINS_COMMISSION!=0))
+        {
+            fprintf(stderr,"when using gateway import these must be set: -ac_end=1 -ac_supply=0 -ac_perc=0\n");
+            StartShutdown();
+        }
+        
 
         if ( (ASSETCHAINS_STAKED= GetArg("-ac_staked",0)) > 100 )
             ASSETCHAINS_STAKED = 100;
@@ -1786,23 +2032,37 @@ void safecoin_args(char *argv0)
         }
         if ( strlen(ASSETCHAINS_OVERRIDE_PUBKEY.c_str()) == 66 || ASSETCHAINS_SCRIPTPUB.size() > 1 )
         {
+            if ( ASSETCHAINS_SUPPLY > 10000000000 )
+            {
+                printf("ac_pubkey or ac_script wont work with ac_supply over 10 billion\n");
+                StartShutdown();
+            }
+            if ( ASSETCHAINS_NOTARY_PAY[0] != 0 )
+            {
+                printf("Assetchains NOTARY PAY cannot be used with ac_pubkey or ac_script.\n");
+                StartShutdown();
+            }
             if ( strlen(ASSETCHAINS_OVERRIDE_PUBKEY.c_str()) == 66 )
             {
                 decode_hex(ASSETCHAINS_OVERRIDE_PUBKEY33,33,(char *)ASSETCHAINS_OVERRIDE_PUBKEY.c_str());
                 calc_rmd160_sha256(ASSETCHAINS_OVERRIDE_PUBKEYHASH,ASSETCHAINS_OVERRIDE_PUBKEY33,33);
             }
-            if ( ASSETCHAINS_COMMISSION == 0 )
+            if ( ASSETCHAINS_COMMISSION == 0 && ASSETCHAINS_FOUNDERS != 0 )
             {
-                if (ASSETCHAINS_FOUNDERS != 0 )
+                if ( ASSETCHAINS_FOUNDERS_REWARD == 0 )
                 {
                     ASSETCHAINS_COMMISSION = 53846154; // maps to 35%
                     printf("ASSETCHAINS_COMMISSION defaulted to 35%% when founders reward active\n");
                 }
                 else
                 {
-                    ASSETCHAINS_OVERRIDE_PUBKEY.clear();
-                    printf("-ac_perc must be set with -ac_pubkey\n");
+                    printf("ASSETCHAINS_FOUNDERS_REWARD set to %ld\n", ASSETCHAINS_FOUNDERS_REWARD);
                 }
+                /*else if ( ASSETCHAINS_SELFIMPORT.size() == 0 )
+                {
+                    //ASSETCHAINS_OVERRIDE_PUBKEY.clear();
+                    printf("-ac_perc must be set with -ac_pubkey\n");
+                }*/
             }
         }
         else
@@ -1810,15 +2070,20 @@ void safecoin_args(char *argv0)
             if ( ASSETCHAINS_COMMISSION != 0 )
             {
                 ASSETCHAINS_COMMISSION = 0;
-                printf("ASSETCHAINS_COMMISSION needs an ASETCHAINS_OVERRIDE_PUBKEY and cant be more than 100000000 (100%%)\n");
+                printf("ASSETCHAINS_COMMISSION needs an ASSETCHAINS_OVERRIDE_PUBKEY and cant be more than 100000000 (100%%)\n");
             }
             if ( ASSETCHAINS_FOUNDERS != 0 )
             {
                 ASSETCHAINS_FOUNDERS = 0;
-                printf("ASSETCHAINS_FOUNDERS needs an ASETCHAINS_OVERRIDE_PUBKEY\n");
+                printf("ASSETCHAINS_FOUNDERS needs an ASSETCHAINS_OVERRIDE_PUBKEY or ASSETCHAINS_SCRIPTPUB\n");
             }
         }
-        if ( ASSETCHAINS_ENDSUBSIDY[0] != 0 || ASSETCHAINS_REWARD[0] != 0 || ASSETCHAINS_HALVING[0] != 0 || ASSETCHAINS_DECAY[0] != 0 || ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_PUBLIC != 0 || ASSETCHAINS_PRIVATE != 0 || ASSETCHAINS_TXPOW != 0 || ASSETCHAINS_FOUNDERS != 0 || ASSETCHAINS_SCRIPTPUB.size() > 1 )
+        if ( ASSETCHAINS_SCRIPTPUB.size() > 1 && ASSETCHAINS_MARMARA != 0 )
+        {
+            fprintf(stderr,"-ac_script and -ac_marmara are mutually exclusive\n");
+            StartShutdown();
+        }
+        if ( ASSETCHAINS_ENDSUBSIDY[0] != 0 || ASSETCHAINS_REWARD[0] != 0 || ASSETCHAINS_HALVING[0] != 0 || ASSETCHAINS_DECAY[0] != 0 || ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_PUBLIC != 0 || ASSETCHAINS_PRIVATE != 0 || ASSETCHAINS_TXPOW != 0 || ASSETCHAINS_FOUNDERS != 0 || ASSETCHAINS_SCRIPTPUB.size() > 1 || ASSETCHAINS_SELFIMPORT.size() > 0 || ASSETCHAINS_OVERRIDE_PUBKEY33[0] != 0 || ASSETCHAINS_TIMELOCKGTE != _ASSETCHAINS_TIMELOCKOFF|| ASSETCHAINS_ALGO != ASSETCHAINS_EQUIHASH || ASSETCHAINS_LWMAPOS != 0 || ASSETCHAINS_LASTERA > 0 || ASSETCHAINS_BEAMPORT != 0 || ASSETCHAINS_CODAPORT != 0 || ASSETCHAINS_MARMARA != 0 || nonz > 0 || ASSETCHAINS_CCLIB.size() > 0 || ASSETCHAINS_FOUNDERS_REWARD != 0 || ASSETCHAINS_NOTARY_PAY[0] != 0 || ASSETCHAINS_BLOCKTIME != 60 || ASSETCHAINS_CBOPRET != 0 || Mineropret.size() != 0 || (ASSETCHAINS_NK[0] != 0 && ASSETCHAINS_NK[1] != 0) || SAFECOIN_SNAPSHOT_INTERVAL != 0 || ASSETCHAINS_EARLYTXIDCONTRACT != 0 || ASSETCHAINS_CBMATURITY != 0 || ASSETCHAINS_ADAPTIVEPOW != 0 )
         {
             fprintf(stderr,"perc %.4f%% ac_pub=[%02x%02x%02x...] acsize.%d\n",dstr(ASSETCHAINS_COMMISSION)*100,ASSETCHAINS_OVERRIDE_PUBKEY33[0],ASSETCHAINS_OVERRIDE_PUBKEY33[1],ASSETCHAINS_OVERRIDE_PUBKEY33[2],(int32_t)ASSETCHAINS_SCRIPTPUB.size());
             extraptr = extrabuf;
@@ -1827,17 +2092,20 @@ void safecoin_args(char *argv0)
             // if we have one era, this should create the same data structure as it used to, same if we increase _MAX_ERAS
             for ( int i = 0; i <= ASSETCHAINS_LASTERA; i++ )
             {
-                printf("ERA%u: end.%llu reward.%llu halving.%llu decay.%llu\n", i,
+                printf("ERA%u: end.%llu reward.%llu halving.%llu decay.%llu notarypay.%llu\n", i,
                        (long long)ASSETCHAINS_ENDSUBSIDY[i],
                        (long long)ASSETCHAINS_REWARD[i],
                        (long long)ASSETCHAINS_HALVING[i],
-                       (long long)ASSETCHAINS_DECAY[i]);
+                       (long long)ASSETCHAINS_DECAY[i],
+                       (long long)ASSETCHAINS_NOTARY_PAY[i]);
 
                 // TODO: Verify that we don't overrun extrabuf here, which is a 256 byte buffer
                 extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_ENDSUBSIDY[i]),(void *)&ASSETCHAINS_ENDSUBSIDY[i]);
                 extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_REWARD[i]),(void *)&ASSETCHAINS_REWARD[i]);
                 extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_HALVING[i]),(void *)&ASSETCHAINS_HALVING[i]);
                 extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_DECAY[i]),(void *)&ASSETCHAINS_DECAY[i]);
+                if ( ASSETCHAINS_NOTARY_PAY[0] != 0 )
+                    extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_NOTARY_PAY[i]),(void *)&ASSETCHAINS_NOTARY_PAY[i]);
             }
 
             if (ASSETCHAINS_LASTERA > 0)
@@ -1864,14 +2132,20 @@ void safecoin_args(char *argv0)
                 extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_LWMAPOS),(void *)&ASSETCHAINS_LWMAPOS);
             }
 
-            val = ASSETCHAINS_COMMISSION | (((uint64_t)ASSETCHAINS_STAKED & 0xff) << 32) | (((uint64_t)ASSETCHAINS_CC & 0xffff) << 40) | ((ASSETCHAINS_PUBLIC != 0) << 7) | ((ASSETCHAINS_PRIVATE != 0) << 6) | ASSETCHAINS_TXPOW;
+            val = ASSETCHAINS_COMMISSION | (((int64_t)ASSETCHAINS_STAKED & 0xff) << 32) | (((uint64_t)ASSETCHAINS_CC & 0xffff) << 40) | ((ASSETCHAINS_PUBLIC != 0) << 7) | ((ASSETCHAINS_PRIVATE != 0) << 6) | ASSETCHAINS_TXPOW;
             extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(val),(void *)&val);
+            
             if ( ASSETCHAINS_FOUNDERS != 0 )
             {
                 uint8_t tmp = 1;
                 extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(tmp),(void *)&tmp);
                 if ( ASSETCHAINS_FOUNDERS > 1 )
                     extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_FOUNDERS),(void *)&ASSETCHAINS_FOUNDERS);
+                if ( ASSETCHAINS_FOUNDERS_REWARD != 0 )
+                {
+                    fprintf(stderr, "set founders reward.%lld\n",(long long)ASSETCHAINS_FOUNDERS_REWARD);
+                    extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_FOUNDERS_REWARD),(void *)&ASSETCHAINS_FOUNDERS_REWARD);
+                }
             }
             if ( ASSETCHAINS_SCRIPTPUB.size() > 1 )
             {
@@ -1880,8 +2154,88 @@ void safecoin_args(char *argv0)
                 //extralen += iguana_rwnum(1,&extraptr[extralen],(int32_t)ASSETCHAINS_SCRIPTPUB.size(),(void *)ASSETCHAINS_SCRIPTPUB.c_str());
                 fprintf(stderr,"append ac_script %s\n",ASSETCHAINS_SCRIPTPUB.c_str());
             }
+            if ( ASSETCHAINS_SELFIMPORT.size() > 0 )
+            {
+                memcpy(&extraptr[extralen],(char *)ASSETCHAINS_SELFIMPORT.c_str(),ASSETCHAINS_SELFIMPORT.size());
+                for (i=0; i<ASSETCHAINS_SELFIMPORT.size(); i++)
+                    fprintf(stderr,"%c",extraptr[extralen+i]);
+                fprintf(stderr," selfimport\n");
+                extralen += ASSETCHAINS_SELFIMPORT.size();
+            }
+            if ( ASSETCHAINS_BEAMPORT != 0 )
+                extraptr[extralen++] = 'b';
+            if ( ASSETCHAINS_CODAPORT != 0 )
+                extraptr[extralen++] = 'c';
+            if ( ASSETCHAINS_MARMARA != 0 )
+                extraptr[extralen++] = ASSETCHAINS_MARMARA;
+fprintf(stderr,"extralen.%d before disable bits\n",extralen);
+            if ( nonz > 0 )
+            {
+                memcpy(&extraptr[extralen],disablebits,sizeof(disablebits));
+                extralen += sizeof(disablebits);
+            }
+            if ( ASSETCHAINS_CCLIB.size() > 1 )
+            {
+                for (i=0; i<ASSETCHAINS_CCLIB.size(); i++)
+                {
+                    extraptr[extralen++] = ASSETCHAINS_CCLIB[i];
+                    fprintf(stderr,"%c",ASSETCHAINS_CCLIB[i]);
+                }
+                fprintf(stderr," <- CCLIB name\n");
+            }
+            if ( ASSETCHAINS_BLOCKTIME != 60 )
+                extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_BLOCKTIME),(void *)&ASSETCHAINS_BLOCKTIME);
+            if ( Mineropret.size() != 0 )
+            {
+                for (i=0; i<Mineropret.size(); i++)
+                    extraptr[extralen++] = Mineropret[i];
+            }
+            if ( ASSETCHAINS_CBOPRET != 0 )
+            {
+                extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_CBOPRET),(void *)&ASSETCHAINS_CBOPRET);
+                if ( ASSETCHAINS_PRICES.size() != 0 )
+                {
+                    for (i=0; i<ASSETCHAINS_PRICES.size(); i++)
+                    {
+                        symbol = ASSETCHAINS_PRICES[i];
+                        memcpy(&extraptr[extralen],(char *)symbol.c_str(),symbol.size());
+                        extralen += symbol.size();
+                    }
+                }
+                if ( ASSETCHAINS_STOCKS.size() != 0 )
+                {
+                    for (i=0; i<ASSETCHAINS_STOCKS.size(); i++)
+                    {
+                        symbol = ASSETCHAINS_STOCKS[i];
+                        memcpy(&extraptr[extralen],(char *)symbol.c_str(),symbol.size());
+                        extralen += symbol.size();
+                    }
+                }
+                //safecoin_pricesinit();
+                safecoin_cbopretupdate(1); // will set Mineropret
+                fprintf(stderr,"This blockchain uses data produced from CoinDesk Bitcoin Price Index\n");
+            }
+            if ( ASSETCHAINS_NK[0] != 0 && ASSETCHAINS_NK[1] != 0 )
+            {
+                extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_NK[0]),(void *)&ASSETCHAINS_NK[0]);
+                extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_NK[1]),(void *)&ASSETCHAINS_NK[1]);
+            }
+            if ( SAFECOIN_SNAPSHOT_INTERVAL != 0 )
+            {
+                extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(SAFECOIN_SNAPSHOT_INTERVAL),(void *)&SAFECOIN_SNAPSHOT_INTERVAL);
+            }
+            if ( ASSETCHAINS_EARLYTXIDCONTRACT != 0 )
+            {
+                extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_EARLYTXIDCONTRACT),(void *)&ASSETCHAINS_EARLYTXIDCONTRACT);
+            }
+            if ( ASSETCHAINS_CBMATURITY != 0 )
+            {
+                extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_CBMATURITY),(void *)&ASSETCHAINS_CBMATURITY);
+            }
+            if ( ASSETCHAINS_ADAPTIVEPOW != 0 )
+                extraptr[extralen++] = ASSETCHAINS_ADAPTIVEPOW;
         }
-
+        
         addn = GetArg("-seednode","");
         if ( strlen(addn.c_str()) > 0 )
             ASSETCHAINS_SEED = 1;
@@ -1898,14 +2252,20 @@ void safecoin_args(char *argv0)
 
         if ( ASSETCHAINS_CC >= SAFECOIN_FIRSTFUNGIBLEID && MAX_MONEY < 1000000LL*SATOSHIDEN )
             MAX_MONEY = 1000000LL*SATOSHIDEN;
-        if ( MAX_MONEY <= 0 || MAX_MONEY > 10000100000LL*SATOSHIDEN )
-            MAX_MONEY = 10000100000LL*SATOSHIDEN;
-        //fprintf(stderr,"MAX_MONEY %llu %.8f\n",(long long)MAX_MONEY,(double)MAX_MONEY/SATOSHIDEN);
+        if ( SAFECOIN_BIT63SET(MAX_MONEY) != 0 )
+            MAX_MONEY = SAFECOIN_MAXNVALUE;
+        fprintf(stderr,"MAX_MONEY %llu %.8f\n",(long long)MAX_MONEY,(double)MAX_MONEY/SATOSHIDEN);
         //printf("baseid.%d MAX_MONEY.%s %.8f\n",baseid,ASSETCHAINS_SYMBOL,(double)MAX_MONEY/SATOSHIDEN);
-        ASSETCHAINS_P2PPORT = safecoin_port(ASSETCHAINS_SYMBOL,ASSETCHAINS_SUPPLY,&ASSETCHAINS_MAGIC,extraptr,extralen);
+        uint16_t tmpport = safecoin_port(ASSETCHAINS_SYMBOL,ASSETCHAINS_SUPPLY,&ASSETCHAINS_MAGIC,extraptr,extralen);
+        if ( GetArg("-port",0) != 0 )
+        {
+            ASSETCHAINS_P2PPORT = GetArg("-port",0);
+            fprintf(stderr,"set p2pport.%u\n",ASSETCHAINS_P2PPORT);
+        } else ASSETCHAINS_P2PPORT = tmpport;
+
         while ( (dirname= (char *)GetDataDir(false).string().c_str()) == 0 || dirname[0] == 0 )
         {
-            fprintf(stderr,"waiting for datadir\n");
+            fprintf(stderr,"waiting for datadir (%s)\n",dirname);
 #ifndef _WIN32
             sleep(3);
 #else
@@ -1920,13 +2280,21 @@ void safecoin_args(char *argv0)
             if ( strcmp(ASSETCHAINS_SYMBOL,"SAFE") == 0 )
             {
                 fprintf(stderr,"cant have assetchain named SAFE\n");
-                exit(0);
+                StartShutdown();
             }
             if ( (port= safecoin_userpass(ASSETCHAINS_USERPASS,ASSETCHAINS_SYMBOL)) != 0 )
                 ASSETCHAINS_RPCPORT = port;
             else safecoin_configfile(ASSETCHAINS_SYMBOL,ASSETCHAINS_P2PPORT + 1);
-            if (ASSETCHAINS_LASTERA == 0)
+
+            if (ASSETCHAINS_CBMATURITY != 0)
+                COINBASE_MATURITY = ASSETCHAINS_CBMATURITY;
+            else if (ASSETCHAINS_LASTERA == 0 || is_STAKED(ASSETCHAINS_SYMBOL) != 0)
                 COINBASE_MATURITY = 1;
+            if (COINBASE_MATURITY < 1)
+            {
+                fprintf(stderr,"ac_cbmaturity must be >0, shutting down\n");
+                StartShutdown();
+            }
             //fprintf(stderr,"ASSETCHAINS_RPCPORT (%s) %u\n",ASSETCHAINS_SYMBOL,ASSETCHAINS_RPCPORT);
         }
         if ( ASSETCHAINS_RPCPORT == 0 )
@@ -1941,15 +2309,26 @@ void safecoin_args(char *argv0)
         sprintf(fname,"%s_8776",ASSETCHAINS_SYMBOL);
         if ( (fp= fopen(fname,"wb")) != 0 )
         {
-            fprintf(fp,iguanafmtstr,name.c_str(),name.c_str(),name.c_str(),name.c_str(),magicstr,ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT,"78.47.196.146");
+            int8_t notarypay = 0;
+            if ( ASSETCHAINS_NOTARY_PAY[0] != 0 )
+                notarypay = 1;
+            fprintf(fp,iguanafmtstr,name.c_str(),name.c_str(),name.c_str(),name.c_str(),magicstr,ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT,"78.47.196.146",notarypay);
             fclose(fp);
             //printf("created (%s)\n",fname);
         } else printf("error creating (%s)\n",fname);
 #endif
-        if ( SAFECOIN_CCACTIVATE != 0 && ASSETCHAINS_CC < 2 )
+        if ( ASSETCHAINS_CC < 2 )
+        {
+            if ( SAFECOIN_CCACTIVATE != 0 )
         {
             ASSETCHAINS_CC = 2;
-            fprintf(stderr,"smart utxo CC contracts will activate at height.%d\n",SAFECOIN_CCACTIVATE);
+                fprintf(stderr,"smart utxo CC contracts will activate at height.%d\n",SAFECOIN_CCACTIVATE);
+            }
+            else if ( ccEnablesHeight[0] != 0 )
+            {
+                ASSETCHAINS_CC = 2;
+                fprintf(stderr,"smart utxo CC contract %d will activate at height.%d\n",(int32_t)ccEnablesHeight[0],(int32_t)ccEnablesHeight[1]);
+            }
         }
     }
     else
@@ -1993,19 +2372,10 @@ void safecoin_args(char *argv0)
     int32_t dpowconfs = SAFECOIN_DPOWCONFS;
     if ( ASSETCHAINS_SYMBOL[0] != 0 )
     {
-        BITCOIND_RPCPORT = GetArg("-rpcport", ASSETCHAINS_RPCPORT);
-        //fprintf(stderr,"(%s) port.%u chain params initialized\n",ASSETCHAINS_SYMBOL,BITCOIND_RPCPORT);
-        if ( strcmp("PIRATE",ASSETCHAINS_SYMBOL) == 0 && ASSETCHAINS_HALVING[0] == 77777 )
-        {
-            ASSETCHAINS_HALVING[0] *= 5;
-            fprintf(stderr,"PIRATE halving changed to %d %.1f days\n",(int32_t)ASSETCHAINS_HALVING[0],(double)ASSETCHAINS_HALVING[0]/1440);
-        }
-        else if ( strcmp("VRSC",ASSETCHAINS_SYMBOL) == 0 )
-            dpowconfs = 0;
-    } else BITCOIND_RPCPORT = GetArg("-rpcport", BaseParams().RPCPort());
+        BITCOIND_RPCPORT = GetArg("-rpcport", ASSETCHAINS_RPCPORT);        
+    }else BITCOIND_RPCPORT = GetArg("-rpcport", BaseParams().RPCPort());
     SAFECOIN_DPOWCONFS = GetArg("-dpowconfs",dpowconfs);
-    if ( ASSETCHAINS_SYMBOL[0] == 0 || strcmp(ASSETCHAINS_SYMBOL,"SUPERNET") == 0 || strcmp(ASSETCHAINS_SYMBOL,"DEX") == 0 || strcmp(ASSETCHAINS_SYMBOL,"COQUI") == 0 || strcmp(ASSETCHAINS_SYMBOL,"PIRATE") == 0 || strcmp(ASSETCHAINS_SYMBOL,"SAFEICE") == 0 )
-        SAFECOIN_EXTRASATOSHI = 1;
+    
 }
 
 void safecoin_nameset(char *symbol,char *dest,char *source)

@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -18,6 +18,7 @@
 #define CC_REWARDS_H
 
 #include "CCinclude.h"
+#include <gmp.h>
 
 #define EVAL_REWARDS 0xe5
 #define REWARDSCC_MAXAPR (COIN * 25)

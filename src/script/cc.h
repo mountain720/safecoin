@@ -1,3 +1,18 @@
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #ifndef SCRIPT_CC_H
 #define SCRIPT_CC_H
 
@@ -9,7 +24,7 @@
 
 
 extern uint32_t ASSETCHAINS_CC;
-bool IsCryptoConditionsEnabled();
+bool IsCryptoConditionsEnabled(); 
 
 // Limit acceptable condition types
 // Prefix not enabled because no current use case, ambiguity on how to combine with secp256k1

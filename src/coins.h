@@ -3,10 +3,25 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #ifndef BITCOIN_COINS_H
 #define BITCOIN_COINS_H
 
-//define SAFECOIN_ENABLE_INTEREST //enabling this is a hardfork, activate with new RR method
+//#define SAFECOIN_ENABLE_INTEREST //enabling this is a hardfork, activate with new RR method
 
 #include "compressor.h"
 #include "core_memusage.h"
@@ -21,6 +36,7 @@
 #include <vector>
 #include <unordered_map>
 
+#include <boost/foreach.hpp>
 #include <boost/unordered_map.hpp>
 #include "zcash/IncrementalMerkleTree.hpp"
 //#include "veruslaunch.h"
@@ -127,7 +143,7 @@ public:
     }
 
     void ClearUnspendable() {
-        for (CTxOut &txout : vout) {
+        BOOST_FOREACH(CTxOut &txout, vout) {
             if (txout.scriptPubKey.IsUnspendable())
                 txout.SetNull();
         }
@@ -235,7 +251,7 @@ public:
     //! check whether the entire CCoins is spent
     //! note that only !IsPruned() CCoins can be serialized
     bool IsPruned() const {
-        for (const CTxOut &out : vout)
+        BOOST_FOREACH(const CTxOut &out, vout)
             if (!out.IsNull())
                 return false;
         return true;
@@ -243,7 +259,7 @@ public:
 
     size_t DynamicMemoryUsage() const {
         size_t ret = memusage::DynamicUsage(vout);
-        for (const CTxOut &out : vout) {
+        BOOST_FOREACH(const CTxOut &out, vout) {
             ret += RecursiveDynamicUsage(out.scriptPubKey);
         }
         return ret;
@@ -251,7 +267,7 @@ public:
 
     int64_t TotalTxValue() const {
         int64_t total = 0;
-        for (const CTxOut &out : vout) {
+        BOOST_FOREACH(const CTxOut &out, vout) {
             total += out.nValue;
         }
         return total;
@@ -430,7 +446,7 @@ class CCoinsViewCache;
 /** 
  * A reference to a mutable cache entry. Encapsulating it allows us to run
  *  cleanup code after the modification is finished, and keeping track of
- *  concurrent modifications. 
+ *  concurrent modifications.
  */
 class CCoinsModifier
 {
@@ -487,7 +503,7 @@ protected:
 
     /**
      * Make mutable so that we can "fill the cache" even from Get-methods
-     * declared as "const".  
+     * declared as "const". 
      */
     mutable uint256 hashBlock;
     mutable CCoinsMap cacheCoins;

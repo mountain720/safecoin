@@ -1,5 +1,5 @@
 *** depends/hosts/darwin.mk	2017-01-03 10:53:52.440371182 +0000
---- ../../safecoin-jl777/depends/hosts/darwin.mk	2017-01-03 09:48:21.650035146 +0000
+--- ../../komodo-jl777/depends/hosts/darwin.mk	2017-01-03 09:48:21.650035146 +0000
 ***************
 *** 2,9 ****
   OSX_SDK_VERSION=10.9

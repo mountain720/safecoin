@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2014-2018 The SuperNET Developers.                             *
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -115,7 +115,7 @@ bool LottoExactAmounts(struct CCcontract_info *cp,Eval* eval,const CTransaction 
 bool LottoValidate(struct CCcontract_info *cp,Eval* eval,const CTransaction &tx, uint32_t nIn)
 {
     int32_t numvins,numvouts,preventCCvins,preventCCvouts,i; bool retval;
-    return(false); // reject any lotto CC for now
+    return eval->Invalid("no validation yet");
     numvins = tx.vin.size();
     numvouts = tx.vout.size();
     preventCCvins = preventCCvouts = -1;
@@ -166,14 +166,14 @@ int64_t AddLottoInputs(struct CCcontract_info *cp,CMutableTransaction &mtx,CPubK
     char coinaddr[64]; int64_t nValue,price,totalinputs = 0; uint256 txid,hashBlock; std::vector<uint8_t> origpubkey; CTransaction vintx; int32_t n = 0;
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
     GetCCaddress(cp,coinaddr,pk);
-    SetCCunspents(unspentOutputs,coinaddr);
+    SetCCunspents(unspentOutputs,coinaddr,true);
     for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> >::const_iterator it=unspentOutputs.begin(); it!=unspentOutputs.end(); it++)
     {
         txid = it->first.txhash;
         // prevent dup
         if ( it->second.satoshis < COIN )
             continue;
-        if ( GetTransaction(txid,vintx,hashBlock,false) != 0 )
+        if ( myGetTransaction(txid,vintx,hashBlock) != 0 )
         {
             if ( (nValue= IsLottovout(cp,vintx,(int32_t)it->first.index)) > 0 )
             {
@@ -209,12 +209,12 @@ int64_t LottoPlanFunds(uint64_t refsbits,struct CCcontract_info *cp,CPubKey pk,u
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
     lockedfunds = 0;
     GetCCaddress(cp,coinaddr,pk);
-    SetCCunspents(unspentOutputs,coinaddr);
+    SetCCunspents(unspentOutputs,coinaddr,true);
     for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> >::const_iterator it=unspentOutputs.begin(); it!=unspentOutputs.end(); it++)
     {
         txid = it->first.txhash;
         vout = (int32_t)it->first.index;
-        if ( GetTransaction(txid,tx,hashBlock,false) != 0 && tx.vout[vout].scriptPubKey.IsPayToCryptoCondition() != 0 )
+        if ( myGetTransaction(txid,tx,hashBlock) != 0 && tx.vout[vout].scriptPubKey.IsPayToCryptoCondition() != 0 )
         {
             // need to implement this! if ( (funcid= DecodeLottoOpRet(txid,tx.vout[tx.vout.size()-1].scriptPubKey,sbits,fundingtxid)) == 'F' || funcid == 'T' )
             {
@@ -233,7 +233,7 @@ int64_t LottoPlanFunds(uint64_t refsbits,struct CCcontract_info *cp,CPubKey pk,u
 UniValue LottoInfo(uint256 lottoid)
 {
     UniValue result(UniValue::VOBJ); uint256 hashBlock,hentropy; CTransaction vintx; uint64_t lockedfunds,sbits; int32_t ticketsize,odds,firstheight,period; CPubKey lottopk; struct CCcontract_info *cp,C; char str[67],numstr[65];
-    if ( GetTransaction(lottoid,vintx,hashBlock,false) == 0 )
+    if ( myGetTransaction(lottoid,vintx,hashBlock) == 0 )
     {
         fprintf(stderr,"cant find lottoid\n");
         result.push_back(Pair("result","error"));
@@ -264,13 +264,13 @@ UniValue LottoInfo(uint256 lottoid)
 
 UniValue LottoList()
 {
-    UniValue result(UniValue::VARR); std::vector<std::pair<CAddressIndexKey, CAmount> > addressIndex; struct CCcontract_info *cp,C; uint256 txid,hashBlock,hentropy; CTransaction vintx; uint64_t sbits; int32_t ticketsize,odds,firstheight,period; char str[65];
+    UniValue result(UniValue::VARR); std::vector<uint256> txids; struct CCcontract_info *cp,C; uint256 txid,hashBlock,hentropy; CTransaction vintx; uint64_t sbits; int32_t ticketsize,odds,firstheight,period; char str[65];
     cp = CCinit(&C,EVAL_LOTTO);
-    SetCCtxids(addressIndex,cp->normaladdr);
-    for (std::vector<std::pair<CAddressIndexKey, CAmount> >::const_iterator it=addressIndex.begin(); it!=addressIndex.end(); it++)
+    SetCCtxids(txids,cp->normaladdr,true,cp->evalcode,zeroid,'F');
+    for (std::vector<uint256>::const_iterator it=txids.begin(); it!=txids.end(); it++)
     {
-        txid = it->first.txhash;
-        if ( GetTransaction(txid,vintx,hashBlock,false) != 0 )
+        txid = *it;
+        if ( myGetTransaction(txid,vintx,hashBlock) != 0 )
         {
             if ( vintx.vout.size() > 0 && DecodeLottoFundingOpRet(vintx.vout[vintx.vout.size()-1].scriptPubKey,sbits,ticketsize,odds,firstheight,period,hentropy) == 'F' )
             {

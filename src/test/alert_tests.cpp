@@ -25,6 +25,7 @@
 #include <fstream>
 
 #include <boost/filesystem/operations.hpp>
+#include <boost/foreach.hpp>
 #include <boost/test/unit_test.hpp>
 
 #include "key.h"
@@ -284,7 +285,7 @@ BOOST_AUTO_TEST_CASE(AlertApplies)
     SetMockTime(11);
     const std::vector<unsigned char>& alertKey = Params(CBaseChainParams::MAIN).AlertKey();
 
-    for (const CAlert& alert : alerts)
+    BOOST_FOREACH(const CAlert& alert, alerts)
     {
         BOOST_CHECK(alert.CheckSignature(alertKey));
     }
@@ -330,7 +331,7 @@ BOOST_AUTO_TEST_CASE(AlertNotify)
 
     mapArgs["-alertnotify"] = std::string("echo %s >> ") + temp.string();
 
-    for (CAlert alert : alerts)
+    BOOST_FOREACH(CAlert alert, alerts)
         alert.ProcessAlert(alertKey, false);
 
     std::vector<std::string> r = read_lines(temp);

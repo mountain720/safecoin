@@ -2,6 +2,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #include "hash.h"
 #include "nonce.h"
 #include <cstring>
@@ -29,39 +44,43 @@ bool CPOSNonce::NewNonceActive(int32_t height)
 
 void CPOSNonce::SetPOSEntropy(const uint256 &pastHash, uint256 txid, int32_t voutNum)
 {
+    // get low 96 bits of past hash and put it in top 96 bits of low 128 bits of nonce
+    CVerusHashWriter hashWriter = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
 
     // first hash the pastHash, txid, and voutNum, to create a combined 96 bits, which will be used in the nonce
-  //   hashWriter << pastHash;
-  //  hashWriter << txid;
-  //  hashWriter << voutNum;
+    hashWriter << pastHash;
+    hashWriter << txid;
+    hashWriter << voutNum;
 
-  //   arith_uint256 arNonce = (UintToArith256(*this) & posDiffMask) |
-  //      (UintToArith256(hashWriter.GetHash()) & entropyMask);
+    arith_uint256 arNonce = (UintToArith256(*this) & posDiffMask) |
+        (UintToArith256(hashWriter.GetHash()) & entropyMask);
 
     // printf("before %s\n", ArithToUint256(arNonce).GetHex().c_str());
 
-  //  hashWriter.Reset();
-  //  hashWriter << ArithToUint256(arNonce);
+    hashWriter.Reset();
+    hashWriter << ArithToUint256(arNonce);
 
-  //    *this = CPOSNonce(ArithToUint256((UintToArith256(hashWriter.GetHash()) << 128) | arNonce));
+    *this = CPOSNonce(ArithToUint256((UintToArith256(hashWriter.GetHash()) << 128) | arNonce));
 
     // printf("after  %s\n", this->GetHex().c_str());
 }
 
 bool CPOSNonce::CheckPOSEntropy(const uint256 &pastHash, uint256 txid, int32_t voutNum)
 {
+    // get low 96 bits of past hash and put it in top 96 bits of low 128 bits of nonce
+    CVerusHashWriter hashWriter = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
 
     // first hash the pastHash, txid, and voutNum, to create a combined 96 bits, which will be used in the nonce
-  // hashWriter << pastHash;
-  //  hashWriter << txid;
-  //  hashWriter << voutNum;
+    hashWriter << pastHash;
+    hashWriter << txid;
+    hashWriter << voutNum;
 
-  //   arith_uint256 arNonce = (UintToArith256(*this) & posDiffMask) |
-  //      (UintToArith256(hashWriter.GetHash()) & entropyMask);
+    arith_uint256 arNonce = (UintToArith256(*this) & posDiffMask) |
+        (UintToArith256(hashWriter.GetHash()) & entropyMask);
 
-    //   hashWriter.Reset();
-    //  hashWriter << ArithToUint256(arNonce);
+    hashWriter.Reset();
+    hashWriter << ArithToUint256(arNonce);
 
-  //   return UintToArith256(*this) == (UintToArith256(hashWriter.GetHash()) << 128 | arNonce);
+    return UintToArith256(*this) == (UintToArith256(hashWriter.GetHash()) << 128 | arNonce);
 }
 

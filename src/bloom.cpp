@@ -2,6 +2,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #include "bloom.h"
 
 #include "primitives/transaction.h"
@@ -13,6 +28,8 @@
 
 #include <math.h>
 #include <stdlib.h>
+
+#include <boost/foreach.hpp>
 
 #define LN2SQUARED 0.4804530139182014246671025263266649717305529515945455
 #define LN2 0.6931471805599453094172321214581765680755001343602552
@@ -179,7 +196,7 @@ bool CBloomFilter::IsRelevantAndUpdate(const CTransaction& tx)
     if (fFound)
         return true;
 
-    for (const CTxIn& txin : tx.vin)
+    BOOST_FOREACH(const CTxIn& txin, tx.vin)
     {
         // Match if the filter contains an outpoint tx spends
         if (contains(txin.prevout))

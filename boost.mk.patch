@@ -1,5 +1,5 @@
 *** depends/packages/boost.mk	2017-01-03 10:53:52.440371182 +0000
---- ../../safecoin-jl777/depends/packages/boost.mk	2017-01-03 09:48:21.650035146 +0000
+--- ../../komodo-jl777/depends/packages/boost.mk	2017-01-03 09:48:21.650035146 +0000
 ***************
 *** 11,24 ****
   $(package)_config_opts=--layout=tagged --build-type=complete --user-config=user-config.jam

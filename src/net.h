@@ -3,6 +3,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #ifndef BITCOIN_NET_H
 #define BITCOIN_NET_H
 
@@ -18,6 +33,7 @@
 #include "sync.h"
 #include "uint256.h"
 #include "utilstrencodings.h"
+#include "util.h"
 
 #include <deque>
 #include <stdint.h>
@@ -27,6 +43,7 @@
 #endif
 
 #include <boost/filesystem/path.hpp>
+#include <boost/foreach.hpp>
 #include <boost/signals2/signal.hpp>
 
 // Enable OpenSSL Support for Safecoin
@@ -51,7 +68,7 @@ static const unsigned int MAX_INV_SZ = 50000;
 /** The maximum number of new addresses to accumulate before announcing. */
 static const unsigned int MAX_ADDR_TO_SEND = 1000;
 /** Maximum length of incoming protocol messages (no message over 2 MiB is currently acceptable). */
-static const unsigned int MAX_PROTOCOL_MESSAGE_LENGTH = 4 * 1024 * 1024;
+static const unsigned int MAX_PROTOCOL_MESSAGE_LENGTH = (_MAX_BLOCK_SIZE + 24); // 24 is msgheader size
 /** Maximum length of strSubVer in `version` message */
 static const unsigned int MAX_SUBVERSION_LENGTH = 256;
 /** -listen default */
@@ -184,6 +201,7 @@ struct LocalServiceInfo {
     int nScore;
     int nPort;
 };
+
 extern CCriticalSection cs_mapLocalHost;
 extern std::map<CNetAddr, LocalServiceInfo> mapLocalHost;
 
@@ -285,6 +303,7 @@ public:
     int64_t nLastRecv;
     int64_t nTimeConnected;
     int64_t nTimeOffset;
+    uint32_t prevtimes[16];
     CAddress addr;
     std::string addrName;
     CService addrLocal;
@@ -302,6 +321,9 @@ public:
     bool fNetworkNode;
     bool fSuccessfullyConnected;
     bool fDisconnect;
+    // count blocks seen.
+    int8_t nBlocksinARow;
+    int8_t nBlocksinARow2;
     // We use fRelayTxes for two purposes -
     // a) it allows us to not relay tx invs before receiving the peer's version message
     // b) the peer may tell us in its version message that we should not relay tx invs
@@ -386,7 +408,7 @@ public:
     unsigned int GetTotalRecvSize()
     {
         unsigned int total = 0;
-        for (const CNetMessage &msg : vRecvMsg)
+        BOOST_FOREACH(const CNetMessage &msg, vRecvMsg)
             total += msg.vRecv.size() + 24;
         return total;
     }
@@ -398,7 +420,7 @@ public:
     void SetRecvVersion(int nVersionIn)
     {
         nRecvVersion = nVersionIn;
-        for (CNetMessage &msg : vRecvMsg)
+        BOOST_FOREACH(CNetMessage &msg, vRecvMsg)
             msg.SetVersion(nVersionIn);
     }
 
@@ -468,6 +490,7 @@ public:
 
     void PushMessage(const char* pszCommand)
     {
+        //fprintf(stderr,"push.(%s)\n",pszCommand);
         try
         {
             BeginMessage(pszCommand);
@@ -483,6 +506,7 @@ public:
     template<typename T1>
     void PushMessage(const char* pszCommand, const T1& a1)
     {
+        //fprintf(stderr,"push.(%s)\n",pszCommand);
         try
         {
             BeginMessage(pszCommand);

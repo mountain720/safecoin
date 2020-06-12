@@ -2,6 +2,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/******************************************************************************
+ * Copyright © 2014-2019 The SuperNET Developers.                             *
+ *                                                                            *
+ * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
+ * the top-level directory of this distribution for the individual copyright  *
+ * holder information and the developer policies on copyright and licensing.  *
+ *                                                                            *
+ * Unless otherwise agreed in a custom licensing agreement, no part of the    *
+ * SuperNET software, including this file may be copied, modified, propagated *
+ * or distributed except according to the terms contained in the LICENSE file *
+ *                                                                            *
+ * Removal or modification of this copyright notice is prohibited.            *
+ *                                                                            *
+ ******************************************************************************/
+
 #include "metrics.h"
 
 #include "chainparams.h"
@@ -24,8 +39,7 @@
 #endif
 #include <unistd.h>
 
-extern uint64_t ASSETCHAINS_TIMELOCKGTE;
-extern uint32_t ASSETCHAINS_ALGO, ASSETCHAINS_VERUSHASH;
+#include "safecoin_defs.h"
 int64_t safecoin_block_unlocktime(uint32_t nHeight);
 
 void AtomicTimer::start()
@@ -122,7 +136,7 @@ int64_t GetUptime()
 
 double GetLocalSolPS()
 {
-    if (ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH)
+    if (ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH || ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASHV1_1)
     {
         return miningTimer.rate(nHashCount);
     }
@@ -228,14 +242,12 @@ int printStats(bool mining)
     int height;
     int64_t tipmediantime;
     size_t connections;
-    size_t tlsConnections;
     int64_t netsolps;
     {
         LOCK2(cs_main, cs_vNodes);
         height = chainActive.Height();
         tipmediantime = chainActive.LastTip()->GetMedianTimePast();
         connections = vNodes.size();
-        tlsConnections = std::count_if(vNodes.begin(), vNodes.end(), [](CNode* n) {return n->ssl != NULL;});
         netsolps = GetNetworkHashPS(120, -1);
     }
     auto localsolps = GetLocalSolPS();
@@ -247,7 +259,7 @@ int printStats(bool mining)
     } else {
         std::cout << "           " << _("Block height") << " | " << height << std::endl;
     }
-    std::cout << "            " << _("Connections") << " | " << connections << " (TLS: " << tlsConnections << ")" << std::endl;
+    std::cout << "            " << _("Connections") << " | " << connections << std::endl;
     std::cout << "  " << _("Network solution rate") << " | " << netsolps << " Sol/s" << std::endl;
     if (mining && miningTimer.running()) {
         std::cout << "    " << _("Local solution rate") << " | " << strprintf("%.4f Sol/s", localsolps) << std::endl;
@@ -286,7 +298,7 @@ int printMiningStatus(bool mining)
         lines++;
     } else {
         std::cout << _("You are currently not mining.") << std::endl;
-        std::cout << _("To enable mining, add 'gen=1' to your safecoin.conf and restart.") << std::endl;
+        std::cout << _("To enable mining, add 'gen=1' to your zcash.conf and restart.") << std::endl;
         lines += 2;
     }
     std::cout << std::endl;
@@ -467,7 +479,7 @@ bool enableVTMode()
 void ThreadShowMetricsScreen()
 {
     // Make this thread recognisable as the metrics screen thread
-    RenameThread("safecoin-metrics-screen");
+    RenameThread("zcash-metrics-screen");
 
     // Determine whether we should render a persistent UI or rolling metrics
     bool isTTY = isatty(STDOUT_FILENO);
@@ -487,8 +499,8 @@ void ThreadShowMetricsScreen()
         std::cout << std::endl;
 
         // Thank you text
-        std::cout << _("Welcome to Safecoin, and thank you for making cryptocurrency a Safer place!") << std::endl;
-        std::cout << _("Thank you for running a Safecoin node!") << std::endl;
+        std::cout << _("Thank you for running a Zcash node!") << std::endl;
+        std::cout << _("You're helping to strengthen the network and contributing to a social good :)") << std::endl;
 
         // Privacy notice text
         std::cout << PrivacyInfo();
@@ -540,7 +552,7 @@ void ThreadShowMetricsScreen()
             // Explain how to exit
             std::cout << "[";
 #ifdef WIN32
-            std::cout << _("'safecoin-cli.exe stop' to exit");
+            std::cout << _("'zcash-cli.exe stop' to exit");
 #else
             std::cout << _("Press Ctrl+C to exit");
 #endif

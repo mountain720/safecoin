@@ -291,8 +291,8 @@ def gen_release_notes(release, releasefrom):
 
 @phase('Updating debian changelog.')
 def update_debian_changelog(release):
-    os.environ['DEBEMAIL'] = 'safe@safecoin.org'
-    os.environ['DEBFULLNAME'] = 'Team SAFE'
+    os.environ['DEBEMAIL'] = 'team@z.cash'
+    os.environ['DEBFULLNAME'] = 'Zcash Company'
     sh_log(
         'debchange',
         '--newversion', release.debversion,

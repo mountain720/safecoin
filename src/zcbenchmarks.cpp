@@ -63,8 +63,8 @@ void post_wallet_load(){
 #ifdef ENABLE_MINING
     // Generate coins in the background
     if (pwalletMain || !GetArg("-mineraddress", "").empty())
-        GenerateBitcoins(GetBoolArg("-gen", false), pwalletMain, GetArg("-genproclimit", 0));
-#endif    
+        GenerateBitcoins(GetBoolArg("-gen", false), pwalletMain, GetArg("-genproclimit", 1));
+#endif
 }
 
 
@@ -172,9 +172,8 @@ double benchmark_solve_equihash()
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << I;
 
-
-    unsigned int n = 200;
-    unsigned int k = 9;
+    unsigned int n = Params(CBaseChainParams::MAIN).EquihashN();
+    unsigned int k = Params(CBaseChainParams::MAIN).EquihashK();
     crypto_generichash_blake2b_state eh_state;
     EhInitialiseState(n, k, eh_state);
     crypto_generichash_blake2b_update(&eh_state, (unsigned char*)&ss[0], ss.size());
@@ -435,20 +434,20 @@ double benchmark_connectblock_slow()
     return duration;
 }
 
-extern UniValue getnewaddress(const UniValue& params, bool fHelp); // in rpcwallet.cpp
-extern UniValue sendtoaddress(const UniValue& params, bool fHelp);
+extern UniValue getnewaddress(const UniValue& params, bool fHelp, const CPubKey& mypk); // in rpcwallet.cpp
+extern UniValue sendtoaddress(const UniValue& params, bool fHelp, const CPubKey& mypk);
 
 double benchmark_sendtoaddress(CAmount amount)
 {
     UniValue params(UniValue::VARR);
-    auto addr = getnewaddress(params, false);
+    auto addr = getnewaddress(params, false, CPubKey());
 
     params.push_back(addr);
     params.push_back(ValueFromAmount(amount));
 
     struct timeval tv_start;
     timer_start(tv_start);
-    auto txid = sendtoaddress(params, false);
+    auto txid = sendtoaddress(params, false, CPubKey());
     return timer_stop(tv_start);
 }
 
@@ -465,14 +464,14 @@ double benchmark_loadwallet()
     return res;
 }
 
-extern UniValue listunspent(const UniValue& params, bool fHelp);
+extern UniValue listunspent(const UniValue& params, bool fHelp, const CPubKey& mypk);
 
 double benchmark_listunspent()
 {
     UniValue params(UniValue::VARR);
     struct timeval tv_start;
     timer_start(tv_start);
-    auto unspent = listunspent(params, false);
+    auto unspent = listunspent(params, false, CPubKey());
     return timer_stop(tv_start);
 }
 

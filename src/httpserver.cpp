@@ -11,6 +11,7 @@
 #include "rpc/protocol.h" // For HTTP status codes
 #include "sync.h"
 #include "ui_interface.h"
+#include "utilstrencodings.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +25,7 @@
 #include <event2/http.h>
 #include <event2/thread.h>
 #include <event2/buffer.h>
+#include <event2/bufferevent.h>
 #include <event2/util.h>
 #include <event2/keyvalq_struct.h>
 
@@ -35,6 +37,7 @@
 #endif
 
 #include <boost/algorithm/string/case_conv.hpp> // for to_lower()
+#include <boost/foreach.hpp>
 #include <boost/scoped_ptr.hpp>
 
 /** HTTP request work item */
@@ -192,7 +195,7 @@ static bool ClientAllowed(const CNetAddr& netaddr)
 {
     if (!netaddr.IsValid())
         return false;
-    for (const CSubNet& subnet : rpc_allow_subnets)
+    BOOST_FOREACH (const CSubNet& subnet, rpc_allow_subnets)
         if (subnet.Match(netaddr))
             return true;
     return false;
@@ -206,7 +209,7 @@ static bool InitHTTPAllowList()
     rpc_allow_subnets.push_back(CSubNet("::1"));         // always allow IPv6 localhost
     if (mapMultiArgs.count("-rpcallowip")) {
         const std::vector<std::string>& vAllow = mapMultiArgs["-rpcallowip"];
-        for (std::string strAllow : vAllow) {
+        BOOST_FOREACH (std::string strAllow, vAllow) {
             CSubNet subnet(strAllow);
             if (!subnet.IsValid()) {
                 uiInterface.ThreadSafeMessageBox(
@@ -218,7 +221,7 @@ static bool InitHTTPAllowList()
         }
     }
     std::string strAllowed;
-    for (const CSubNet& subnet : rpc_allow_subnets)
+    BOOST_FOREACH (const CSubNet& subnet, rpc_allow_subnets)
         strAllowed += subnet.ToString() + " ";
     LogPrint("http", "Allowing HTTP connections from: %s\n", strAllowed);
     return true;
@@ -248,22 +251,36 @@ static std::string RequestMethodString(HTTPRequest::RequestMethod m)
 /** HTTP request callback */
 static void http_request_cb(struct evhttp_request* req, void* arg)
 {
+    // Disable reading to work around a libevent bug, fixed in 2.2.0.
+    if (event_get_version_number() >= 0x02010600 && event_get_version_number() < 0x02020001) {
+        evhttp_connection* conn = evhttp_request_get_connection(req);
+        if (conn) {
+            bufferevent* bev = evhttp_connection_get_bufferevent(conn);
+            if (bev) {
+                bufferevent_disable(bev, EV_READ);
+            }
+        }
+    }
     std::unique_ptr<HTTPRequest> hreq(new HTTPRequest(req));
-
-    LogPrint("http", "Received a %s request for %s from %s\n",
-             RequestMethodString(hreq->GetRequestMethod()), hreq->GetURI(), hreq->GetPeer().ToString());
 
     // Early address-based allow check
     if (!ClientAllowed(hreq->GetPeer())) {
+        LogPrint("http", "HTTP request from %s rejected: Client network is not allowed RPC access\n",
+                 hreq->GetPeer().ToString());
         hreq->WriteReply(HTTP_FORBIDDEN);
         return;
     }
 
     // Early reject unknown HTTP methods
     if (hreq->GetRequestMethod() == HTTPRequest::UNKNOWN) {
+        LogPrint("http", "HTTP request from %s rejected: Unknown HTTP request method\n",
+                 hreq->GetPeer().ToString());
         hreq->WriteReply(HTTP_BADMETHOD);
         return;
     }
+
+    LogPrint("http", "Received a %s request for %s from %s\n",
+             RequestMethodString(hreq->GetRequestMethod()), SanitizeString(hreq->GetURI(), SAFE_CHARS_URI).substr(0, 100), hreq->GetPeer().ToString());
 
     // Find registered handler for prefix
     std::string strURI = hreq->GetURI();
@@ -305,7 +322,7 @@ static void http_reject_request_cb(struct evhttp_request* req, void*)
 /** Event dispatcher thread */
 static void ThreadHTTP(struct event_base* base, struct evhttp* http)
 {
-    RenameThread("safecoin-http");
+    RenameThread("zcash-http");
     LogPrint("http", "Entering http event loop\n");
     event_base_dispatch(base);
     // Event loop will be interrupted by InterruptHTTPServer()
@@ -354,7 +371,7 @@ static bool HTTPBindAddresses(struct evhttp* http)
 /** Simple wrapper to set thread name and run work queue */
 static void HTTPWorkQueueRun(WorkQueue<HTTPClosure>* queue)
 {
-    RenameThread("safecoin-httpworker");
+    RenameThread("zcash-httpworker");
     queue->Run();
 }
 
@@ -458,7 +475,7 @@ void InterruptHTTPServer()
     LogPrint("http", "Interrupting HTTP server\n");
     if (eventHTTP) {
         // Unlisten sockets
-        for (evhttp_bound_socket *socket : boundSockets) {
+        BOOST_FOREACH (evhttp_bound_socket *socket, boundSockets) {
             evhttp_del_accept_socket(eventHTTP, socket);
         }
         // Reject requests on current connections
@@ -598,8 +615,21 @@ void HTTPRequest::WriteReply(int nStatus, const std::string& strReply)
     struct evbuffer* evb = evhttp_request_get_output_buffer(req);
     assert(evb);
     evbuffer_add(evb, strReply.data(), strReply.size());
-    HTTPEvent* ev = new HTTPEvent(eventBase, true,
-        boost::bind(evhttp_send_reply, req, nStatus, (const char*)NULL, (struct evbuffer *)NULL));
+    auto req_copy = req;
+    HTTPEvent* ev = new HTTPEvent(eventBase, true, [req_copy, nStatus]{
+        evhttp_send_reply(req_copy, nStatus, (const char*)NULL, (struct evbuffer *)NULL);
+        // Re-enable reading from the socket. This is the second part of the libevent
+        // workaround above.
+        if (event_get_version_number() >= 0x02010600 && event_get_version_number() < 0x02020001) {
+            evhttp_connection* conn = evhttp_request_get_connection(req_copy);
+            if (conn) {
+                bufferevent* bev = evhttp_connection_get_bufferevent(conn);
+                if (bev) {
+                    bufferevent_enable(bev, EV_READ | EV_WRITE);
+                }
+            }
+        }
+    });
     ev->trigger(0);
     replySent = true;
     req = 0; // transferred back to main thread
@@ -664,4 +694,3 @@ void UnregisterHTTPHandler(const std::string &prefix, bool exactMatch)
         pathHandlers.erase(i);
     }
 }
-

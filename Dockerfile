@@ -1,11 +1,14 @@
 FROM ubuntu:16.04
 MAINTAINER <safe@safecoin.org>
 
-RUN apt-get -y update && \
+RUN printf "deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu xenial main \ndeb-src http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu xenial main \n" >> /etc/apt/sources.list && \
+    DEBIAN_FRONTEND=noninteractive apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 60C317803A41BA51845E371A1E9377A2BA9EF27F && \
+    apt-get -y update && \
     apt-get -y upgrade && \
     apt-get -y install build-essential pkg-config libc6-dev m4 g++-multilib autoconf libtool ncurses-dev \
-    unzip python zlib1g-dev wget bsdmainutils automake libssl-dev libprotobuf-dev \
+    unzip python zlib1g-dev wget bsdmainutils automake libssl-dev libprotobuf-dev gcc-8 g++-8 \
     protobuf-compiler libqrencode-dev libdb++-dev software-properties-common libcurl4-openssl-dev curl && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 60 --slave /usr/bin/g++ g++ /usr/bin/g++-8 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
