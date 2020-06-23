@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2018-2020 The Safecoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -134,8 +135,8 @@ public:
 
         // The best chain should have at least this much work.
         // getblockchaininfo
-        // block: 512429
-        consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000000000007d85a7ca10b");
+        // block: 1210000
+        consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000087e7f7a2240");
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -739,14 +740,15 @@ void *chainparams_commandline()
 				(102864, uint256S("0x00000025561af0c339a1df438fee5ccfa7c49bfcfdcb4d070b0d96cb429bedb5"))
 				(170242, uint256S("0x00000011069f756ed14d4967b9862331ebb2f41a2928291066981258adc672d5"))	//switch to equihash 144,5
 				(360000, uint256S("0x00000260ec5c16afbc1d4e70f9616e60bbc3222ad3604c0d2acdf716da7f8b9c"))
-				(420000, uint256S("0x000002f4a612958896c215e9541a3036fd0401377c03e00d5a5e9fb3dbd379a4"))       //add TLS
+				(420000, uint256S("0x000002f4a612958896c215e9541a3036fd0401377c03e00d5a5e9fb3dbd379a4"))	//add TLS
 				(469630, uint256S("0x000001712c534cca9aca4fac0cf565557ddd8a60ae60b1b8a66f16a0072d608a"))
 				(512429, uint256S("0x000004710d95421263db721829985e2a43c903718444443c1824b954df523fc1"))
-				(775000, uint256S("0x000006368451c8cba607886ee56b0da1559db1e2da7e011f6d297ee44015d7ef")),
-				(int64_t)1565658850,		// * UNIX timestamp of last checkpoint block
-				(int64_t)1276889,		// * total number of transactions between genesis and last checkpoint
+				(775000, uint256S("0x000006368451c8cba607886ee56b0da1559db1e2da7e011f6d297ee44015d7ef"))
+				(1210000, uint256S("0x000029ffcf8e191f7377b551ccdc82a4d7baeb0007e6d33d608492f8feb9ed4a")),	//Block 1207378 rewards will drop
+				(int64_t)1591920258,		// * UNIX timestamp of last checkpoint block
+				(int64_t)2137215,		// * total number of transactions between genesis and last checkpoint
 								//   (the tx=... number in the SetBestChain debug.log lines)
-				(double)2372			// * estimated number of transactions per day after checkpoint
+				(double)2544			// * estimated number of transactions per day after checkpoint
 								//   total number of tx / (checkpoint block height / (24 * 60))
 		};
     }
