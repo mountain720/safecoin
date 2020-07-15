@@ -895,7 +895,7 @@ fi
 AM_CONDITIONAL([TARGET_DARWIN], [test x$TARGET_OS = xdarwin])
 AM_CONDITIONAL([BUILD_DARWIN], [test x$BUILD_OS = xdarwin])
 AM_CONDITIONAL([TARGET_LINUX], [test x$TARGET_OS = xlinux])
-AM_CONDITIONAL([TARGET_AARCH64], [test x$build = xaarch64-unknown-linux-gnu])
+AM_CONDITIONAL([TARGET_AARCH64], [test x$host = xaarch64-unknown-linux-gnu])
 AM_CONDITIONAL([TARGET_WINDOWS], [test x$TARGET_OS = xwindows])
 AM_CONDITIONAL([ENABLE_WALLET],[test x$enable_wallet = xyes])
 AM_CONDITIONAL([ENABLE_MINING],[test x$enable_mining = xyes])
@@ -977,6 +977,13 @@ ac_configure_args="${ac_configure_args} --disable-shared --with-pic --with-bignu
 AC_CONFIG_SUBDIRS([src/secp256k1 src/snark src/univalue src/cryptoconditions])
 
 AC_OUTPUT
+
+GCC_TARGET=`$CC -dumpmachine 2>&1`
+case $GCC_TARGET in
+  aarch64*-*-*)
+    have_arm=true
+    ;;
+esac
 
 dnl Taken from https://wiki.debian.org/RpathIssue
 case $host in
