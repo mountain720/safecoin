@@ -83,7 +83,7 @@ brew install binutils
 brew install protobuf
 brew install coreutils
 brew install wget
-brew install gawk
+brew install mawk
 # Clone the Safecoin repo
 git clone https://github.com/Fair-Exchange/safecoin --branch master --single-branch
 # Change master branch to other branch you wish to compile
