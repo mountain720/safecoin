@@ -130,7 +130,7 @@ inline bool IsCPUVerusOptimized()
     #if defined(__aarch64__)
     long hwcaps= getauxval(AT_HWCAP);
 
-    return (hwcaps & HWCAP_AES) && (hwcaps & HWCAP_PMULL)
+    return (hwcaps & HWCAP_AES) && (hwcaps & HWCAP_PMULL);
     #else
     unsigned int eax,ebx,ecx,edx;
 
