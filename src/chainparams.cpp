@@ -190,11 +190,11 @@ public:
         assert(genesis.hashMerkleRoot == uint256S("0x0e8398ad8ba699fa41e1c56fe6112ca2530719c32b7e3d0cdb6610a458bd7e14"));
         vFixedSeeds.clear();
         vSeeds.clear();
-        //Disabled until dnsseder is updated to support TLS connections.
-        //vSeeds.push_back(CDNSSeedData("dnsseed2", "dnsseedua.local.support"));		// OleksandrBlack
-	//End Disabled
-        vSeeds.push_back(CDNSSeedData("dnsseed3", "dnsseed.local.support"));
-        vSeeds.push_back(CDNSSeedData("dnsseed4", "dnsseed.fair.exchange"));
+        vSeeds.push_back(CDNSSeedData("dnsseed1", "dnsseedua.local.support"));		// OleksandrBlack
+        vSeeds.push_back(CDNSSeedData("dnsseed2", "dnsseedna.local.support"));
+        vSeeds.push_back(CDNSSeedData("dnsseed3", "dnsseedeu.local.support"));
+        vSeeds.push_back(CDNSSeedData("dnsseed4", "dnsseed.local.support"));
+        vSeeds.push_back(CDNSSeedData("dnsseed5", "dnsseed.fair.exchange"));
         vSeeds.push_back(CDNSSeedData("explorer", "explorer.safecoin.org"));
         // TODO: set up bootstrapping for mainnet
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,61);

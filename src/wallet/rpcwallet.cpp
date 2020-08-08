@@ -90,7 +90,7 @@ UniValue z_getoperationstatus_IMPL(const UniValue&, bool);
 
 #define PLAN_NAME_MAX   8
 #define VALID_PLAN_NAME(x)  (strlen(x) <= PLAN_NAME_MAX)
-#define THROW_IF_SYNCING(INSYNC)  if (INSYNC == 0) { throw runtime_error(strprintf("%s: Chain still syncing at height %d, aborting to prevent linkability analysis!",__FUNCTION__,chainActive.Tip()->GetHeight())); }
+#define THROW_IF_SYNCING(INSYNC)  if (INSYNC == 0) { throw runtime_error(strprintf("%s: Chain still syncing at height %d, aborting to prevent linkability analysis!  If you get this message when your chain is already synced, consider adding dbcache=1024 to safecion.conf and safely restarting.",__FUNCTION__,chainActive.Tip()->GetHeight())); }
 
 int tx_height( const uint256 &hash );
 
@@ -429,12 +429,12 @@ UniValue getaddressesbyaccount(const UniValue& params, bool fHelp, const CPubKey
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
-    if (fHelp || params.size() != 1)
+    if (fHelp || params.size() > 1)
         throw runtime_error(
             "getaddressesbyaccount \"account\"\n"
             "\nDEPRECATED. Returns the list of addresses for the given account.\n"
             "\nArguments:\n"
-            "1. \"account\"  (string, required) MUST be set to the empty string \"\" to represent the default account. Passing any other string will result in an error.\n"
+            "1. \"account\"  Empty string \"\" to represent the default account.  NULL will return addresses from all accounts.  Any other string must match an existing account or will result in an error.\n"
             "\nResult:\n"
             "[                     (json array of string)\n"
             "  \"" + strprintf("%s",safecoin_chainname()) + "_address\"  (string) a " + strprintf("%s",safecoin_chainname()) + " address associated with the given account\n"
@@ -447,14 +447,16 @@ UniValue getaddressesbyaccount(const UniValue& params, bool fHelp, const CPubKey
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    string strAccount = AccountFromValue(params[0]);
+    string strAccount;
+    if (params.size() == 1)
+    strAccount = AccountFromValue(params[0]);
 
     // Find all addresses that have the given account
     UniValue ret(UniValue::VARR);
     for (const std::pair<CTxDestination, CAddressBookData>& item : pwalletMain->mapAddressBook) {
         const CTxDestination& dest = item.first;
         const std::string& strName = item.second.name;
-        if (strName == strAccount) {
+        if (strName == strAccount || params.size() == 0) {
             ret.push_back(EncodeDestination(dest));
         }
     }
