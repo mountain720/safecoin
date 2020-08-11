@@ -192,7 +192,7 @@ public:
         vSeeds.clear();
         vSeeds.push_back(CDNSSeedData("dnsseed1", "dnsseedua.local.support"));		// OleksandrBlack
         vSeeds.push_back(CDNSSeedData("dnsseed2", "dnsseedna.local.support"));
-        vSeeds.push_back(CDNSSeedData("dnsseed3", "dnsseedeu.local.support"));
+//        vSeeds.push_back(CDNSSeedData("dnsseed3", "dnsseedeu.local.support"));       //  disabled for now
         vSeeds.push_back(CDNSSeedData("dnsseed4", "dnsseed.local.support"));
         vSeeds.push_back(CDNSSeedData("dnsseed5", "dnsseed.fair.exchange"));
         vSeeds.push_back(CDNSSeedData("explorer", "explorer.safecoin.org"));
