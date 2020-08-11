@@ -1,3 +1,4 @@
+// Copyright (c) 2018-2020 Safecoin
 /******************************************************************************
  * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
@@ -1848,8 +1849,8 @@ uint32_t safecoin_stake(int32_t validateflag,arith_uint256 bnTarget,int32_t nHei
         //fprintf(stderr,"blocktime.%u -> ",blocktime);
         if ( blocktime < prevtime+3 )
             blocktime = prevtime+3;
-        if ( blocktime < GetAdjustedTime()-60 )
-            blocktime = GetAdjustedTime()+30;
+        if ( blocktime < GetTime()-60 )
+            blocktime = GetTime()+30;
         //fprintf(stderr,"blocktime.%u txtime.%u\n",blocktime,txtime);
     }
     if ( value == 0 || txtime == 0 || blocktime == 0 || prevtime == 0 )
@@ -2983,7 +2984,7 @@ int32_t safecoin_staked(CMutableTransaction &txNew,uint32_t nBits,uint32_t *bloc
         lasttime = (uint32_t)time(NULL);
         //fprintf(stderr,"finished kp data of utxo for staking %u ht.%d numkp.%d maxkp.%d\n",(uint32_t)time(NULL),nHeight,numkp,maxkp);
     }
-    block_from_future_rejecttime = (uint32_t)GetAdjustedTime() + ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX;    
+    block_from_future_rejecttime = (uint32_t)GetTime() + ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX;    
     for (i=winners=0; i<numkp; i++)
     {
         if ( fRequestShutdown || !GetBoolArg("-gen",false) )
