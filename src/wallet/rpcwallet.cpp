@@ -3013,7 +3013,7 @@ UniValue listunspent(const UniValue& params, bool fHelp, const CPubKey& mypk)
             "Results are an array of Objects, each of which has:\n"
             "{txid, vout, scriptPubKey, amount, confirmations}\n"
             "\nArguments:\n"
-            "1. minconf          (numeric, optional, default=1) The minimum confirmations to filter\n"
+            "1. minconf          (numeric, optional, default=1) The minimum confirmations to filter.  Hack: -1 sets verbose to 0. Returns simple list of addresses\n"
             "2. maxconf          (numeric, optional, default=9999999) The maximum confirmations to filter\n"
             "3. \"addresses\"    (string) A json array of " + strprintf("%s",safecoin_chainname()) + " addresses to filter\n"
             "    [\n"
@@ -3067,8 +3067,13 @@ UniValue listunspent(const UniValue& params, bool fHelp, const CPubKey& mypk)
             }
         }
     }
+    
+   int verbose = 1;
+   if(nMinDepth == -1)
+        verbose = 0;
 
-    UniValue results(UniValue::VARR);
+    
+    UniValue results(UniValue::VARR);  UniValue simple(UniValue::VARR);
     vector<COutput> vecOutputs;
     assert(pwalletMain != NULL);
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -3095,11 +3100,14 @@ UniValue listunspent(const UniValue& params, bool fHelp, const CPubKey& mypk)
         CAmount nValue = out.tx->vout[out.i].nValue;
         const CScript& pk = out.tx->vout[out.i].scriptPubKey;
         UniValue entry(UniValue::VOBJ); int32_t txheight = 0;
+
+
         entry.push_back(Pair("txid", out.tx->GetHash().GetHex()));
         entry.push_back(Pair("vout", out.i));
         entry.push_back(Pair("generated", out.tx->IsCoinBase()));
 
         if (fValidAddress) {
+            simple.push_back(EncodeDestination(address));
             entry.push_back(Pair("address", EncodeDestination(address)));
             entry.push_back(Pair("segid", (int)safecoin_segid32((char*)EncodeDestination(address).c_str()) & 0x3f ));
 
@@ -3133,8 +3141,14 @@ UniValue listunspent(const UniValue& params, bool fHelp, const CPubKey& mypk)
         entry.push_back(Pair("rawconfirmations",out.nDepth));
         entry.push_back(Pair("confirmations",safecoin_dpowconfs(txheight,out.nDepth)));
         entry.push_back(Pair("spendable", out.fSpendable));
+
+	if (verbose)
         results.push_back(entry);
+
     }
+    
+            if (verbose == 0)
+	      return simple;
     return results;
 }
 
