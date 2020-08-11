@@ -7976,13 +7976,30 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             return true;
         }
 
-        // If we already know the last header in the message, then it contains
-        // no new information for us.  In this case, we do not request
-        // more headers later.  This prevents multiple chains of redundant
-        // getheader requests from running in parallel if triggered by incoming
-        // blocks while the node is still in initial headers sync.
-        const bool hasNewHeaders = (mapBlockIndex.count(headers.back().GetHash()) == 0);
+        bool hasNewHeaders = true;
 
+        // only SAFE have checkpoints in sources, so, using IsInitialBlockDownload() here is
+        // not applicable for assetchains (!)
+        if (GetBoolArg("-fixibd", false) && ASSETCHAINS_SYMBOL[0] == 0 && IsInitialBlockDownload()) {
+
+            /**
+             * This is experimental feature avaliable only for SAFE during initial block download running with
+             * -fixibd arg. Fix was offered by domob1812 here:
+             * https://github.com/bitcoin/bitcoin/pull/8054/files#diff-7ec3c68a81efff79b6ca22ac1f1eabbaR5099
+             * but later it was reverted bcz of synchronization stuck issues.
+             * Explanation:
+             * https://github.com/bitcoin/bitcoin/pull/8306#issuecomment-231584578
+             * Limiting this fix only to IBD and with special command line arg makes it safe, bcz
+             * default behaviour is to request new headers anyway.
+            */
+
+            // If we already know the last header in the message, then it contains
+            // no new information for us.  In this case, we do not request
+            // more headers later.  This prevents multiple chains of redundant
+            // getheader requests from running in parallel if triggered by incoming
+            // blocks while the node is still in initial headers sync.
+            hasNewHeaders = (mapBlockIndex.count(headers.back().GetHash()) == 0);
+        }
         CBlockIndex *pindexLast = NULL;
         BOOST_FOREACH(const CBlockHeader& header, headers) {
             //printf("size.%i, solution size.%i\n", (int)sizeof(header), (int)header.nSolution.size());
