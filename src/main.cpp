@@ -7990,7 +7990,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
              * Explanation:
              * https://github.com/bitcoin/bitcoin/pull/8306#issuecomment-231584578
              * Limiting this fix only to IBD and with special command line arg makes it safe, bcz
-             * default behaviour is to request new headers anyway.
+             * default behavior is not to ask for new headers.
             */
 
             // If we already know the last header in the message, then it contains
