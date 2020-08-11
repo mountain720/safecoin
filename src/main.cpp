@@ -7980,7 +7980,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
         // only SAFE have checkpoints in sources, so, using IsInitialBlockDownload() here is
         // not applicable for assetchains (!)
-        if (GetBoolArg("-fixibd", false) && ASSETCHAINS_SYMBOL[0] == 0 && IsInitialBlockDownload()) {
+        if (GetBoolArg("-fixibd", DEFAULT_FIXIBD) && ASSETCHAINS_SYMBOL[0] == 0 && IsInitialBlockDownload()) {
 
             /**
              * This is experimental feature avaliable only for SAFE during initial block download running with
