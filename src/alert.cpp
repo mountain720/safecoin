@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2018-2020 Safecoin
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -117,7 +118,7 @@ uint256 CAlert::GetHash() const
 
 bool CAlert::IsInEffect() const
 {
-    return (GetAdjustedTime() < nExpiration);
+    return (GetTime() < nExpiration);
 }
 
 bool CAlert::Cancels(const CAlert& alert) const
@@ -152,7 +153,7 @@ bool CAlert::RelayTo(CNode* pnode) const
     {
         if (AppliesTo(pnode->nVersion, pnode->strSubVer) ||
             AppliesToMe() ||
-            GetAdjustedTime() < nRelayUntil)
+            GetTime() < nRelayUntil)
         {
             pnode->PushMessage("alert", *this);
             return true;

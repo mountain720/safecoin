@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2018-2020 Safecoin
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -1484,7 +1485,7 @@ UniValue movecmd(const UniValue& params, bool fHelp, const CPubKey& mypk)
     if (!walletdb.TxnBegin())
         throw JSONRPCError(RPC_DATABASE_ERROR, "database error");
 
-    int64_t nNow = GetAdjustedTime();
+    int64_t nNow = GetTime();
 
     // Debit
     CAccountingEntry debit;

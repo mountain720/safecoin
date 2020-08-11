@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2014 The Bitcoin Core developers
-// Copyright (c) 2018-2020 The Safecoin developers
+// Copyright (c) 2018-2020 Safecoin
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -26,7 +26,6 @@
 #include "netbase.h"
 #include "protocol.h"
 #include "sync.h"
-#include "timedata.h"
 #include "util.h"
 #include "version.h"
 #include "safe/utiltls.h"
@@ -526,7 +525,7 @@ UniValue getnetworkinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
             "  \"subversion\": \"/MagicBean:x.y.z[-v]/\",     (string) the server subversion string\n"
             "  \"protocolversion\": xxxxx,              (numeric) the protocol version\n"
             "  \"localservices\": \"xxxxxxxxxxxxxxxx\", (string) the services we offer to the network\n"
-            "  \"timeoffset\": xxxxx,                   (numeric) the time offset\n"
+            "  \"timeoffset\": xxxxx,                   (numeric) the time offset (deprecated; always 0)\n"
             "  \"connections\": xxxxx,                  (numeric) the number of connections\n"
             "  \"tls_connections\": xxxxx,              (numeric) the number of TLS connections\n"
             "  \"tls_cert_verified\": true|flase,       (boolean) true if the certificate of the current node is verified\n"
@@ -558,14 +557,14 @@ UniValue getnetworkinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
     LOCK(cs_main);
 
     UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("version",       CLIENT_VERSION));
-    obj.push_back(Pair("subversion",    strSubVersion));
-    obj.push_back(Pair("protocolversion",PROTOCOL_VERSION));
-    obj.push_back(Pair("localservices",       strprintf("%016x", nLocalServices)));
-    obj.push_back(Pair("timeoffset",    GetTimeOffset()));
-    obj.push_back(Pair("connections",   (int)vNodes.size()));
-    obj.push_back(Pair("networks",      GetNetworksInfo()));
-    obj.push_back(Pair("relayfee",      ValueFromAmount(::minRelayTxFee.GetFeePerK())));
+    obj.push_back(Pair("version",			CLIENT_VERSION));
+    obj.push_back(Pair("subversion",		strSubVersion));
+    obj.push_back(Pair("protocolversion",	PROTOCOL_VERSION));
+    obj.push_back(Pair("localservices",		strprintf("%016x", nLocalServices)));
+    obj.push_back(Pair("timeoffset",		0));
+    obj.push_back(Pair("connections",		(int)vNodes.size()));
+    obj.push_back(Pair("networks",			GetNetworksInfo()));
+    obj.push_back(Pair("relayfee",			ValueFromAmount(::minRelayTxFee.GetFeePerK())));
     UniValue localAddresses(UniValue::VARR);
     {
         LOCK(cs_mapLocalHost);

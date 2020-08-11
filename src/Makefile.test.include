@@ -1,3 +1,9 @@
+# Copyright (c) 2018-2020 Safecoin
+# Copyright (c) 2016-2020 The Zcash developers
+# Copyright (c) 2013-2019 The Bitcoin Core developers
+# Copyright (c) 2013-2019 Bitcoin Developers
+# Distributed under the MIT software license, see the accompanying
+
 TESTS += test/test_bitcoin
 noinst_PROGRAMS += test/test_bitcoin
 TEST_SRCDIR = test
@@ -96,7 +102,6 @@ BITCOIN_TESTS =\
   test/skiplist_tests.cpp \
   test/test_bitcoin.cpp \
   test/test_bitcoin.h \
-  test/timedata_tests.cpp \
   test/torcontrol_tests.cpp \
   test/transaction_tests.cpp \
   test/uint256_tests.cpp \
