@@ -826,7 +826,7 @@ bool ProcessCC(struct CCcontract_info *cp,Eval* eval, std::vector<uint8_t> param
     height = SAFECOIN_CONNECTING;
     if ( SAFECOIN_CONNECTING < 0 ) // always comes back with > 0 for final confirmation
         return(true);
-    if ( ASSETCHAINS_CC == 0 || (height & ~(1<<30)) < SAFECOIN_CCACTIVATE )
+    if ( (height & ~(1<<30)) < SAFECOIN_CCACTIVATE )    //for testing.  Will require a height or timestamp activation on next Master release
         return eval->Invalid("CC are disabled or not active yet");
     if ( (SAFECOIN_CONNECTING & (1<<30)) != 0 )
     {
@@ -872,7 +872,7 @@ bool CClib_Dispatch(const CC *cond,Eval *eval,std::vector<uint8_t> paramsNull,co
     height = SAFECOIN_CONNECTING;
     if ( SAFECOIN_CONNECTING < 0 ) // always comes back with > 0 for final confirmation
         return(true);
-    if ( ASSETCHAINS_CC == 0 || (height & ~(1<<30)) < SAFECOIN_CCACTIVATE )
+    if ( (height & ~(1<<30)) < SAFECOIN_CCACTIVATE )  //for testing.  Will require a height or timestamp activation on next Master release
         return eval->Invalid("CC are disabled or not active yet");
     if ( (SAFECOIN_CONNECTING & (1<<30)) != 0 )
     {
