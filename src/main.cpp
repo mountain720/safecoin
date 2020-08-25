@@ -3821,7 +3821,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         return state.DoS(100, error("ConnectBlock(): coinbase for block 1 pays wrong amount (actual=%d vs correct=%d)", block.vtx[0].GetValueOut(), blockReward),
                             REJECT_INVALID, "bad-cb-amount");
     }
-    if ( block.vtx[0].GetValueOut() > blockReward+SAFECOIN_EXTRASATOSHI && pindex->GetHeight() >= 103820)
+    if ( block.vtx[0].GetValueOut() > blockReward+SAFECOIN_EXTRASATOSHI && (pindex->GetHeight() >= 103820 || ASSETCHAINS_SYMBOL[0] != 0))
     {
       if ( ASSETCHAINS_SYMBOL[0] != 0 || pindex->GetHeight() >= 194253 || block.vtx[0].vout[0].nValue > blockReward )
         {
