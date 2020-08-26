@@ -1,6 +1,6 @@
-safecoinifqbelf5.onion
-safecoinxa4bcixr.onion
-safecoingj6j6hr2.onion
-safecoindma2sodz.onion
-safecoinl4sw6vuu.onion
-safecoingsa422tf.onion
+safecoinifqbelf5.onion:8770
+safecoinxa4bcixr.onion:8770
+safecoingj6j6hr2.onion:8770
+safecoindma2sodz.onion:8770
+safecoinl4sw6vuu.onion:8770
+safecoingsa422tf.onion:8770
